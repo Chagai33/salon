@@ -12,9 +12,10 @@
 | | מה |
 |---|---|
 | `CLAUDE.md` | החוזה שכל סשן קורא: המוצר, ההכרעות, מה חוסם, ומה לא נמדד |
-| `DOCS/PLANING/` | שלוש עשרה רשומות ושתי הכרעות קבע. [הלוח](DOCS/PLANING/README.md) |
+| `DOCS/PLANING/` | ארבע עשרה רשומות ושתי הכרעות קבע. [הלוח](DOCS/PLANING/README.md) |
 | `DOCS/GLOSSARY.md` | המקור היחיד לשמות במוצר |
 | `tools/extract-2026-sheet.py` | המרת גיליון 2026 לנתונים מנורמלים |
+| `tools/hebrew-closures.mjs` | ימי הסגירה של החגים, ב-`Intl` המובנה בלי תלויות |
 | `data/` | ⚠️ **סיכום בלי שמות בלבד.** 214 השיבוצים אינם במאגר, [רשומה 08](DOCS/PLANING/08-the-repository-is-public.md) |
 
 **אין `src/`, אין `package.json`, ואין פרויקט Firebase.**
@@ -23,13 +24,13 @@
 
 1. **[CLAUDE.md](CLAUDE.md)**. ההכרעות שניתנו, ומה שעוד לא.
 2. **[DOCS/PLANING/06-open-decisions.md](DOCS/PLANING/06-open-decisions.md)**.
-   19 החלטות, **שבע נסגרו, ואין יותר חוסם.**
+   19 החלטות, **עשר נסגרו, ואין חוסם.**
 3. **[DOCS/PLANING/01-the-spreadsheet-as-it-is.md](DOCS/PLANING/01-the-spreadsheet-as-it-is.md)**.
    הגיליון הוא האפיון, וזו המדידה שלו.
 
 ## ההכרעות שניתנו, 04/10/2026
 
-**עשרים וארבע בחמישה סבבים**, כולן ב-[CLAUDE.md](CLAUDE.md). Firestore, התחברות ב-Google,
+**שלושים בשישה סבבים**, כולן ב-[CLAUDE.md](CLAUDE.md). Firestore, התחברות ב-Google,
 התראות מייל בלבד, והמנהל מגדיר את הקוד והאפליקציה מציגה אותו רק למי שזכאי.
 **והנוקבות שבהן:**
 
@@ -40,11 +41,16 @@
 **חבר נרשם ב-Google וממתין לאישור מנהלת.** ⚠️ **ואין קשר לגיליון: מתחילים
 מחדש**, והייבוא מביא ימי פעילות וחגים בלבד.
 
-## הרצת ההמרה
+**והערימה:** Vite, React, TypeScript, Tailwind 4, Firestore, Firebase Hosting,
+**ו-`Intl` המובנה ללוח העברי.** ⚠️ `@hebcal` הוא GPL-2.0, ובאפליקציית דפדפן
+הקוד מוגש למשתמש.
+
+## הרצת הכלים
 
 ```bash
 pip install openpyxl
 python3 tools/extract-2026-sheet.py <גיליון.xlsx> data
+node tools/hebrew-closures.mjs 2026
 ```
 
 מייצר שלושה קבצים ב-`data/`, ומדפיס את הסכומים ואת הממצאים.
