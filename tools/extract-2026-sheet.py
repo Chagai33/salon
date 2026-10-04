@@ -22,12 +22,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sys
 import unicodedata
 from calendar import monthrange
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import date
 from pathlib import Path
 
@@ -42,6 +43,9 @@ MONTHS = {
 
 # עמודה B היא ראשון. הגיליון אינו מחזיק שישי ושבת כלל.
 WEEKDAY_COLUMNS = {2: "sunday", 3: "monday", 4: "tuesday", 5: "wednesday", 6: "thursday"}
+
+# שתי המשמרות, זהות בכל עשרת החודשים שנמדדו. התפוסה נגזרת מהמספר הזה.
+SHIFT_LABELS = ("morning", "evening")
 
 # date.weekday() מחזיר שני כאפס. ראשון הוא שש.
 PYTHON_WEEKDAY = {"sunday": 6, "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3}
@@ -368,6 +372,90 @@ def name_clusters(raw_names: dict[str, int]) -> list[dict]:
     return sorted(clusters, key=lambda c: (order[c["strength"]], -c["total"]))
 
 
+def pseudonym(name: str) -> str:
+    """
+    כינוי יציב לשם, כדי שההתפלגות לאדם תהיה נראית בסיכום שנדחף למאגר הציבורי.
+
+    ⚠️ אינו אנונימיזציה ואינו מתיימר להיות. מי שמחזיק את הגיליון יכול לגבב כל
+    שם ולמצוא את הכינוי שלו. רשומה 08.
+    """
+    return "member-" + hashlib.sha256(("salon-2026:" + name).encode()).hexdigest()[:8]
+
+
+def occupancy(assignments: list[dict]) -> dict:
+    """
+    כמה מהמשמרות האפשריות שובצו בפועל, לחודש ובסך הכל.
+
+    ⚠️ "אפשריות" הוא ימי ראשון עד חמישי כפול שתי משמרות, וזו הנחה שנגזרת
+    מהגיליון ולא נשאלה: ייתכן שהסלון אינו מצפה לשמירה בכל משמרת.
+    """
+    filled: dict[str, int] = defaultdict(int)
+    for item in assignments:
+        filled[item["date"][:7]] += 1
+
+    out: dict[str, dict] = {}
+    for month in range(1, 13):
+        key = f"{YEAR}-{month:02d}"
+        if key not in filled:
+            continue
+        days = monthrange(YEAR, month)[1]
+        weekdays = sum(
+            1 for day in range(1, days + 1)
+            if date(YEAR, month, day).weekday() in PYTHON_WEEKDAY.values()
+        )
+        possible = weekdays * len(SHIFT_LABELS)
+        out[key] = {
+            "possible": possible,
+            "filled": filled[key],
+            "open": possible - filled[key],
+        }
+
+    total_possible = sum(v["possible"] for v in out.values())
+    total_filled = sum(v["filled"] for v in out.values())
+    return {
+        "byMonth": out,
+        "total": {
+            "possible": total_possible,
+            "filled": total_filled,
+            "open": total_possible - total_filled,
+        },
+    }
+
+
+def activity_tiers(assignments: list[dict]) -> dict:
+    """
+    שלוש מדרגות הפעילות, בהכרעת בעל המוצר 04/10/2026, רשומה 09.
+
+    פעיל: יש משמרת בחודש הנבדק.
+    מדשדש: יש משמרת בשלושת החודשים האחרונים, אך לא בחודש הנבדק.
+    רדום: מוכר, ואין משמרת בשלושת החודשים האחרונים.
+
+    ⚠️ הספירה היא לפי שם גולמי ולא לפי אדם, ולכן היא חסם עליון: 42 הצורות הן
+    פחות אנשים, רשומה 05. המספרים כאן אינם דוח המוצר, הם קו בסיס למדידה.
+    """
+    per_month: dict[str, set[str]] = defaultdict(set)
+    for item in assignments:
+        per_month[item["date"][:7]].add(item["rawName"])
+
+    months = sorted(per_month)
+    out = {}
+    for index, month in enumerate(months):
+        known: set[str] = set()
+        for earlier in months[: index + 1]:
+            known |= per_month[earlier]
+        window: set[str] = set()
+        for recent in months[max(0, index - 2): index + 1]:
+            window |= per_month[recent]
+        active = per_month[month]
+        out[month] = {
+            "active": len(active),
+            "lukewarm": len(window - active),
+            "dormant": len(known - window),
+            "knownSoFar": len(known),
+        }
+    return {"dormantAfterMonths": 3, "byMonth": out}
+
+
 def main() -> int:
     if len(sys.argv) != 3:
         print(__doc__)
@@ -379,11 +467,63 @@ def main() -> int:
     data = extract(source)
     clusters = name_clusters(data["rawNames"])
 
+    # ⚠️ שני הקבצים האלה נושאים שמות ואינם נדחפים למאגר. רשומה 08.
     (out_dir / "sheet-2026.json").write_text(
         json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf8"
     )
     (out_dir / "names-to-reconcile.json").write_text(
         json.dumps(clusters, ensure_ascii=False, indent=2) + "\n", encoding="utf8"
+    )
+
+    occ = occupancy(data["assignments"])
+    tiers = activity_tiers(data["assignments"])
+
+    months: dict[str, dict] = {}
+    for item in data["assignments"]:
+        months.setdefault(item["date"][:7], {"assignments": 0, "activityDays": set()})
+        months[item["date"][:7]]["assignments"] += 1
+    for item in data["activities"]:
+        months.setdefault(item["date"][:7], {"assignments": 0, "activityDays": set()})
+        months[item["date"][:7]]["activityDays"].add(item["date"])
+
+    summary = {
+        "source": "גיליון השיבוצים של 2026, לא נשמר במאגר",
+        "year": YEAR,
+        "totals": {
+            "assignments": len(data["assignments"]),
+            "activityEvents": len(data["activities"]),
+            "activityDays": len({a["date"] for a in data["activities"]}),
+            "gridClosures": len(data["gridClosures"]),
+            "distinctRawNames": len(data["rawNames"]),
+        },
+        "byMonth": {
+            month: {"assignments": v["assignments"], "activityDays": len(v["activityDays"])}
+            for month, v in sorted(months.items())
+        },
+        "occupancy": occ,
+        "activityTiers": tiers,
+        "spaces": dict(Counter(a["space"] or "none" for a in data["activities"])),
+        "shiftTemplates": sorted({(a["startTime"], a["endTime"]) for a in data["assignments"]}),
+        "weekdaysUsed": sorted({
+            date.fromisoformat(a["date"]).strftime("%A") for a in data["assignments"]
+        }),
+        # בכמה חודשים נפרדים שובץ כל אדם. זה המדד שאומר אם הקהילה מחזיקה
+        # אנשים או מחליפה אותם, וזו הסיבה שהוא נספר לחודשים ולא למשמרות.
+        "monthsPerPseudonym": dict(sorted(
+            Counter(
+                pseudonym(name)
+                for name, _ in {(a["rawName"], a["date"][:7]) for a in data["assignments"]}
+            ).items(),
+            key=lambda kv: -kv[1],
+        )),
+        "assignmentsPerPseudonym": dict(sorted(
+            ((pseudonym(name), count) for name, count in data["rawNames"].items()),
+            key=lambda kv: -kv[1],
+        )),
+        "findings": data["findings"],
+    }
+    (out_dir / "summary-2026.json").write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf8"
     )
 
     by_kind: dict[str, int] = defaultdict(int)
@@ -395,6 +535,8 @@ def main() -> int:
     print(f"סגירות ברשת     {len(data['gridClosures'])}")
     print(f"שמות גולמיים    {len(data['rawNames'])}")
     print(f"קבוצות להכרעה   {len(clusters)}")
+    print(f"תפוסה           {occ['total']['filled']} מתוך {occ['total']['possible']}"
+          f", {100 * occ['total']['open'] // occ['total']['possible']}% פתוחות")
     print("ממצאים:")
     for kind, count in sorted(by_kind.items(), key=lambda kv: -kv[1]):
         print(f"  {count:4d}  {kind}")

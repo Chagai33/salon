@@ -50,6 +50,130 @@
       "activityDays": 11
     }
   },
+  "occupancy": {
+    "byMonth": {
+      "2026-01": {
+        "possible": 42,
+        "filled": 24,
+        "open": 18
+      },
+      "2026-02": {
+        "possible": 40,
+        "filled": 28,
+        "open": 12
+      },
+      "2026-03": {
+        "possible": 46,
+        "filled": 21,
+        "open": 25
+      },
+      "2026-04": {
+        "possible": 44,
+        "filled": 17,
+        "open": 27
+      },
+      "2026-05": {
+        "possible": 42,
+        "filled": 18,
+        "open": 24
+      },
+      "2026-06": {
+        "possible": 44,
+        "filled": 18,
+        "open": 26
+      },
+      "2026-07": {
+        "possible": 44,
+        "filled": 17,
+        "open": 27
+      },
+      "2026-08": {
+        "possible": 44,
+        "filled": 37,
+        "open": 7
+      },
+      "2026-09": {
+        "possible": 44,
+        "filled": 20,
+        "open": 24
+      },
+      "2026-10": {
+        "possible": 42,
+        "filled": 14,
+        "open": 28
+      }
+    },
+    "total": {
+      "possible": 432,
+      "filled": 214,
+      "open": 218
+    }
+  },
+  "activityTiers": {
+    "dormantAfterMonths": 3,
+    "byMonth": {
+      "2026-01": {
+        "active": 13,
+        "lukewarm": 0,
+        "dormant": 0,
+        "knownSoFar": 13
+      },
+      "2026-02": {
+        "active": 11,
+        "lukewarm": 7,
+        "dormant": 0,
+        "knownSoFar": 18
+      },
+      "2026-03": {
+        "active": 8,
+        "lukewarm": 13,
+        "dormant": 0,
+        "knownSoFar": 21
+      },
+      "2026-04": {
+        "active": 12,
+        "lukewarm": 7,
+        "dormant": 5,
+        "knownSoFar": 24
+      },
+      "2026-05": {
+        "active": 11,
+        "lukewarm": 7,
+        "dormant": 6,
+        "knownSoFar": 24
+      },
+      "2026-06": {
+        "active": 11,
+        "lukewarm": 6,
+        "dormant": 9,
+        "knownSoFar": 26
+      },
+      "2026-07": {
+        "active": 10,
+        "lukewarm": 9,
+        "dormant": 9,
+        "knownSoFar": 28
+      },
+      "2026-08": {
+        "active": 19,
+        "lukewarm": 7,
+        "dormant": 10,
+        "knownSoFar": 36
+      },
+      "2026-09": {
+        "active": 12,
+        "lukewarm": 14,
+        "dormant": 13,
+        "knownSoFar": 39
+      },
+      "2026-10": {
+        "active": 7,
+        "lukewarm": 20,
+        "dormant": 15,
+        "knownSoFar": 42
+      }
+    }
+  },
   "spaces": {
     "none": 20,
     "large": 73,
@@ -74,6 +198,50 @@
     "Tuesday",
     "Wednesday"
   ],
+  "monthsPerPseudonym": {
+    "member-142b7b36": 8,
+    "member-d109e271": 8,
+    "member-9d0fa762": 7,
+    "member-fb5fff60": 7,
+    "member-d7bb38dc": 6,
+    "member-964405b8": 5,
+    "member-e107dc6b": 5,
+    "member-a3b2c3e7": 5,
+    "member-cdd04adc": 4,
+    "member-02171aa3": 4,
+    "member-d5a42240": 4,
+    "member-aa71fa6a": 4,
+    "member-aab1c532": 3,
+    "member-bf12e93b": 3,
+    "member-98a8ce79": 2,
+    "member-32c55a89": 2,
+    "member-e17d02a1": 2,
+    "member-ab95978d": 2,
+    "member-f2b541ba": 2,
+    "member-d380423e": 2,
+    "member-454b562a": 2,
+    "member-b3f0bee8": 2,
+    "member-076da5bd": 2,
+    "member-e7c920dd": 2,
+    "member-f9597004": 2,
+    "member-3ea66d62": 2,
+    "member-f1496901": 2,
+    "member-7c4dd1c3": 1,
+    "member-a5b2f58a": 1,
+    "member-b2618fcf": 1,
+    "member-b0d1a183": 1,
+    "member-9a7e11d5": 1,
+    "member-2cd0417f": 1,
+    "member-6c58d6e1": 1,
+    "member-f3320dc7": 1,
+    "member-fc7dc15f": 1,
+    "member-20b71852": 1,
+    "member-5a8ec22b": 1,
+    "member-e56bd2a3": 1,
+    "member-faf24c61": 1,
+    "member-1382d991": 1,
+    "member-9a610f8f": 1
+  },
   "assignmentsPerPseudonym": {
     "member-142b7b36": 20,
     "member-aab1c532": 19,
