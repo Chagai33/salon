@@ -52,9 +52,8 @@ branches/{branchId}
 | `name` | `string` | "הסלון שלנו בתל אביב" |
 | `city` | `string` | |
 | `timezone` | `string` | `Asia/Jerusalem` בכולם |
-| `activeDays` | `number[]` | `[0,1,2,3,4]`, ראשון עד חמישי. 📄 |
-| `shiftTemplates` | `ShiftTemplate[]` | ראה למטה |
-| `spaces` | `Space[]` | ראה למטה |
+| `openingHours` | `Record<0..6, {open,close} \| null>` | ⚠️ **שעות הסלון, ואינן תבניות המשמרת**, רשומה [12](12-the-branch-settings-screen.md) |
+| `shiftTemplates` | `ShiftTemplate[]` | ראה למטה. ⚠️ **נערך על ידי המנהל** |
 | `isActive` | `boolean` | תל אביב `true`, השאר `false` עד שיופעלו |
 | `icsToken` | `string` | המזהה שבכתובת פיד ה-ICS, רשומה [04](04-activity-days-and-the-ics-feed.md) |
 
@@ -73,13 +72,15 @@ branches/{branchId}
 ⚠️ **תבנית ולא קביעה.** היא זו שמולידה חודש חדש, ולכן נובמבר ודצמבר ייווצרו
 ממנה ולא ימתינו למישהו. **ושינוי תבנית אינו משנה משמרת שכבר נוצרה.**
 
-**`Space`**, ⚠️ **תוקן 04/10/2026.** שמות המוצר נקראו מהאתר והם זהים בשלושת
-הסלונים: `chavruta` **חברותא**, חלל עבודה משותף, ו-`vehagit` **והגית**, חלל
-עבודה שקט. **`חלל גדול` ו`חלל שקט` שבגיליון הם שמות פנימיים**, רשומה
-[11](11-what-the-website-says.md).
+⚠️ **ואין `spaces` על הסניף, וזו הכרעה.** בלשון בעל המוצר 04/10: **"משמרת
+בסלון זה משמרת שנוגעת לכל הסלון ולא לחלל ספציפי", ולכן "לא רלוונטי השמות."**
 
-⚠️ **ו-`small` ו-`offices` מהגיליון אינם על האתר באף סניף**, ולכן אין להם שם
-מאומת. החלטה 14 ברשומה [06](06-open-decisions.md).
+**החלל נשאר תווית חופשית על אירוע ולא ישות**, רשומה
+[12](12-the-branch-settings-screen.md).
+
+⚠️ **ו-`openingHours` אינו נגזר מהתבניות ולא להפך.** בתל אביב הסלון פתוח 12
+שעות והתבניות מכסות שמונה, **כי יש איש צוות קבוע ב-14:00 עד 18:00**, הכרעת
+בעל המוצר 04/10. **שדה שנגזר היה מוחק את העובדה הזו.**
 
 ## `branches/{branchId}/members/{memberId}`
 
@@ -140,8 +141,9 @@ branches/{branchId}
 |---|---|---|
 | `date` | `string` | `2026-10-08` |
 | `events` | `ActivityEvent[]` | |
-| `salonStatus` | `"open" \| "closed" \| "closesEarly" \| "membersOnly"` | ⬜ |
-| `closesAt` | `string?` | רק כש-`salonStatus` הוא `closesEarly` |
+| `publicAccess` | `"open" \| "closed" \| "closesEarly"` | ⚠️ **תוקן 04/10** |
+| `memberAccess` | `"open" \| "closed"` | ⚠️ **מישור שני, ולא ערך באותו שדה** |
+| `closesAt` | `string?` | רק כש-`publicAccess` הוא `closesEarly` |
 | `note` | `string?` | |
 
 **`ActivityEvent`**: `title`, `space`, `startTime`, `endTime`.
@@ -154,9 +156,22 @@ branches/{branchId}
 ורק אם `events` אינו ריק.** זה מה שמונע את 16 הפערים שנמדדו בגיליון, רשומה
 [01](01-the-spreadsheet-as-it-is.md).
 
-⚠️ **`salonStatus` הוא שדה עצמאי ואינו נגזר מ-`events`.** נמדד: ב-13/09 הסלון
-סגור לראש השנה ואין בו אירוע, **וב-01/01 יש מסיבת סילבסטר והסלון סגור באותו
-יום.** שני המצבים חיים זה לצד זה.
+⚠️ **שני מישורי גישה ולא שדה אחד, ותוקן 04/10.** השדה היה
+`salonStatus` יחיד עם `membersOnly` כאחד הערכים, **וזה לא החזיק את שני המצבים
+ההפוכים שקיימים בפועל:**
+
+| המצב | `publicAccess` | `memberAccess` | מקור |
+|---|---|---|---|
+| `הסלון סגור - פתוח רק לחברי אופן ספייס` | `closed` | **`open`** | 📄 27/09, 27/10 |
+| ⚠️ אירוע מיוחד שבו הסלון אינו זמין לחברים | `closed` | **`closed`** | בעל המוצר 04/10 |
+| כיפור, ראש השנה, פסח | `closed` | `closed` | 📄 19 ימים |
+
+**וזה חשוב במיוחד כאן, כי ההטבה של החבר היא להישאר מחוץ לשעות הפעילות.** יום
+שבו `memberAccess` הוא `closed` **הוא יום שבו ההטבה מושבתת**, רשומה
+[12](12-the-branch-settings-screen.md).
+
+⚠️ **והגישה אינה נגזרת מ-`events`.** נמדד: ב-13/09 הסלון סגור לראש השנה ואין
+בו אירוע, **וב-01/01 יש מסיבת סילבסטר והסלון סגור באותו יום.**
 
 ## `branches/{branchId}/accessCodes/{periodId}`
 
