@@ -1,0 +1,32 @@
+# ⚠️ נתוני הגיליון נושאים שמות של אנשים אמיתיים, והמאגר הזה ציבורי.
+# רשומה DOCS/PLANING/08-the-repository-is-public.md
+*.xlsx
+*.xls
+data/sheet-2026.json
+data/names-to-reconcile.json
+
+# סודות
+.env
+.env.*
+!.env.example
+serviceAccount*.json
+*-firebase-adminsdk-*.json
+
+# מה שיבוא כשייכתב קוד
+node_modules/
+dist/
+dist-ssr/
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+coverage/
+*.local
+
+# מערכת
+.DS_Store
+Thumbs.db
+__pycache__/
+*.py[cod]
+.venv/
+venv/

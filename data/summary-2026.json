@@ -1,0 +1,203 @@
+{
+  "source": "גיליון השיבוצים של 2026, לא נשמר במאגר",
+  "year": 2026,
+  "totals": {
+    "assignments": 214,
+    "activityEvents": 125,
+    "activityDays": 113,
+    "gridClosures": 7,
+    "distinctRawNames": 42
+  },
+  "byMonth": {
+    "2026-01": {
+      "assignments": 24,
+      "activityDays": 6
+    },
+    "2026-02": {
+      "assignments": 28,
+      "activityDays": 9
+    },
+    "2026-03": {
+      "assignments": 21,
+      "activityDays": 7
+    },
+    "2026-04": {
+      "assignments": 17,
+      "activityDays": 10
+    },
+    "2026-05": {
+      "assignments": 18,
+      "activityDays": 14
+    },
+    "2026-06": {
+      "assignments": 18,
+      "activityDays": 15
+    },
+    "2026-07": {
+      "assignments": 17,
+      "activityDays": 11
+    },
+    "2026-08": {
+      "assignments": 37,
+      "activityDays": 12
+    },
+    "2026-09": {
+      "assignments": 20,
+      "activityDays": 18
+    },
+    "2026-10": {
+      "assignments": 14,
+      "activityDays": 11
+    }
+  },
+  "spaces": {
+    "none": 20,
+    "large": 73,
+    "quiet": 26,
+    "small": 5,
+    "offices": 1
+  },
+  "shiftTemplates": [
+    [
+      "10:00",
+      "14:00"
+    ],
+    [
+      "18:00",
+      "22:00"
+    ]
+  ],
+  "weekdaysUsed": [
+    "Monday",
+    "Sunday",
+    "Thursday",
+    "Tuesday",
+    "Wednesday"
+  ],
+  "assignmentsPerPseudonym": {
+    "member-142b7b36": 20,
+    "member-aab1c532": 19,
+    "member-fb5fff60": 15,
+    "member-a3b2c3e7": 13,
+    "member-32c55a89": 12,
+    "member-bf12e93b": 10,
+    "member-e7c920dd": 10,
+    "member-d5a42240": 9,
+    "member-d109e271": 9,
+    "member-d7bb38dc": 8,
+    "member-e107dc6b": 8,
+    "member-9d0fa762": 8,
+    "member-964405b8": 6,
+    "member-cdd04adc": 6,
+    "member-aa71fa6a": 5,
+    "member-98a8ce79": 5,
+    "member-02171aa3": 4,
+    "member-f9597004": 4,
+    "member-d380423e": 4,
+    "member-ab95978d": 3,
+    "member-a5b2f58a": 3,
+    "member-454b562a": 3,
+    "member-b2618fcf": 3,
+    "member-b3f0bee8": 2,
+    "member-f1496901": 2,
+    "member-3ea66d62": 2,
+    "member-f2b541ba": 2,
+    "member-fc7dc15f": 2,
+    "member-2cd0417f": 2,
+    "member-076da5bd": 2,
+    "member-e17d02a1": 2,
+    "member-f3320dc7": 1,
+    "member-1382d991": 1,
+    "member-9a7e11d5": 1,
+    "member-6c58d6e1": 1,
+    "member-20b71852": 1,
+    "member-b0d1a183": 1,
+    "member-9a610f8f": 1,
+    "member-faf24c61": 1,
+    "member-7c4dd1c3": 1,
+    "member-5a8ec22b": 1,
+    "member-e56bd2a3": 1
+  },
+  "findings": [
+    {
+      "kind": "starred_but_not_listed",
+      "sheet": "פברואר",
+      "date": "2026-02-16"
+    },
+    {
+      "kind": "starred_but_not_listed",
+      "sheet": "מרץ",
+      "date": "2026-03-29"
+    },
+    {
+      "kind": "starred_but_not_listed",
+      "sheet": "מאי",
+      "date": "2026-05-28"
+    },
+    {
+      "kind": "listed_but_not_starred",
+      "sheet": "יוני",
+      "date": "2026-06-07"
+    },
+    {
+      "kind": "listed_but_not_starred",
+      "sheet": "יוני",
+      "date": "2026-06-14"
+    },
+    {
+      "kind": "listed_but_not_starred",
+      "sheet": "יוני",
+      "date": "2026-06-15"
+    },
+    {
+      "kind": "listed_but_not_starred",
+      "sheet": "יוני",
+      "date": "2026-06-16"
+    },
+    {
+      "kind": "listed_but_not_starred",
+      "sheet": "יוני",
+      "date": "2026-06-17"
+    },
+    {
+      "kind": "listed_but_not_starred",
+      "sheet": "יוני",
+      "date": "2026-06-21"
+    },
+    {
+      "kind": "listed_but_not_starred",
+      "sheet": "יוני",
+      "date": "2026-06-23"
+    },
+    {
+      "kind": "listed_but_not_starred",
+      "sheet": "יוני",
+      "date": "2026-06-24"
+    },
+    {
+      "kind": "listed_but_not_starred",
+      "sheet": "יוני",
+      "date": "2026-06-25"
+    },
+    {
+      "kind": "listed_but_not_starred",
+      "sheet": "יוני",
+      "date": "2026-06-28"
+    },
+    {
+      "kind": "listed_but_not_starred",
+      "sheet": "יוני",
+      "date": "2026-06-30"
+    },
+    {
+      "kind": "listed_but_not_starred",
+      "sheet": "ספטמבר",
+      "date": "2026-09-20"
+    },
+    {
+      "kind": "listed_but_not_starred",
+      "sheet": "ספטמבר",
+      "date": "2026-09-21"
+    }
+  ]
+}
