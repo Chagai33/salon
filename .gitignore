@@ -30,3 +30,8 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+
+# הקוד
+node_modules/
+dist/
+.netlify/

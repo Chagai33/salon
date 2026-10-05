@@ -1,0 +1,133 @@
+@import 'tailwindcss';
+
+/*
+  טוקנים.
+
+  כל צבע במוצר יוצא מכאן ואף אחד אינו נכתב קשיח ברכיב.
+  DOCS/PLANING/03-the-design-standard.md
+
+  ושש ההבחנות של הלוח הן בדיוק ההבחנות שהגיליון באמת עשה, ולא פלטה שנבחרה
+  מראש. אל תוסיף טוקן שאין לו הבחנה מאחוריו.
+*/
+@theme {
+  --font-sans: 'Heebo', ui-sans-serif, system-ui, sans-serif;
+
+  /* משטח */
+  --color-surface: #ffffff;
+  --color-surface-sunken: #f4f6f5;
+  --color-surface-raised: #ffffff;
+  --color-line: #dfe4e2;
+  --color-line-strong: #c2cac7;
+
+  /* טקסט */
+  --color-ink: #16201d;
+  --color-ink-soft: #5b6a66;
+  --color-ink-faint: #8a9793;
+
+  /* הסניף. הירוק נלקח מכותרת הגיליון, FF356854 */
+  --color-brand: #1b3a2f;
+  --color-brand-soft: #e7efeb;
+  --color-brand-ink: #ffffff;
+
+  /* מצבי משמרת. ששת אלה נגזרו ממה שהגיליון מבדיל בפועל */
+  --color-shift-open: #fff8e6;
+  --color-shift-open-line: #e8c968;
+  --color-shift-open-ink: #6b5310;
+
+  --color-shift-mine: #e4f1ea;
+  --color-shift-mine-line: #4a9b72;
+  --color-shift-mine-ink: #1d5a3c;
+
+  --color-shift-taken: #f4f6f5;
+  --color-shift-taken-line: #dfe4e2;
+  --color-shift-taken-ink: #44524e;
+
+  --color-shift-handover: #fdeee4;
+  --color-shift-handover-line: #e09a63;
+  --color-shift-handover-ink: #7a3d12;
+
+  /* יום פעילות, וסגירות */
+  --color-activity: #2f6fb3;
+  --color-activity-soft: #e8f1fa;
+  --color-closed: #efeceb;
+  --color-closed-ink: #6a615e;
+  --color-members-only: #f3ecfa;
+  --color-members-only-ink: #52357a;
+
+  --color-danger: #a8321f;
+  --color-danger-soft: #fdece9;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-surface: #111916;
+    --color-surface-sunken: #0b120f;
+    --color-surface-raised: #182320;
+    --color-line: #2a3833;
+    --color-line-strong: #3b4c46;
+
+    --color-ink: #e8efec;
+    --color-ink-soft: #a7b5b0;
+    --color-ink-faint: #7a8a85;
+
+    --color-brand: #cfe3d8;
+    --color-brand-soft: #1c2d26;
+    --color-brand-ink: #0b120f;
+
+    --color-shift-open: #2e2611;
+    --color-shift-open-line: #8a6f22;
+    --color-shift-open-ink: #f0dc9f;
+
+    --color-shift-mine: #16301f;
+    --color-shift-mine-line: #3f8a62;
+    --color-shift-mine-ink: #a8e0c0;
+
+    --color-shift-taken: #182320;
+    --color-shift-taken-line: #2a3833;
+    --color-shift-taken-ink: #9baaa5;
+
+    --color-shift-handover: #33200f;
+    --color-shift-handover-line: #9a5c25;
+    --color-shift-handover-ink: #f2bd91;
+
+    --color-activity: #7fb2e8;
+    --color-activity-soft: #142433;
+    --color-closed: #1d1b1a;
+    --color-closed-ink: #a09792;
+    --color-members-only: #241a33;
+    --color-members-only-ink: #c9aef0;
+
+    --color-danger: #f09583;
+    --color-danger-soft: #30160f;
+  }
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  background: var(--color-surface-sunken);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* מיקוד נראה, ובלי להסתמך על ברירת המחדל של הדפדפן */
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/*
+  מספר שמוצג בתוך עברית.
+  קוד כניסה, שעה ומספר טלפון. בלי זה הם מסתדרים הפוך ונראים סבירים.
+  DOCS/PLANING/03-the-design-standard.md, ועדות מהשטח ברשומה 11.
+*/
+.num {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-variant-numeric: tabular-nums;
+}

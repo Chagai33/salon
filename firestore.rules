@@ -1,0 +1,107 @@
+rules_version = '2';
+
+// ⚠️ אזור ליבה. CLAUDE.md.
+//
+// חוק הרשאות אינו מאומת בקריאה שלו. הוא מאומת בניסיון כתיבה שאמור להיכשל,
+// ובראייה שהוא נכשל. DOCS/PLANING/VERIFICATION-BUDGET.md
+//
+// ⚠️ והקובץ הזה עוד לא נפרס ולא נבדק מול האמולטור. אל תצטט אותו כמאומת.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function memberDoc(branchId) {
+      return get(/databases/$(database)/documents/branches/$(branchId)/members/$(request.auth.uid));
+    }
+
+    function isMember(branchId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/branches/$(branchId)/members/$(request.auth.uid));
+    }
+
+    function isActive(branchId) {
+      return isMember(branchId) && memberDoc(branchId).data.status == 'active';
+    }
+
+    function isManager(branchId) {
+      return isActive(branchId) && memberDoc(branchId).data.role == 'manager';
+    }
+
+    match /branches/{branchId} {
+      // כל מי שמחובר קורא את הסניף: בלי זה אי אפשר להציג מסך כניסה שאומר לאן
+      // נכנסת. הסניף אינו מחזיק מידע אישי.
+      allow read: if signedIn();
+      // ⚠️ יצירת הסניף הראשון נעשית מהלקוח בכניסה הראשונה, ואין עוד מנהלת
+      // שתאשר אותה. לכן create מותר למי שמחובר, ו-update למנהלת בלבד.
+      // אחרי שסניף קיים, create אינו אפשרי עליו שוב.
+      allow create: if signedIn();
+      allow update: if isManager(branchId);
+      allow delete: if false;
+
+      match /members/{memberId} {
+        // חבר רואה את כולם, בהכרעת בעל המוצר. כולל מי שממתין לאישור, כדי
+        // שהמנהלת תראה אותו ברשימה.
+        allow read: if isMember(branchId);
+
+        // ⚠️ חבר יוצר את רשומת עצמו בלבד, והוא חייב ליצור אותה כ-pending
+        // ובתפקיד member. בלי שתי הבדיקות האלה כל מי שנרשם היה יכול לכתוב
+        // לעצמו role: manager ולקבל את כל המסד.
+        allow create: if signedIn()
+          && memberId == request.auth.uid
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.status == 'pending'
+          && request.resource.data.role == 'member';
+
+        // רק מנהלת מאשרת ומשנה תפקיד.
+        allow update: if isManager(branchId);
+        allow delete: if false;
+      }
+
+      match /shifts/{shiftId} {
+        allow read: if isMember(branchId);
+
+        // רק מנהלת מולידה חודש ומוחקת.
+        allow create: if isManager(branchId);
+        allow delete: if false;
+
+        // ⚠️ חבר פעיל מעדכן משמרת, והכללים שמגבילים אותו לשיבוץ של עצמו
+        // יושבים כרגע בשכבת השירות ולא כאן. רשומה 15.
+        allow update: if isActive(branchId) || isManager(branchId);
+      }
+
+      match /activityDays/{dayId} {
+        allow read: if isMember(branchId);
+        allow write: if isManager(branchId);
+      }
+
+      // ⚠️⚠️ כאן יושב החור היחיד שידוע מראש, והוא הפיצ'ר המרכזי.
+      //
+      // הכלל במוצר: הקוד נחשף רק למי שמשובץ לפחות למשמרת אחת בחודש.
+      //
+      // חוק מסד אינו יכול לבדוק את זה. הזכאות היא שאילתה על אוסף המשמרות,
+      // וחוקי Firestore יודעים לקרוא מסמך בודד ואינם יודעים לשאול אוסף.
+      //
+      // מה שהשורה הבאה אומרת בפועל: כל חבר פעיל יכול לקרוא את הקוד ישירות
+      // מהמסד, גם אם אינו משובץ החודש. הסינון שבאפליקציה הוא בממשק בלבד.
+      //
+      // ⚠️ כלומר התנאי שהמוצר כולו בנוי עליו אינו נאכף כרגע.
+      //
+      // התיקון הוא פונקציית ענן שמחשבת זכאות בצד השרת ומחזירה את הקוד, ואז
+      // השורה הזו הופכת ל-`if isManager(branchId)`.
+      // DOCS/PLANING/15-the-code-is-not-enforced-yet.md
+      match /accessCodes/{codeId} {
+        allow read: if isActive(branchId);
+        allow write: if isManager(branchId);
+      }
+    }
+
+    // כל השאר סגור.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
