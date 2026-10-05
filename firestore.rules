@@ -5,7 +5,7 @@ rules_version = '2';
 // חוק הרשאות אינו מאומת בקריאה שלו. הוא מאומת בניסיון כתיבה שאמור להיכשל,
 // ובראייה שהוא נכשל. DOCS/PLANING/VERIFICATION-BUDGET.md
 //
-// ✅ נבדק מול אמולטור Firestore, 33 בדיקות, כולן עוברות.
+// ✅ נבדק מול אמולטור Firestore, 39 בדיקות, כולן עוברות.
 // ⚠️ שונה אחרי הפריסה של 05/10, בפתיחת סלון כטננט. צריך להדביק שוב.
 //
 // ⚠️ ופריסה אינה עולה עם Netlify. כל שינוי כאן נפרס בנפרד:
@@ -49,12 +49,43 @@ service cloud.firestore {
       return isActive(branchId) && memberDoc(branchId).data.role == 'manager';
     }
 
+    /**
+     * ⚠️⚠️ מסמך אחד, והוא הדלת. `system/bootstrap`.
+     *
+     * הבעיה: מנהל העל הוא אדם, והמסד אינו יודע מי הוא. כניסה ב-Google מזהה
+     * ואינה מקנה כלום, ולכן צריך פעם אחת לומר למערכת מי מפעיל אותה.
+     *
+     * הפתרון: הראשון שנכנס תובע את המערכת, ובאותה אצווה נוצר המסמך הזה.
+     * מהרגע שהוא קיים `exists` נכון, והתביעה נחסמת לעולם. `update` ו-`delete`
+     * אסורים, ולכן אי אפשר לפתוח את הדלת שוב, גם לא בטעות.
+     *
+     * ⚠️ והמשמעות: מי שנכנס ראשון הוא מנהל העל. זה חלון מירוץ, והוא נסגר
+     * בתביעה הראשונה. DOCS/PLANING/21-nobody-told-the-database-who-the-owner-is.md
+     */
+    match /system/{docId} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && docId == 'bootstrap'
+        && request.resource.data.claimedBy == request.auth.uid;
+      allow update, delete: if false;
+    }
+
     // ⚠️ כל אחד קורא את הרשומה של עצמו, כדי שהממשק ידע אם להציג פתיחת סלון.
-    // סריקת האוסף סגורה, והכתיבה בקונסולה בלבד.
     match /platformAdmins/{adminId} {
       allow get: if signedIn() && adminId == request.auth.uid;
       allow list: if false;
-      allow write: if false;
+
+      // ⚠️ תביעת המערכת, ורק כשעוד לא נתבעה. זו המחצית השנייה של החוק
+      // שיושב על `system/bootstrap`, ושתיהן תלויות זו בזו.
+      allow create: if signedIn()
+        && adminId == request.auth.uid
+        && !exists(/databases/$(database)/documents/system/bootstrap)
+        && getAfter(/databases/$(database)/documents/system/bootstrap)
+             .data.claimedBy == request.auth.uid;
+
+      // ⚠️ ואין עדכון ואין מחיקה. מנהל על נוסף נוסף בקונסולה בלבד.
+      allow update, delete: if false;
     }
 
     match /branches/{branchId} {

@@ -125,6 +125,40 @@ export async function setMemberRole(
 // ---------- הסניף ----------
 
 /**
+ * האם המערכת נתבעה. ⚠️ כל עוד לא, הראשון שנכנס הוא מנהל העל.
+ * DOCS/PLANING/21-nobody-told-the-database-who-the-owner-is.md
+ */
+export async function isSystemClaimed(): Promise<boolean> {
+  try {
+    return (await getDoc(doc(db, 'system', 'bootstrap'))).exists();
+  } catch {
+    // ⚠️ ואמת ולא שקר. אם אי אפשר לקרוא, ההנחה היא שנתבעה, כדי שלא יוצג
+    // כפתור תביעה שייכשל.
+    return true;
+  }
+}
+
+/**
+ * תובע את המערכת: אני מנהל העל.
+ *
+ * ⚠️⚠️ אצווה אחת של שני מסמכים, בדיוק כמו פתיחת סלון. מסמך הדלת
+ * `system/bootstrap` נוצר יחד עם ההרשאה, ומהרגע שהוא קיים אי אפשר לתבוע שוב.
+ */
+export async function claimSystem(user: User): Promise<void> {
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'platformAdmins', user.uid), {
+    email: user.email,
+    displayName: user.displayName,
+    claimedAt: Date.now(),
+  });
+  batch.set(doc(db, 'system', 'bootstrap'), {
+    claimedBy: user.uid,
+    claimedAt: Date.now(),
+  });
+  await batch.commit();
+}
+
+/**
  * האם מותר לי לפתוח סלון.
  *
  * ⚠️ הרשומה נכתבת בקונסולה בלבד. בלי הבדיקה הזו כל מי שנכנס ב-Google היה

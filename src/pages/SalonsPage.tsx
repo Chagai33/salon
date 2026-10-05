@@ -9,7 +9,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
-import { joinBranch, openBranch } from '../services/salonService';
+import { claimSystem, joinBranch, openBranch } from '../services/salonService';
 import { t } from '../i18n/dictionary';
 import { StatusPill } from '../components/common/StatusPill';
 import { toReadableError } from '../utils/errors';
@@ -80,6 +80,43 @@ function BranchRow({ branch, membership }: { branch: Branch; membership?: Member
         </button>
       )}
     </li>
+  );
+}
+
+/**
+ * ⚠️ מוצג רק כשאף אחד לא תבע את המערכת, ונעלם לעולם אחרי התביעה הראשונה.
+ * DOCS/PLANING/21-nobody-told-the-database-who-the-owner-is.md
+ */
+function ClaimSystem() {
+  const user = useStore((state) => state.user);
+  const setCanOpenBranch = useStore((state) => state.setCanOpenBranch);
+  const setSystemClaimed = useStore((state) => state.setSystemClaimed);
+  const setError = useStore((state) => state.setError);
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <section className="rounded-xl border border-shift-open-line bg-shift-open p-3">
+      <h2 className="font-semibold text-shift-open-ink">{t.salons.claimTitle}</h2>
+      <p className="mt-1 text-sm text-shift-open-ink">{t.salons.claimBody}</p>
+      <button
+        type="button"
+        disabled={busy || !user}
+        onClick={() => {
+          setBusy(true);
+          setError(null);
+          void claimSystem(user!)
+            .then(() => {
+              setCanOpenBranch(true);
+              setSystemClaimed(true);
+            })
+            .catch((error: unknown) => setError(toReadableError(error, t.errors.saveFailed)))
+            .finally(() => setBusy(false));
+        }}
+        className="mt-3 rounded-md bg-brand px-4 py-2 text-sm font-medium text-brand-ink disabled:opacity-50"
+      >
+        {busy ? t.salons.claiming : t.salons.claimAction}
+      </button>
+    </section>
   );
 }
 
@@ -176,6 +213,7 @@ export function SalonsPage() {
   const memberships = useStore((state) => state.myMemberships);
   const loading = useStore((state) => state.areBranchesLoading);
   const canOpen = useStore((state) => state.canOpenBranch);
+  const claimed = useStore((state) => state.isSystemClaimed);
   const [opening, setOpening] = useState(false);
 
   const { mine, others } = useMemo(
@@ -187,6 +225,8 @@ export function SalonsPage() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4 p-4">
+      {claimed === false && <ClaimSystem />}
+
       {mine.length > 0 && (
         <section className="rounded-xl border border-line bg-surface">
           <h2 className="border-b border-line p-3 text-lg font-semibold text-ink">

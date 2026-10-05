@@ -11,6 +11,7 @@ import { auth, googleProvider } from '../lib/firebase';
 import { useStore } from '../store/useStore';
 import {
   isPlatformAdmin,
+  isSystemClaimed,
   myMemberships,
   watchAccessCodes,
   watchActivityDaysForMonth,
@@ -52,6 +53,7 @@ export function useAuthBinding() {
 export function useBranchesBinding() {
   const user = useStore((state) => state.user);
   const setCanOpenBranch = useStore((state) => state.setCanOpenBranch);
+  const setSystemClaimed = useStore((state) => state.setSystemClaimed);
   const branches = useStore((state) => state.branches);
   const setBranches = useStore((state) => state.setBranches);
   const setMyMemberships = useStore((state) => state.setMyMemberships);
@@ -64,13 +66,17 @@ export function useBranchesBinding() {
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
-    void isPlatformAdmin(user.uid).then((allowed) => {
-      if (!cancelled) setCanOpenBranch(allowed);
-    });
+    void Promise.all([isPlatformAdmin(user.uid), isSystemClaimed()]).then(
+      ([allowed, claimed]) => {
+        if (cancelled) return;
+        setCanOpenBranch(allowed);
+        setSystemClaimed(claimed);
+      },
+    );
     return () => {
       cancelled = true;
     };
-  }, [user, setCanOpenBranch]);
+  }, [user, setCanOpenBranch, setSystemClaimed]);
 
   useEffect(() => {
     if (!user) return;

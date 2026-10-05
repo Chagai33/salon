@@ -169,6 +169,7 @@ function BranchScope() {
   const member = useStore((state) => state.member);
   const branches = useStore((state) => state.branches);
   const areBranchesLoading = useStore((state) => state.areBranchesLoading);
+  const canOpenBranch = useStore((state) => state.canOpenBranch);
 
   useEffect(() => {
     setBranchId(branchId);
@@ -192,7 +193,9 @@ function BranchScope() {
 
   if (!branch) return <main className="p-6 text-ink-soft">{t.board.loading}</main>;
   if (!member) return <JoinBranch branchId={branchId} />;
-  if (member.status === 'pending') return <Pending />;
+  // ⚠️ ומנהל העל אינו ממתין לאישור. בסלון שנוצר לפני שהוא תבע את המערכת אין
+  // מנהלת שתאשר אותו, ולכן מסך ההמתנה היה מסך ללא יציאה.
+  if (member.status === 'pending' && !canOpenBranch) return <Pending />;
   return <BoardPage branchId={branchId} />;
 }
 

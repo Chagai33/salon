@@ -22,6 +22,8 @@ interface AppState {
   areMembershipsLoading: boolean;
   /** ⚠️ האם מותר לי לפתוח סלון. נקרא מהמסד ואינו נגזר מתפקיד בסלון. */
   canOpenBranch: boolean;
+  /** האם המערכת נתבעה. ⚠️ null פירושו שעוד לא נבדק, ולא שלא נתבעה. */
+  isSystemClaimed: boolean | null;
   monthKey: string;
   shifts: Shift[];
   activityDays: ActivityDay[];
@@ -38,6 +40,7 @@ interface AppState {
   setBranchId: (branchId: string | null) => void;
   setMyMemberships: (memberships: Record<string, Member>) => void;
   setCanOpenBranch: (canOpen: boolean) => void;
+  setSystemClaimed: (claimed: boolean) => void;
   setMonthKey: (monthKey: string) => void;
   setShifts: (shifts: Shift[]) => void;
   setActivityDays: (days: ActivityDay[]) => void;
@@ -59,6 +62,7 @@ const blank = {
   areBranchesLoading: true,
   areMembershipsLoading: true,
   canOpenBranch: false,
+  isSystemClaimed: null,
   shifts: [],
   activityDays: [],
   accessCodes: [],
@@ -86,6 +90,7 @@ export const useStore = create<AppState>((set) => ({
     ),
   setMyMemberships: (myMemberships) => set({ myMemberships, areMembershipsLoading: false }),
   setCanOpenBranch: (canOpenBranch) => set({ canOpenBranch }),
+  setSystemClaimed: (isSystemClaimed) => set({ isSystemClaimed }),
   setMonthKey: (monthKey) => set({ monthKey, isMonthLoading: true }),
   setShifts: (shifts) => set({ shifts, isMonthLoading: false }),
   setActivityDays: (activityDays) => set({ activityDays }),

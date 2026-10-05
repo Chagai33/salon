@@ -14,6 +14,7 @@ import {
 } from '@firebase/rules-unit-testing';
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -160,6 +161,78 @@ describe('פתיחת סלון', () => {
         role: 'member', status: 'pending', joinedAt: 1,
       }),
     );
+  });
+});
+
+describe('תביעת המערכת', () => {
+  /** מצב פתיחה בלי מנהל על ובלי מסמך bootstrap. */
+  async function bare() {
+    await env.clearFirestore();
+  }
+
+  it('הראשון שנכנס תובע את המערכת, באצווה אחת', async () => {
+    await bare();
+    const db = env.authenticatedContext('first').firestore();
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'platformAdmins', 'first'), { claimedAt: 1 });
+    batch.set(doc(db, 'system', 'bootstrap'), { claimedBy: 'first', claimedAt: 1 });
+    await assertSucceeds(batch.commit());
+  });
+
+  it('⚠️⚠️ והשני אינו תובע אותה, גם באותה אצווה בדיוק', async () => {
+    await bare();
+    await env.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, 'platformAdmins', 'first'), { claimedAt: 1 });
+      await setDoc(doc(db, 'system', 'bootstrap'), { claimedBy: 'first', claimedAt: 1 });
+    });
+    const db = env.authenticatedContext('second').firestore();
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'platformAdmins', 'second'), { claimedAt: 2 });
+    batch.set(doc(db, 'system', 'bootstrap'), { claimedBy: 'second', claimedAt: 2 });
+    await assertFails(batch.commit());
+  });
+
+  it('⚠️ ואינו מוחק את הדלת כדי לתבוע שוב', async () => {
+    await bare();
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'system', 'bootstrap'), { claimedBy: 'first' });
+    });
+    const db = env.authenticatedContext('second').firestore();
+    await assertFails(deleteDoc(doc(db, 'system', 'bootstrap')));
+    await assertFails(setDoc(doc(db, 'system', 'bootstrap'), { claimedBy: 'second' }));
+  });
+
+  it('⚠️ ותביעה בלי מסמך הדלת נדחית', async () => {
+    await bare();
+    const db = env.authenticatedContext('first').firestore();
+    await assertFails(setDoc(doc(db, 'platformAdmins', 'first'), { claimedAt: 1 }));
+  });
+
+  it('⚠️ ואי אפשר לתבוע בשם מישהו אחר', async () => {
+    await bare();
+    const db = env.authenticatedContext('first').firestore();
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'platformAdmins', 'someone-else'), { claimedAt: 1 });
+    batch.set(doc(db, 'system', 'bootstrap'), { claimedBy: 'first', claimedAt: 1 });
+    await assertFails(batch.commit());
+  });
+
+  it('מי שתבע פותח סלון, ומי שלא תבע אינו פותח', async () => {
+    await bare();
+    const db = env.authenticatedContext('first').firestore();
+    const claim = writeBatch(db);
+    claim.set(doc(db, 'platformAdmins', 'first'), { claimedAt: 1 });
+    claim.set(doc(db, 'system', 'bootstrap'), { claimedBy: 'first', claimedAt: 1 });
+    await assertSucceeds(claim.commit());
+
+    const open = writeBatch(db);
+    open.set(doc(db, 'branches', 'haifa'), { name: 'חיפה', createdBy: 'first' });
+    open.set(doc(db, 'branches', 'haifa', 'members', 'first'), {
+      uid: 'first', displayName: 'ראשון', email: 'f@b.c',
+      role: 'manager', status: 'active', joinedAt: 1,
+    });
+    await assertSucceeds(open.commit());
   });
 });
 

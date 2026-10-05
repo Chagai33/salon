@@ -34,6 +34,7 @@ function Email({ address }: { address: string }) {
 export function MembersPanel({ branchId }: { branchId: string }) {
   const members = useStore((state) => state.members);
   const me = useStore((state) => state.member);
+  const canOpenBranch = useStore((state) => state.canOpenBranch);
   const setError = useStore((state) => state.setError);
 
   // ⚠️ ב-useMemo ולא בבורר. בורר שמסנן מערך מחזיר מערך חדש בכל קריאה, וזו
@@ -75,7 +76,22 @@ export function MembersPanel({ branchId }: { branchId: string }) {
       );
     }
 
-    // ⚠️ מנהלת אינה מסירה את עצמה מניהול. אם תעשה זאת כשהיא היחידה, אין יותר
+    // ⚠️ מנהל העל מגדיר את עצמו כמנהלת בסלון שנוצר לפניו. בלי זה אין בסלון
+    // הזה אף אחד שיכול, והתיקון חוזר לקונסולה.
+    if (isMe && canOpenBranch && member.role !== 'manager') {
+      return (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void run(member.id, () => setMemberRole(branchId, member.id, 'manager'))}
+          className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-brand-ink disabled:opacity-50"
+        >
+          {busy ? t.manager.working : t.manager.promoteMe}
+        </button>
+      );
+    }
+
+    // ⚠️ ומנהלת אינה מסירה את עצמה מניהול. אם תעשה זאת כשהיא היחידה, אין יותר
     // מי שיאשר אף אחד, והתיקון חוזר לקונסולה.
     if (isMe) return <span className="text-sm text-ink-faint">{t.manager.me}</span>;
 

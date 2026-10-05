@@ -35,6 +35,7 @@ export function BoardPage({ branchId }: { branchId: string }) {
   const isMonthLoading = useStore((state) => state.isMonthLoading);
   const setError = useStore((state) => state.setError);
 
+  const canOpenBranch = useStore((state) => state.canOpenBranch);
   const activityDays = useStore((state) => state.activityDays);
   const openCount = useStore(selectOpenShiftCount);
   const handoverCount = useStore(selectHandoverCount);
@@ -48,6 +49,9 @@ export function BoardPage({ branchId }: { branchId: string }) {
 
   const canAct = member?.status === 'active';
   const isManager = member?.role === 'manager';
+  // ⚠️ ומנהל העל רואה את מסך החברים גם בסלון שאינו מנהל בו, כדי שיוכל להגדיר
+  // בו מנהלת ראשונה. זו ההרשאה שחוקי המסד נותנים לו, לא יותר.
+  const canManageMembers = isManager || canOpenBranch;
 
   const visibility = useMemo(
     () => codeVisibilityFor(shifts, codes, member?.id ?? ''),
@@ -92,7 +96,7 @@ export function BoardPage({ branchId }: { branchId: string }) {
     <div className="mx-auto flex max-w-6xl flex-col gap-4 p-4">
       <AccessCodePanel visibility={visibility} />
 
-      {isManager && <MembersPanel branchId={branchId} />}
+      {canManageMembers && <MembersPanel branchId={branchId} />}
 
       <section className="rounded-xl border border-line bg-surface">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-3">
