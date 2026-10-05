@@ -23,6 +23,7 @@ import {
   requestHandover,
 } from '../services/salonService';
 import type { Shift } from '../types';
+import { toReadableError } from '../utils/errors';
 
 export function BoardPage() {
   const branch = useStore((state) => state.branch);
@@ -69,7 +70,7 @@ export function BoardPage() {
       setError(null);
       await run();
     } catch (error) {
-      setError(error instanceof Error ? error.message : t.shift.claimFailed);
+      setError(toReadableError(error, t.shift.claimFailed));
     }
   }
 
@@ -145,9 +146,7 @@ export function BoardPage() {
                 onClick={() => {
                   setGenerating(true);
                   void generateMonth(DEFAULT_BRANCH_ID, monthKey)
-                    .catch((error: unknown) =>
-                      setError(error instanceof Error ? error.message : t.errors.saveFailed),
-                    )
+                    .catch((error: unknown) => setError(toReadableError(error, t.errors.saveFailed)))
                     .finally(() => setGenerating(false));
                 }}
                 className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-brand-ink disabled:opacity-50"

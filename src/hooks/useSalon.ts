@@ -18,6 +18,7 @@ import {
   watchShiftsForMonth,
 } from '../services/salonService';
 import { t } from '../i18n/dictionary';
+import { toReadableError } from '../utils/errors';
 
 export function useAuthBinding() {
   const setUser = useStore((state) => state.setUser);
@@ -52,7 +53,9 @@ export function useAuthBinding() {
         await ensureMember(user);
         stopMember = watchMember(DEFAULT_BRANCH_ID, user.uid, setMember);
       } catch (error) {
-        setError(error instanceof Error ? error.message : t.errors.saveFailed);
+        // ⚠️ ולא error.message. זו הדרך שבה "Missing or insufficient
+        // permissions" הגיע למסך באנגלית.
+        setError(toReadableError(error, t.errors.saveFailed));
       } finally {
         setAuthResolved(true);
       }
@@ -66,23 +69,29 @@ export function useAuthBinding() {
 }
 
 export function useBranchBinding() {
-  const user = useStore((state) => state.user);
+  // ⚠️ תלוי ב-member ולא ב-user, וזה לא קוסמטי.
+  //
+  // setUser רץ לפני ש-ensureMember מסיים, ולכן מאזין שתלוי ב-user נפתח
+  // בזמן שרשומת החבר עוד לא קיימת. הסריקה על members דורשת חברות, והיא
+  // נדחית ב-Missing or insufficient permissions. זה מה שקרה בפועל.
+  const member = useStore((state) => state.member);
   const setBranch = useStore((state) => state.setBranch);
   const setMembers = useStore((state) => state.setMembers);
 
   useEffect(() => {
-    if (!user) return;
+    if (!member) return;
     const stopBranch = watchBranch(DEFAULT_BRANCH_ID, setBranch);
     const stopMembers = watchMembers(DEFAULT_BRANCH_ID, setMembers);
     return () => {
       stopBranch();
       stopMembers();
     };
-  }, [user, setBranch, setMembers]);
+  }, [member, setBranch, setMembers]);
 }
 
 export function useMonthBinding() {
-  const user = useStore((state) => state.user);
+  // ⚠️ אותה סיבה: המשמרות נקראות רק אחרי שרשומת החבר קיימת.
+  const member = useStore((state) => state.member);
   const monthKey = useStore((state) => state.monthKey);
   const setShifts = useStore((state) => state.setShifts);
   const setActivityDays = useStore((state) => state.setActivityDays);
@@ -90,14 +99,14 @@ export function useMonthBinding() {
   const setError = useStore((state) => state.setError);
 
   useEffect(() => {
-    if (!user) return;
+    if (!member) return;
     const stops = [
       watchShiftsForMonth(DEFAULT_BRANCH_ID, monthKey, setShifts),
       watchActivityDaysForMonth(DEFAULT_BRANCH_ID, monthKey, setActivityDays),
       watchAccessCodes(DEFAULT_BRANCH_ID, setAccessCodes),
     ];
     return () => stops.forEach((stop) => stop());
-  }, [user, monthKey, setShifts, setActivityDays, setAccessCodes, setError]);
+  }, [member, monthKey, setShifts, setActivityDays, setAccessCodes, setError]);
 }
 
 export async function signInWithGoogle(): Promise<void> {
