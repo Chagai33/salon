@@ -11,6 +11,7 @@ import {
 import { MonthBoard } from '../components/board/MonthBoard';
 import { DayList } from '../components/board/DayList';
 import { AccessCodePanel } from '../components/board/AccessCodePanel';
+import { MembersPanel } from '../components/admin/MembersPanel';
 import { t } from '../i18n/dictionary';
 import { addMonths, datesInMonth, monthLabel, toMonthKey } from '../utils/dates';
 import { codeVisibilityFor } from '../utils/eligibility';
@@ -91,6 +92,8 @@ export function BoardPage() {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4 p-4">
       <AccessCodePanel visibility={visibility} />
+
+      {isManager && <MembersPanel />}
 
       <section className="rounded-xl border border-line bg-surface">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-3">

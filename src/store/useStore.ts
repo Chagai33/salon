@@ -106,3 +106,14 @@ export function groupActivityByDate(days: ActivityDay[]): Map<string, ActivityDa
   for (const day of days) map.set(day.date, day);
   return map;
 }
+
+/** מפרידה את הממתינים לאישור מהמאושרים. גם היא נקראת מתוך useMemo ברכיב. */
+export function splitMembers(members: Member[]): {
+  pending: Member[];
+  approved: Member[];
+} {
+  return {
+    pending: members.filter((member) => member.status === 'pending'),
+    approved: members.filter((member) => member.status !== 'pending'),
+  };
+}

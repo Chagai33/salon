@@ -26,6 +26,7 @@ import type {
   ActivityDay,
   Branch,
   Member,
+  MemberRole,
   Shift,
   ShiftTemplate,
   User,
@@ -99,6 +100,22 @@ export async function approveMember(
     approvedBy,
     approvedAt: Date.now(),
   });
+}
+
+/**
+ * מגדירה חבר כמנהל, או מחזירה אותו לחבר.
+ *
+ * ⚠️ והמנהל הראשון אינו נוצר כאן ואינו יכול להיווצר כאן. חוקי המסד אוסרים על
+ * חבר לכתוב לרשומה של עצמו, ובכוונה: בלי האיסור הזה כל מי שנרשם היה כותב
+ * לעצמו `role: manager`. לכן הראשון נקבע ביד בקונסולת Firebase, ומשם והלאה
+ * מנהלת מגדירה את הבאה כאן. DOCS/PLANING/18-who-appoints-the-first-manager.md
+ */
+export async function setMemberRole(
+  branchId: string,
+  memberId: string,
+  role: MemberRole,
+): Promise<void> {
+  await updateDoc(doc(membersRef(branchId), memberId), { role });
 }
 
 // ---------- הסניף ----------

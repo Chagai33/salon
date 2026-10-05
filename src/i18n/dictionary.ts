@@ -110,6 +110,23 @@ export const he = {
     approve: 'אישור',
     approving: 'מאשר',
     noPending: 'אין מי שממתין לאישור',
+
+    // ⚠️ השם מ-Google אינו מזהה. "Chagai yechiel (Aum.Music)" הוא מה שאדם
+    // כתב לעצמו בפרופיל, והמייל הוא מה שאומר למנהלת במי מדובר.
+    emailColumn: 'מייל',
+    nameColumn: 'שם',
+    joinedColumn: 'נרשם',
+    actionColumn: 'פעולה',
+    approvedMembers: 'חברים מאושרים',
+    noMembers: 'אין עוד חברים',
+    roleManager: 'מנהלת',
+    roleMember: 'חבר',
+    makeManager: 'הגדרה כמנהלת',
+    unmakeManager: 'הסרה מניהול',
+    working: 'רגע',
+    me: 'אני',
+    waitingToApprove: (count: number) =>
+      count === 1 ? 'אדם אחד ממתין לאישור' : `${count} אנשים ממתינים לאישור`,
     setCode: 'הגדרת קוד כניסה',
     codePlaceholder: 'הקוד החדש',
     save: 'שמירה',
