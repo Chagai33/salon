@@ -45,6 +45,8 @@ async function seed() {
   await env.clearFirestore();
   await env.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
+    // ⚠️ האוסף נכתב בקונסולה בלבד, ולכן הוא נזרע כאן עם החוקים מנוטרלים.
+    await setDoc(doc(db, 'platformAdmins', 'founder'), { note: 'מפעיל המערכת' });
     for (const [branchId, memberId] of [
       ['tel-aviv', 'tlv-member'],
       ['jerusalem', 'jlm-member'],
@@ -78,6 +80,32 @@ describe('פתיחת סלון', () => {
       role: 'manager', status: 'active', joinedAt: 1,
     });
     await assertSucceeds(batch.commit());
+  });
+
+  it('⚠️⚠️ ומי שאינו מנהל מערכת אינו פותח סלון בכלל', async () => {
+    await seed();
+    const db = env.authenticatedContext('nobody').firestore();
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'branches', 'haifa'), { name: 'חיפה', createdBy: 'nobody' });
+    batch.set(doc(db, 'branches', 'haifa', 'members', 'nobody'), {
+      uid: 'nobody', displayName: 'מישהו', email: 'n@b.c',
+      role: 'manager', status: 'active', joinedAt: 1,
+    });
+    await assertFails(batch.commit());
+  });
+
+  it('⚠️ ואינו קורא את רשומת ההרשאה של מישהו אחר', async () => {
+    await seed();
+    const db = env.authenticatedContext('nobody').firestore();
+    await assertSucceeds(getDoc(doc(db, 'platformAdmins', 'nobody')));
+    await assertFails(getDoc(doc(db, 'platformAdmins', 'founder')));
+    await assertFails(getDocs(collection(db, 'platformAdmins')));
+  });
+
+  it('⚠️ ואינו ממנה את עצמו למנהל מערכת', async () => {
+    await seed();
+    const db = env.authenticatedContext('nobody').firestore();
+    await assertFails(setDoc(doc(db, 'platformAdmins', 'nobody'), { note: 'אני' }));
   });
 
   it('⚠️ סלון בלי מנהל באותה אצווה אינו נפתח', async () => {
@@ -132,6 +160,26 @@ describe('פתיחת סלון', () => {
         role: 'member', status: 'pending', joinedAt: 1,
       }),
     );
+  });
+});
+
+describe('מנהל המערכת', () => {
+  it('מגדיר את המנהלת הראשונה של סלון שנוצר לפני החוק', async () => {
+    await seed();
+    const db = env.authenticatedContext('founder').firestore();
+    await assertSucceeds(
+      updateDoc(doc(db, 'branches', 'tel-aviv', 'members', 'tlv-member'), {
+        role: 'manager', status: 'active',
+      }),
+    );
+  });
+
+  it('⚠️ ואינו קורא בזכות זה את קוד הכניסה של סלון שאינו חבר בו', async () => {
+    await seed();
+    const db = env.authenticatedContext('founder').firestore();
+    // ההרשאה לפתוח סלון אינה הרשאה לקרוא את מה שבתוך סלון קיים.
+    await assertFails(getDoc(doc(db, 'branches', 'tel-aviv', 'accessCodes', '1')));
+    await assertFails(getDocs(collection(db, 'branches', 'tel-aviv', 'members')));
   });
 });
 

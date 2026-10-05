@@ -5,7 +5,7 @@ rules_version = '2';
 // חוק הרשאות אינו מאומת בקריאה שלו. הוא מאומת בניסיון כתיבה שאמור להיכשל,
 // ובראייה שהוא נכשל. DOCS/PLANING/VERIFICATION-BUDGET.md
 //
-// ✅ נבדק מול אמולטור Firestore, 28 בדיקות, כולן עוברות.
+// ✅ נבדק מול אמולטור Firestore, 33 בדיקות, כולן עוברות.
 // ⚠️ שונה אחרי הפריסה של 05/10, בפתיחת סלון כטננט. צריך להדביק שוב.
 //
 // ⚠️ ופריסה אינה עולה עם Netlify. כל שינוי כאן נפרס בנפרד:
@@ -16,6 +16,20 @@ service cloud.firestore {
 
     function signedIn() {
       return request.auth != null;
+    }
+
+    /**
+     * ⚠️⚠️ מי מורשה לפתוח סלון חדש.
+     *
+     * בלי זה כל מי שנכנס ב-Google יכול לפתוח סלון במסד של העמותה, והוא
+     * המנהל שלו. זה היה פתוח, וזו הייתה טעות.
+     *
+     * האוסף נכתב בקונסולה בלבד, ואין דרך להוסיף לו מתוך האפליקציה.
+     * DOCS/PLANING/20-who-may-open-a-salon.md
+     */
+    function isPlatformAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/platformAdmins/$(request.auth.uid));
     }
 
     function memberDoc(branchId) {
@@ -33,6 +47,14 @@ service cloud.firestore {
 
     function isManager(branchId) {
       return isActive(branchId) && memberDoc(branchId).data.role == 'manager';
+    }
+
+    // ⚠️ כל אחד קורא את הרשומה של עצמו, כדי שהממשק ידע אם להציג פתיחת סלון.
+    // סריקת האוסף סגורה, והכתיבה בקונסולה בלבד.
+    match /platformAdmins/{adminId} {
+      allow get: if signedIn() && adminId == request.auth.uid;
+      allow list: if false;
+      allow write: if false;
     }
 
     match /branches/{branchId} {
@@ -55,7 +77,9 @@ service cloud.firestore {
       //
       // ⚠️ ושתי השורות האלה תלויות זו בזו. שינוי באחת בלי השנייה פותח חור.
       // DOCS/PLANING/18-each-salon-is-a-tenant.md
-      allow create: if signedIn()
+      // ⚠️ ושלושה תנאים ולא שניים. `isPlatformAdmin` הוא מי מורשה בכלל,
+      // ושני האחרים הם שמי שפותח נכתב כמנהל באותה אצווה.
+      allow create: if isPlatformAdmin()
         && request.resource.data.createdBy == request.auth.uid
         && getAfter(/databases/$(database)/documents/branches/$(branchId)/members/$(request.auth.uid))
              .data.role == 'manager';
@@ -92,7 +116,8 @@ service cloud.firestore {
           && (
             (request.resource.data.status == 'pending' && request.resource.data.role == 'member')
             || (
-              request.resource.data.status == 'active'
+              isPlatformAdmin()
+              && request.resource.data.status == 'active'
               && request.resource.data.role == 'manager'
               && !exists(/databases/$(database)/documents/branches/$(branchId))
               && getAfter(/databases/$(database)/documents/branches/$(branchId))
@@ -100,8 +125,11 @@ service cloud.firestore {
             )
           );
 
-        // רק מנהלת מאשרת ומשנה תפקיד.
-        allow update: if isManager(branchId);
+        // מנהלת מאשרת ומשנה תפקיד.
+        //
+        // ⚠️ ומנהל המערכת גם הוא, וזו הדרך להגדיר את המנהלת הראשונה של סלון
+        // שנוצר לפני שהחוק הזה היה קיים. בלעדיה היא נקבעת ביד בקונסולה.
+        allow update: if isManager(branchId) || isPlatformAdmin();
         allow delete: if false;
       }
 

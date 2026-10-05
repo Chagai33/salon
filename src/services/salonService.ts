@@ -124,6 +124,23 @@ export async function setMemberRole(
 
 // ---------- הסניף ----------
 
+/**
+ * האם מותר לי לפתוח סלון.
+ *
+ * ⚠️ הרשומה נכתבת בקונסולה בלבד. בלי הבדיקה הזו כל מי שנכנס ב-Google היה
+ * פותח סלון במסד של העמותה והיה המנהל שלו.
+ * DOCS/PLANING/20-who-may-open-a-salon.md
+ */
+export async function isPlatformAdmin(uid: string): Promise<boolean> {
+  try {
+    return (await getDoc(doc(db, 'platformAdmins', uid))).exists();
+  } catch {
+    // ⚠️ ושקר ולא זריקה. אי אפשר לקרוא את הרשומה פירושו שאין הרשאה, וזו
+    // תשובה ולא תקלה. הכפתור פשוט אינו מוצג.
+    return false;
+  }
+}
+
 /** רשימת הסלונים. כל מי שמחובר קורא אותה, וזה מה שמאפשר מסך בחירה. */
 export function watchBranches(onChange: (branches: Branch[]) => void): Unsubscribe {
   return onSnapshot(query(collection(db, 'branches'), orderBy('name')), (snapshot) => {

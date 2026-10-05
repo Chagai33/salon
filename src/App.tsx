@@ -119,7 +119,14 @@ function TopBar() {
               <span className="text-ink-soft">{branch.name}</span>
               {/* ⚠️ החלפת סלון היא קישור לרשימה ולא תפריט. עם שלושה סלונים
                   תפריט הוא שכבה מיותרת, ועם הרשימה רואים גם איפה אני ממתין. */}
-              <Link to="/" className="text-sm text-ink-faint underline-offset-2 hover:underline">
+              {/* ⚠️ `/salons` ולא `/`.
+                  זה היה הבאג: `/` נכנס אוטומטית למי שחבר בסלון אחד, ולכן
+                  הקישור חזר מיד לאותו מסך ולא עשה כלום. מי שמבקש להחליף
+                  סלון מבקש לראות את הרשימה, גם כשיש לו אחד. */}
+              <Link
+                to="/salons"
+                className="text-sm text-ink-faint underline-offset-2 hover:underline"
+              >
                 {t.salons.switch}
               </Link>
             </>
@@ -208,13 +215,19 @@ function Home() {
 
 function SignedIn() {
   useBranchesBinding();
+  return <Shell />;
+}
 
+/** ⚠️ בלי המאזינים, כדי שאפשר יהיה לרנדר את עץ המסכים בבדיקה. */
+export function Shell() {
   return (
     <div className="min-h-screen">
       <TopBar />
       <ErrorBar />
       <Routes>
         <Route path="/" element={<Home />} />
+        {/* ⚠️ הרשימה המפורשת, ואינה מפנה לשום מקום. */}
+        <Route path="/salons" element={<SalonsPage />} />
         <Route path="/s/:branchId" element={<BranchScope />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

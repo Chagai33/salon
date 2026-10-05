@@ -175,6 +175,7 @@ export function SalonsPage() {
   const branches = useStore((state) => state.branches);
   const memberships = useStore((state) => state.myMemberships);
   const loading = useStore((state) => state.areBranchesLoading);
+  const canOpen = useStore((state) => state.canOpenBranch);
   const [opening, setOpening] = useState(false);
 
   const { mine, others } = useMemo(
@@ -214,6 +215,10 @@ export function SalonsPage() {
         )}
       </section>
 
+      {/* ⚠️ ולא לכולם. פתיחת סלון פתוחה למי שמפעיל את המערכת, ולא לכל מי
+          שנכנס ב-Google. החוקים אוכפים את זה, וזו רק ההסתרה בממשק.
+          DOCS/PLANING/20-who-may-open-a-salon.md */}
+      {canOpen && (
       <section className="rounded-xl border border-line bg-surface">
         {opening ? (
           <>
@@ -232,6 +237,7 @@ export function SalonsPage() {
           </button>
         )}
       </section>
+      )}
     </div>
   );
 }

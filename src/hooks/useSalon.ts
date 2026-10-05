@@ -10,6 +10,7 @@ import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
 import { useStore } from '../store/useStore';
 import {
+  isPlatformAdmin,
   myMemberships,
   watchAccessCodes,
   watchActivityDaysForMonth,
@@ -50,6 +51,7 @@ export function useAuthBinding() {
 /** רשימת הסלונים, ובאילו מהם יש לי רשומה. */
 export function useBranchesBinding() {
   const user = useStore((state) => state.user);
+  const setCanOpenBranch = useStore((state) => state.setCanOpenBranch);
   const branches = useStore((state) => state.branches);
   const setBranches = useStore((state) => state.setBranches);
   const setMyMemberships = useStore((state) => state.setMyMemberships);
@@ -58,6 +60,17 @@ export function useBranchesBinding() {
     if (!user) return;
     return watchBranches(setBranches);
   }, [user, setBranches]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    void isPlatformAdmin(user.uid).then((allowed) => {
+      if (!cancelled) setCanOpenBranch(allowed);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, setCanOpenBranch]);
 
   useEffect(() => {
     if (!user) return;
