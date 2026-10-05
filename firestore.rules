@@ -5,7 +5,11 @@ rules_version = '2';
 // חוק הרשאות אינו מאומת בקריאה שלו. הוא מאומת בניסיון כתיבה שאמור להיכשל,
 // ובראייה שהוא נכשל. DOCS/PLANING/VERIFICATION-BUDGET.md
 //
-// ⚠️ והקובץ הזה עוד לא נפרס ולא נבדק מול האמולטור. אל תצטט אותו כמאומת.
+// ✅ נבדק מול אמולטור Firestore: `npm run test:rules`, 16 בדיקות, כולן עוברות.
+// ✅ ונפרס ל-hasalon-dev ב-05/10, בהדבקה בקונסולה.
+//
+// ⚠️ ופריסה אינה עולה עם Netlify. כל שינוי כאן נפרס בנפרד:
+//      firebase deploy --only firestore:rules --project hasalon-dev
 
 service cloud.firestore {
   match /databases/{database}/documents {
