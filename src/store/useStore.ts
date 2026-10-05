@@ -65,29 +65,44 @@ export const useStore = create<AppState>((set) => ({
   reset: () => set({ ...blank, isMonthLoading: false }),
 }));
 
-// בוררים. רכיב אינו מחשב את אלה בעצמו.
+// בוררים.
+//
+// ⚠️⚠️ בורר שמוחזר ממנו ערך חדש בכל קריאה גורם ללולאה אינסופית.
+//
+// zustand גרסה 5 עובד דרך useSyncExternalStore, והוא משווה את מה שהבורר החזיר
+// בהשוואת זהות. בורר שבונה Map או מערך חדש מחזיר הפניה חדשה בכל רינדור, React
+// מסיק שהמצב השתנה, מרנדר שוב, והבורר בונה Map חדש. זו לולאה.
+//
+// זה קרה כאן בפועל, ושחזרתי אותו: React error 185, "Maximum update depth
+// exceeded", והמסך נשאר ריק. DOCS/PLANING/16-the-selector-that-looped.md
+//
+// הכלל: בורר מחזיר ערך פרימיטיבי, או הפניה שכבר קיימת ב-Store.
+// כל גזירה שבונה אובייקט נעשית ב-useMemo בתוך הרכיב.
 
 export const selectIsManager = (state: AppState) => state.member?.role === 'manager';
 export const selectIsActive = (state: AppState) => state.member?.status === 'active';
 
-export const selectShiftsByDate = (state: AppState) => {
-  const map = new Map<string, Shift[]>();
-  for (const shift of state.shifts) {
-    const list = map.get(shift.date) ?? [];
-    list.push(shift);
-    map.set(shift.date, list);
-  }
-  return map;
-};
-
-export const selectActivityByDate = (state: AppState) => {
-  const map = new Map<string, ActivityDay>();
-  for (const day of state.activityDays) map.set(day.date, day);
-  return map;
-};
-
+// ✅ מספרים. אלה בטוחים: ערך פרימיטיבי משווה בערך ולא בהפניה.
 export const selectOpenShiftCount = (state: AppState) =>
   state.shifts.filter((shift) => !shift.assigneeMemberId).length;
 
 export const selectHandoverCount = (state: AppState) =>
   state.shifts.filter((shift) => shift.handoverState === 'requested').length;
+
+// ⚠️ אלה אינן בוררים ואינן נקראות עם useStore. הן פונקציות עזר שמקבלות את
+// המערך ומוחזרות לתוך useMemo ברכיב.
+export function groupShiftsByDate(shifts: Shift[]): Map<string, Shift[]> {
+  const map = new Map<string, Shift[]>();
+  for (const shift of shifts) {
+    const list = map.get(shift.date) ?? [];
+    list.push(shift);
+    map.set(shift.date, list);
+  }
+  return map;
+}
+
+export function groupActivityByDate(days: ActivityDay[]): Map<string, ActivityDay> {
+  const map = new Map<string, ActivityDay>();
+  for (const day of days) map.set(day.date, day);
+  return map;
+}

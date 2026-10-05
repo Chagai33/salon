@@ -35,3 +35,6 @@ venv/
 node_modules/
 dist/
 .netlify/
+
+# לוגים של שרתי בדיקה מקומיים
+*.log

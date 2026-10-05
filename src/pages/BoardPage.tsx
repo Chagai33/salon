@@ -1,7 +1,13 @@
 // src/pages/BoardPage.tsx
 
 import { useMemo, useState } from 'react';
-import { useStore, selectActivityByDate, selectHandoverCount, selectOpenShiftCount, selectShiftsByDate } from '../store/useStore';
+import {
+  useStore,
+  groupActivityByDate,
+  groupShiftsByDate,
+  selectHandoverCount,
+  selectOpenShiftCount,
+} from '../store/useStore';
 import { MonthBoard } from '../components/board/MonthBoard';
 import { DayList } from '../components/board/DayList';
 import { AccessCodePanel } from '../components/board/AccessCodePanel';
@@ -28,10 +34,14 @@ export function BoardPage() {
   const isMonthLoading = useStore((state) => state.isMonthLoading);
   const setError = useStore((state) => state.setError);
 
-  const shiftsByDate = useStore(selectShiftsByDate);
-  const activityByDate = useStore(selectActivityByDate);
+  const activityDays = useStore((state) => state.activityDays);
   const openCount = useStore(selectOpenShiftCount);
   const handoverCount = useStore(selectHandoverCount);
+
+  // ⚠️ ב-useMemo ולא בבורר. בורר שבונה Map חדש בכל קריאה גורם ללולאה
+  // אינסופית, וזה קרה. DOCS/PLANING/16-the-selector-that-looped.md
+  const shiftsByDate = useMemo(() => groupShiftsByDate(shifts), [shifts]);
+  const activityByDate = useMemo(() => groupActivityByDate(activityDays), [activityDays]);
 
   const [generating, setGenerating] = useState(false);
 

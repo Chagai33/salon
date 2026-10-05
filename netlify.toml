@@ -10,3 +10,14 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# ⚠️ כניסה עם Google נפתחת בחלון קופץ, ו-Firebase בודק אותו דרך window.closed.
+# מדיניות COOP ברירת המחדל חוסמת את הבדיקה הזו, והקונסולה מתמלאת ב-
+# "Cross-Origin-Opener-Policy policy would block the window.closed call".
+# same-origin-allow-popups משאיר את ההגנה ומתיר לחלון הקופץ לדבר עם הפותח.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cross-Origin-Opener-Policy = "same-origin-allow-popups"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
