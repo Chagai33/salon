@@ -192,10 +192,17 @@ function BranchScope() {
 /** ⚠️ סלון יחיד נכנסים אליו ישר. רשימה של אחד אינה בחירה. */
 function Home() {
   const memberships = useStore((state) => state.myMemberships);
-  const loading = useStore((state) => state.areBranchesLoading);
+  const branchesLoading = useStore((state) => state.areBranchesLoading);
+  const membershipsLoading = useStore((state) => state.areMembershipsLoading);
+
+  // ⚠️ ממתין גם לחברויות. בלי זה מי שחבר בסלון אחד רואה לרגע את מסך הבחירה
+  // ואז נזרק ממנו, וזה נקרא כמו תקלה.
+  if (branchesLoading || membershipsLoading) {
+    return <main className="p-6 text-ink-soft">{t.salons.loading}</main>;
+  }
 
   const ids = Object.keys(memberships);
-  if (!loading && ids.length === 1) return <Navigate to={`/s/${ids[0]}`} replace />;
+  if (ids.length === 1) return <Navigate to={`/s/${ids[0]}`} replace />;
   return <SalonsPage />;
 }
 

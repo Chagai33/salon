@@ -34,13 +34,6 @@ import type {
 import { datesInMonth, toMonthKey } from '../utils/dates';
 import { periodMonthOf } from '../utils/eligibility';
 
-/**
- * ⚠️ הסלון שנפתח ראשון, ולא "הסלון". כל סלון הוא טננט בפני עצמו, וכל מה ששייך
- * לו יושב תחתיו. המזהה הזה נשאר כברירת מחדל לקישורים ישנים בלבד.
- * DOCS/PLANING/18-each-salon-is-a-tenant.md
- */
-export const DEFAULT_BRANCH_ID = 'tel-aviv';
-
 /** ⚠️ מזהה לכתובת. לטיני, קטן, ומקפים. הוא יושב ב-URL ובנתיב במסד. */
 export const BRANCH_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])$/;
 
@@ -62,7 +55,7 @@ const codesRef = (branchId: string) => collection(db, 'branches', branchId, 'acc
  * ⚠️ `pending` ולא `active`. בהכרעת בעל המוצר: "נרשם וממתין לאישור מנהלת."
  * ⚠️ ואין קישור לחבר שיובא מהגיליון: "אין לו קשר לחבר מהגיליון, מתחילים מחדש."
  */
-export async function ensureMember(user: User, branchId = DEFAULT_BRANCH_ID): Promise<Member> {
+export async function ensureMember(user: User, branchId: string): Promise<Member> {
   const ref = doc(membersRef(branchId), user.uid);
   const snapshot = await getDoc(ref);
 

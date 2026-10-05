@@ -19,6 +19,7 @@ interface AppState {
   /** הסלונים שיש לי בהם רשומת חבר, בכל סטטוס. */
   myMemberships: Record<string, Member>;
   areBranchesLoading: boolean;
+  areMembershipsLoading: boolean;
   monthKey: string;
   shifts: Shift[];
   activityDays: ActivityDay[];
@@ -53,6 +54,7 @@ const blank = {
   branchId: null,
   myMemberships: {},
   areBranchesLoading: true,
+  areMembershipsLoading: true,
   shifts: [],
   activityDays: [],
   accessCodes: [],
@@ -78,7 +80,7 @@ export const useStore = create<AppState>((set) => ({
         ? state
         : { branchId, branch: null, member: null, members: [], shifts: [], activityDays: [], accessCodes: [] },
     ),
-  setMyMemberships: (myMemberships) => set({ myMemberships }),
+  setMyMemberships: (myMemberships) => set({ myMemberships, areMembershipsLoading: false }),
   setMonthKey: (monthKey) => set({ monthKey, isMonthLoading: true }),
   setShifts: (shifts) => set({ shifts, isMonthLoading: false }),
   setActivityDays: (activityDays) => set({ activityDays }),
