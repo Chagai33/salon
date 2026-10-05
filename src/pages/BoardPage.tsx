@@ -16,7 +16,6 @@ import { t } from '../i18n/dictionary';
 import { addMonths, datesInMonth, monthLabel, toMonthKey } from '../utils/dates';
 import { codeVisibilityFor } from '../utils/eligibility';
 import {
-  DEFAULT_BRANCH_ID,
   cancelHandoverRequest,
   claimShift,
   generateMonth,
@@ -26,7 +25,7 @@ import {
 import type { Shift } from '../types';
 import { toReadableError } from '../utils/errors';
 
-export function BoardPage() {
+export function BoardPage({ branchId }: { branchId: string }) {
   const branch = useStore((state) => state.branch);
   const member = useStore((state) => state.member);
   const monthKey = useStore((state) => state.monthKey);
@@ -77,13 +76,13 @@ export function BoardPage() {
 
   const onClaim = (shift: Shift) =>
     guarded(() =>
-      claimShift(DEFAULT_BRANCH_ID, shift.id, member!.id, member!.displayName),
+      claimShift(branchId, shift.id, member!.id, member!.displayName),
     );
-  const onRelease = (shift: Shift) => guarded(() => releaseShift(DEFAULT_BRANCH_ID, shift.id));
+  const onRelease = (shift: Shift) => guarded(() => releaseShift(branchId, shift.id));
   const onRequestHandover = (shift: Shift) =>
-    guarded(() => requestHandover(DEFAULT_BRANCH_ID, shift.id));
+    guarded(() => requestHandover(branchId, shift.id));
   const onCancelHandover = (shift: Shift) =>
-    guarded(() => cancelHandoverRequest(DEFAULT_BRANCH_ID, shift.id));
+    guarded(() => cancelHandoverRequest(branchId, shift.id));
 
   if (!branch) {
     return <p className="p-6 text-ink-soft">{t.errors.noBranch}</p>;
@@ -93,7 +92,7 @@ export function BoardPage() {
     <div className="mx-auto flex max-w-6xl flex-col gap-4 p-4">
       <AccessCodePanel visibility={visibility} />
 
-      {isManager && <MembersPanel />}
+      {isManager && <MembersPanel branchId={branchId} />}
 
       <section className="rounded-xl border border-line bg-surface">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-3">
@@ -148,7 +147,7 @@ export function BoardPage() {
                 disabled={generating}
                 onClick={() => {
                   setGenerating(true);
-                  void generateMonth(DEFAULT_BRANCH_ID, monthKey)
+                  void generateMonth(branchId, monthKey)
                     .catch((error: unknown) => setError(toReadableError(error, t.errors.saveFailed)))
                     .finally(() => setGenerating(false));
                 }}

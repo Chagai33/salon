@@ -1,8 +1,31 @@
+// src/App.tsx
+//
+// ⚠️ הניווט הוא לפי סלון. הכתובת `/s/tel-aviv` היא מה שאפשר לשלוח למישהו,
+// והיא גם מה שקובע מאיזה טננט נקרא. DOCS/PLANING/18-each-salon-is-a-tenant.md
+
+import { useEffect, useState } from 'react';
+import {
+  BrowserRouter,
+  Link,
+  Navigate,
+  Route,
+  Routes,
+  useParams,
+} from 'react-router-dom';
 import { useStore } from './store/useStore';
-import { useAuthBinding, useBranchBinding, useMonthBinding, signInWithGoogle, signOutOfSalon } from './hooks/useSalon';
+import {
+  useAuthBinding,
+  useBranchesBinding,
+  useCurrentBranchBinding,
+  useMonthBinding,
+  signInWithGoogle,
+  signOutOfSalon,
+} from './hooks/useSalon';
 import { BoardPage } from './pages/BoardPage';
+import { SalonsPage } from './pages/SalonsPage';
+import { joinBranch } from './services/salonService';
+import { toReadableError } from './utils/errors';
 import { t } from './i18n/dictionary';
-import { useState } from 'react';
 
 function SignIn() {
   const [busy, setBusy] = useState(false);
@@ -47,14 +70,62 @@ function Pending() {
   );
 }
 
+/** סלון שאני לא חבר בו. ⚠️ ההצטרפות היא פעולה, ואינה קורית מעצם הכניסה למסך. */
+function JoinBranch({ branchId }: { branchId: string }) {
+  const user = useStore((state) => state.user);
+  const branch = useStore((state) => state.branch);
+  const setError = useStore((state) => state.setError);
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <main className="mx-auto flex max-w-md flex-col gap-3 p-6">
+      <h1 className="text-xl font-semibold text-ink">{t.salons.joinTitle}</h1>
+      <p className="text-ink-soft">{t.salons.joinBody(branch?.name ?? branchId)}</p>
+      <div>
+        <button
+          type="button"
+          disabled={busy || !user}
+          onClick={() => {
+            setBusy(true);
+            setError(null);
+            void joinBranch(user!, branchId)
+              .catch((error: unknown) => setError(toReadableError(error, t.errors.saveFailed)))
+              .finally(() => setBusy(false));
+          }}
+          className="rounded-md bg-brand px-4 py-2 font-medium text-brand-ink disabled:opacity-50"
+        >
+          {busy ? t.salons.joining : t.salons.join}
+        </button>
+      </div>
+    </main>
+  );
+}
+
 function TopBar() {
   const user = useStore((state) => state.user);
   const member = useStore((state) => state.member);
+  const branch = useStore((state) => state.branch);
 
   return (
     <header className="border-b border-line bg-surface">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 p-3">
-        <span className="font-semibold text-ink">{t.appName}</span>
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 p-3">
+        <div className="flex items-center gap-2">
+          <Link to="/" className="font-semibold text-ink hover:underline">
+            {t.appName}
+          </Link>
+          {branch && (
+            <>
+              <span className="text-ink-faint">·</span>
+              <span className="text-ink-soft">{branch.name}</span>
+              {/* ⚠️ החלפת סלון היא קישור לרשימה ולא תפריט. עם שלושה סלונים
+                  תפריט הוא שכבה מיותרת, ועם הרשימה רואים גם איפה אני ממתין. */}
+              <Link to="/" className="text-sm text-ink-faint underline-offset-2 hover:underline">
+                {t.salons.switch}
+              </Link>
+            </>
+          )}
+        </div>
+
         <div className="flex items-center gap-3 text-sm">
           <span className="text-ink-soft">{member?.displayName ?? user?.displayName}</span>
           <button
@@ -70,15 +141,85 @@ function TopBar() {
   );
 }
 
+function ErrorBar() {
+  const error = useStore((state) => state.error);
+  if (!error) return null;
+  return (
+    <p
+      role="alert"
+      className="mx-auto max-w-6xl rounded-md bg-danger-soft px-4 py-2 text-sm text-danger"
+    >
+      {error}
+    </p>
+  );
+}
+
+/** הסלון שבכתובת. כל מה שנקרא מהמסד כאן שייך לו בלבד. */
+function BranchScope() {
+  const { branchId = '' } = useParams();
+  const setBranchId = useStore((state) => state.setBranchId);
+  const branch = useStore((state) => state.branch);
+  const member = useStore((state) => state.member);
+  const branches = useStore((state) => state.branches);
+  const areBranchesLoading = useStore((state) => state.areBranchesLoading);
+
+  useEffect(() => {
+    setBranchId(branchId);
+  }, [branchId, setBranchId]);
+
+  useCurrentBranchBinding(branchId);
+  useMonthBinding(branchId);
+
+  const exists = branches.some((candidate) => candidate.id === branchId);
+
+  if (!areBranchesLoading && !exists) {
+    return (
+      <main className="mx-auto flex max-w-md flex-col gap-3 p-6">
+        <p className="text-ink-soft">{t.salons.notFound}</p>
+        <Link to="/" className="text-brand underline-offset-2 hover:underline">
+          {t.salons.backToList}
+        </Link>
+      </main>
+    );
+  }
+
+  if (!branch) return <main className="p-6 text-ink-soft">{t.board.loading}</main>;
+  if (!member) return <JoinBranch branchId={branchId} />;
+  if (member.status === 'pending') return <Pending />;
+  return <BoardPage branchId={branchId} />;
+}
+
+/** ⚠️ סלון יחיד נכנסים אליו ישר. רשימה של אחד אינה בחירה. */
+function Home() {
+  const memberships = useStore((state) => state.myMemberships);
+  const loading = useStore((state) => state.areBranchesLoading);
+
+  const ids = Object.keys(memberships);
+  if (!loading && ids.length === 1) return <Navigate to={`/s/${ids[0]}`} replace />;
+  return <SalonsPage />;
+}
+
+function SignedIn() {
+  useBranchesBinding();
+
+  return (
+    <div className="min-h-screen">
+      <TopBar />
+      <ErrorBar />
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/s/:branchId" element={<BranchScope />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </div>
+  );
+}
+
 export default function App() {
   useAuthBinding();
-  useBranchBinding();
-  useMonthBinding();
 
   const user = useStore((state) => state.user);
-  const member = useStore((state) => state.member);
   const isAuthResolved = useStore((state) => state.isAuthResolved);
-  const error = useStore((state) => state.error);
 
   if (!isAuthResolved) {
     return <main className="p-6 text-ink-soft">{t.board.loading}</main>;
@@ -87,17 +228,8 @@ export default function App() {
   if (!user) return <SignIn />;
 
   return (
-    <div className="min-h-screen">
-      <TopBar />
-      {error && (
-        <p
-          role="alert"
-          className="mx-auto max-w-6xl rounded-md bg-danger-soft px-4 py-2 text-sm text-danger"
-        >
-          {error}
-        </p>
-      )}
-      {member?.status === 'pending' ? <Pending /> : <BoardPage />}
-    </div>
+    <BrowserRouter>
+      <SignedIn />
+    </BrowserRouter>
   );
 }

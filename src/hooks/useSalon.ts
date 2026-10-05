@@ -1,112 +1,122 @@
 // src/hooks/useSalon.ts
 //
 // מחבר את המאזינים ל-Store. רכיב אינו פותח מאזין בעצמו.
+//
+// ⚠️ ושלוש שכבות ולא אחת: מי אני, אילו סלונים יש, ומה יש בסלון שאני בו.
+// כל שכבה ממתינה לקודמת, כי קריאה לתוך סלון דורשת רשומת חבר בו.
 
 import { useEffect } from 'react';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
 import { useStore } from '../store/useStore';
 import {
-  DEFAULT_BRANCH_ID,
-  ensureDefaultBranch,
-  ensureMember,
+  myMemberships,
   watchAccessCodes,
   watchActivityDaysForMonth,
   watchBranch,
+  watchBranches,
   watchMember,
   watchMembers,
   watchShiftsForMonth,
 } from '../services/salonService';
-import { t } from '../i18n/dictionary';
-import { toReadableError } from '../utils/errors';
 
 export function useAuthBinding() {
   const setUser = useStore((state) => state.setUser);
-  const setMember = useStore((state) => state.setMember);
   const setAuthResolved = useStore((state) => state.setAuthResolved);
-  const setError = useStore((state) => state.setError);
   const reset = useStore((state) => state.reset);
 
   useEffect(() => {
-    let stopMember: (() => void) | undefined;
-
-    const stopAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      stopMember?.();
-      stopMember = undefined;
-
+    return onAuthStateChanged(auth, (firebaseUser) => {
       if (!firebaseUser) {
         reset();
         setAuthResolved(true);
         return;
       }
 
-      const user = {
+      // ⚠️ ואין כאן יצירת סלון ואין יצירת רשומת חבר. כשהיה סלון אחד, כניסה
+      // ל-Google יצרה בקשת הצטרפות אליו. עם כמה סלונים זה היה יוצר בקשה לכל
+      // סלון שמישהו הציץ בו. ההצטרפות היא פעולה, והיא במסך הבחירה.
+      setUser({
         uid: firebaseUser.uid,
         displayName: firebaseUser.displayName ?? firebaseUser.email ?? 'חבר',
         email: firebaseUser.email ?? '',
         photoURL: firebaseUser.photoURL ?? undefined,
-      };
-      setUser(user);
-
-      try {
-        await ensureDefaultBranch();
-        await ensureMember(user);
-        stopMember = watchMember(DEFAULT_BRANCH_ID, user.uid, setMember);
-      } catch (error) {
-        // ⚠️ ולא error.message. זו הדרך שבה "Missing or insufficient
-        // permissions" הגיע למסך באנגלית.
-        setError(toReadableError(error, t.errors.saveFailed));
-      } finally {
-        setAuthResolved(true);
-      }
+      });
+      setAuthResolved(true);
     });
-
-    return () => {
-      stopMember?.();
-      stopAuth();
-    };
-  }, [reset, setAuthResolved, setError, setMember, setUser]);
+  }, [reset, setAuthResolved, setUser]);
 }
 
-export function useBranchBinding() {
-  // ⚠️ תלוי ב-member ולא ב-user, וזה לא קוסמטי.
-  //
-  // setUser רץ לפני ש-ensureMember מסיים, ולכן מאזין שתלוי ב-user נפתח
-  // בזמן שרשומת החבר עוד לא קיימת. הסריקה על members דורשת חברות, והיא
-  // נדחית ב-Missing or insufficient permissions. זה מה שקרה בפועל.
+/** רשימת הסלונים, ובאילו מהם יש לי רשומה. */
+export function useBranchesBinding() {
+  const user = useStore((state) => state.user);
+  const branches = useStore((state) => state.branches);
+  const setBranches = useStore((state) => state.setBranches);
+  const setMyMemberships = useStore((state) => state.setMyMemberships);
+
+  useEffect(() => {
+    if (!user) return;
+    return watchBranches(setBranches);
+  }, [user, setBranches]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    void myMemberships(
+      user.uid,
+      branches.map((branch) => branch.id),
+    ).then((found) => {
+      if (!cancelled) setMyMemberships(found);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, branches, setMyMemberships]);
+}
+
+/** הסלון שאני בו: המסמך שלו, הרשומה שלי בו, ורשימת החברים. */
+export function useCurrentBranchBinding(branchId: string | null) {
+  const user = useStore((state) => state.user);
   const member = useStore((state) => state.member);
   const setBranch = useStore((state) => state.setBranch);
+  const setMember = useStore((state) => state.setMember);
   const setMembers = useStore((state) => state.setMembers);
 
   useEffect(() => {
-    if (!member) return;
-    const stopBranch = watchBranch(DEFAULT_BRANCH_ID, setBranch);
-    const stopMembers = watchMembers(DEFAULT_BRANCH_ID, setMembers);
-    return () => {
-      stopBranch();
-      stopMembers();
-    };
-  }, [member, setBranch, setMembers]);
+    if (!branchId) return;
+    return watchBranch(branchId, setBranch);
+  }, [branchId, setBranch]);
+
+  useEffect(() => {
+    if (!branchId || !user) return;
+    return watchMember(branchId, user.uid, setMember);
+  }, [branchId, user, setMember]);
+
+  useEffect(() => {
+    // ⚠️ תלוי ב-member ולא ב-user, וזה לא קוסמטי. סריקת החברים דורשת חברות,
+    // ומאזין שנפתח לפני שהרשומה קיימת נדחה.
+    // DOCS/PLANING/17-the-first-sign-in-could-never-work.md
+    if (!branchId || !member) return;
+    return watchMembers(branchId, setMembers);
+  }, [branchId, member, setMembers]);
 }
 
-export function useMonthBinding() {
-  // ⚠️ אותה סיבה: המשמרות נקראות רק אחרי שרשומת החבר קיימת.
+export function useMonthBinding(branchId: string | null) {
   const member = useStore((state) => state.member);
   const monthKey = useStore((state) => state.monthKey);
   const setShifts = useStore((state) => state.setShifts);
   const setActivityDays = useStore((state) => state.setActivityDays);
   const setAccessCodes = useStore((state) => state.setAccessCodes);
-  const setError = useStore((state) => state.setError);
 
   useEffect(() => {
-    if (!member) return;
+    if (!branchId || !member) return;
     const stops = [
-      watchShiftsForMonth(DEFAULT_BRANCH_ID, monthKey, setShifts),
-      watchActivityDaysForMonth(DEFAULT_BRANCH_ID, monthKey, setActivityDays),
-      watchAccessCodes(DEFAULT_BRANCH_ID, setAccessCodes),
+      watchShiftsForMonth(branchId, monthKey, setShifts),
+      watchActivityDaysForMonth(branchId, monthKey, setActivityDays),
+      watchAccessCodes(branchId, setAccessCodes),
     ];
     return () => stops.forEach((stop) => stop());
-  }, [member, monthKey, setShifts, setActivityDays, setAccessCodes, setError]);
+  }, [branchId, member, monthKey, setShifts, setActivityDays, setAccessCodes]);
 }
 
 export async function signInWithGoogle(): Promise<void> {

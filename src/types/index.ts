@@ -62,6 +62,11 @@ export interface Branch {
   id: string;
   name: string;
   city: string;
+  /** ⚠️ מי פתח את הסלון. חוקי המסד דורשים אותו ביצירה, והוא מה שמאפשר
+   *  לפותח להיכתב כמנהל באותה אצווה בלי שאיש יוכל למנות את עצמו בסלון קיים.
+   *  DOCS/PLANING/18-each-salon-is-a-tenant.md */
+  createdBy?: string;
+  createdAt?: number;
   timezone: string;
   /** אפס הוא ראשון. שבעה ימים, כדי שסניף שיפתח בשישי לא ידרוש שינוי מודל. */
   openingHours: Record<number, OpeningHours | null>;

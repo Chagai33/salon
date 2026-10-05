@@ -6,7 +6,7 @@ rules_version = '2';
 // ובראייה שהוא נכשל. DOCS/PLANING/VERIFICATION-BUDGET.md
 //
 // ✅ נבדק מול אמולטור Firestore: `npm run test:rules`, 16 בדיקות, כולן עוברות.
-// ✅ ונפרס ל-hasalon-dev ב-05/10, בהדבקה בקונסולה.
+// ⚠️ שונה אחרי הפריסה של 05/10, בפתיחת סלון כטננט. צריך להדביק שוב.
 //
 // ⚠️ ופריסה אינה עולה עם Netlify. כל שינוי כאן נפרס בנפרד:
 //      firebase deploy --only firestore:rules --project hasalon-dev
@@ -36,13 +36,30 @@ service cloud.firestore {
     }
 
     match /branches/{branchId} {
-      // כל מי שמחובר קורא את הסניף: בלי זה אי אפשר להציג מסך כניסה שאומר לאן
-      // נכנסת. הסניף אינו מחזיק מידע אישי.
+      // כל מי שמחובר קורא את רשימת הסלונים ואת מסמך הסלון. בלי זה אין מסך
+      // בחירה, ואי אפשר לבקש להצטרף לסלון שעוד אינך חבר בו.
+      // ⚠️ מסמך הסלון מחזיק שעות, חללים וקוד ICS, ואינו מחזיק מידע אישי.
+      // המידע האישי יושב באוסף members, והוא סגור לחברי הסלון בלבד.
       allow read: if signedIn();
-      // ⚠️ יצירת הסניף הראשון נעשית מהלקוח בכניסה הראשונה, ואין עוד מנהלת
-      // שתאשר אותה. לכן create מותר למי שמחובר, ו-update למנהלת בלבד.
-      // אחרי שסניף קיים, create אינו אפשרי עליו שוב.
-      allow create: if signedIn();
+
+      // ⚠️⚠️ פתיחת סלון היא כתיבה אחת של שני מסמכים, ולא שתיים בזו אחר זו.
+      //
+      // הבעיה: מי שפותח סלון חייב להיות המנהל שלו, אחרת אין בו אף אחד שיאשר
+      // חברים, ואין דרך להגדיר מנהל בלי מנהל. וההפך מסוכן: אם מותר לכתוב
+      // לעצמך role: manager, כל מי שנרשם הופך למנהל של כל סלון.
+      //
+      // הפתרון: `getAfter` בודק את המצב אחרי שהאצווה כולה נכתבה. כאן הוא
+      // דורש שבאותה אצווה שיוצרת את הסלון נוצר גם המנהל שלו, והוא הכותב.
+      // ובכיוון השני, ב-members, מותר ליצור את עצמך כמנהל רק כשהסלון עצמו
+      // עוד לא היה קיים לפני האצווה.
+      //
+      // ⚠️ ושתי השורות האלה תלויות זו בזו. שינוי באחת בלי השנייה פותח חור.
+      // DOCS/PLANING/18-each-salon-is-a-tenant.md
+      allow create: if signedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && getAfter(/databases/$(database)/documents/branches/$(branchId)/members/$(request.auth.uid))
+             .data.role == 'manager';
+
       allow update: if isManager(branchId);
       allow delete: if false;
 
@@ -64,11 +81,24 @@ service cloud.firestore {
         // ⚠️ חבר יוצר את רשומת עצמו בלבד, והוא חייב ליצור אותה כ-pending
         // ובתפקיד member. בלי שתי הבדיקות האלה כל מי שנרשם היה יכול לכתוב
         // לעצמו role: manager ולקבל את כל המסד.
+        //
+        // ⚠️⚠️ והחריג היחיד: מי שפותח סלון חדש. הוא נכתב כמנהל פעיל, ורק
+        // באצווה שיוצרת סלון שעוד לא היה קיים. `exists` משקף את המצב לפני
+        // האצווה, ולכן על סלון קיים התנאי שקרי תמיד, ואי אפשר למנות את עצמך
+        // בו. זו המחצית השנייה של החוק שיושב על מסמך הסלון למעלה.
         allow create: if signedIn()
           && memberId == request.auth.uid
           && request.resource.data.uid == request.auth.uid
-          && request.resource.data.status == 'pending'
-          && request.resource.data.role == 'member';
+          && (
+            (request.resource.data.status == 'pending' && request.resource.data.role == 'member')
+            || (
+              request.resource.data.status == 'active'
+              && request.resource.data.role == 'manager'
+              && !exists(/databases/$(database)/documents/branches/$(branchId))
+              && getAfter(/databases/$(database)/documents/branches/$(branchId))
+                   .data.createdBy == request.auth.uid
+            )
+          );
 
         // רק מנהלת מאשרת ומשנה תפקיד.
         allow update: if isManager(branchId);

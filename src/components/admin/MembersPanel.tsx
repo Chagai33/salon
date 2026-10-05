@@ -10,11 +10,7 @@
 
 import { useMemo, useState } from 'react';
 import { splitMembers, useStore } from '../../store/useStore';
-import {
-  DEFAULT_BRANCH_ID,
-  approveMember,
-  setMemberRole,
-} from '../../services/salonService';
+import { approveMember, setMemberRole } from '../../services/salonService';
 import { t } from '../../i18n/dictionary';
 import { StatusPill } from '../common/StatusPill';
 import { toReadableError } from '../../utils/errors';
@@ -35,7 +31,7 @@ function Email({ address }: { address: string }) {
   );
 }
 
-export function MembersPanel() {
+export function MembersPanel({ branchId }: { branchId: string }) {
   const members = useStore((state) => state.members);
   const me = useStore((state) => state.member);
   const setError = useStore((state) => state.setError);
@@ -69,7 +65,7 @@ export function MembersPanel() {
           disabled={busy}
           onClick={() =>
             void run(member.id, () =>
-              approveMember(DEFAULT_BRANCH_ID, member.id, me!.id),
+              approveMember(branchId, member.id, me!.id),
             )
           }
           className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-brand-ink disabled:opacity-50"
@@ -89,7 +85,7 @@ export function MembersPanel() {
         type="button"
         disabled={busy}
         onClick={() =>
-          void run(member.id, () => setMemberRole(DEFAULT_BRANCH_ID, member.id, nextRole))
+          void run(member.id, () => setMemberRole(branchId, member.id, nextRole))
         }
         className="rounded-md border border-line-strong px-3 py-1.5 text-sm hover:bg-brand-soft disabled:opacity-50"
       >

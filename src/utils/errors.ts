@@ -52,6 +52,10 @@ export function toReadableError(error: unknown, fallback: string): string {
     return t.errors.popupBlocked;
   }
 
+  // שתי אלה נזרקות מתוך שכבת השירות, לפני שנגעו במסד.
+  if (code.includes('badBranchId')) return t.errors.badBranchId;
+  if (code.includes('branchExists')) return t.errors.branchExists;
+
   // ⚠️ וכל השאר אינו מוחזר כלשונו. הוא הולך לקונסולה, והמשתמש מקבל משפט
   // שאומר לו מה לעשות.
   if (import.meta.env.DEV) console.error('[salon]', error);

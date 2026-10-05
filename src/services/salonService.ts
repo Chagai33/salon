@@ -34,8 +34,19 @@ import type {
 import { datesInMonth, toMonthKey } from '../utils/dates';
 import { periodMonthOf } from '../utils/eligibility';
 
-/** הסניף היחיד שמופעל כרגע. ריבוי סניפים במודל, ותל אביב בלבד בפועל. */
+/**
+ * ⚠️ הסלון שנפתח ראשון, ולא "הסלון". כל סלון הוא טננט בפני עצמו, וכל מה ששייך
+ * לו יושב תחתיו. המזהה הזה נשאר כברירת מחדל לקישורים ישנים בלבד.
+ * DOCS/PLANING/18-each-salon-is-a-tenant.md
+ */
 export const DEFAULT_BRANCH_ID = 'tel-aviv';
+
+/** ⚠️ מזהה לכתובת. לטיני, קטן, ומקפים. הוא יושב ב-URL ובנתיב במסד. */
+export const BRANCH_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])$/;
+
+export function isValidBranchId(id: string): boolean {
+  return BRANCH_ID_PATTERN.test(id);
+}
 
 const branchRef = (branchId: string) => doc(db, 'branches', branchId);
 const membersRef = (branchId: string) => collection(db, 'branches', branchId, 'members');
@@ -119,6 +130,78 @@ export async function setMemberRole(
 }
 
 // ---------- הסניף ----------
+
+/** רשימת הסלונים. כל מי שמחובר קורא אותה, וזה מה שמאפשר מסך בחירה. */
+export function watchBranches(onChange: (branches: Branch[]) => void): Unsubscribe {
+  return onSnapshot(query(collection(db, 'branches'), orderBy('name')), (snapshot) => {
+    onChange(snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as Branch));
+  });
+}
+
+/**
+ * באילו סלונים יש לי רשומת חבר.
+ *
+ * ⚠️ קריאה אחת לכל סלון, ולא שאילתת collectionGroup. שאילתה כזו הייתה דורשת
+ * אינדקס, וחוק שמתיר סריקה רוחבית על members של כל הסלונים. מספר הסלונים
+ * קטן, והקריאה הישירה לרשומה של עצמי מותרת בלי לפתוח כלום.
+ */
+export async function myMemberships(
+  uid: string,
+  branchIds: string[],
+): Promise<Record<string, Member>> {
+  const found: Record<string, Member> = {};
+  await Promise.all(
+    branchIds.map(async (branchId) => {
+      const snapshot = await getDoc(doc(membersRef(branchId), uid));
+      if (snapshot.exists()) {
+        found[branchId] = { id: snapshot.id, ...snapshot.data() } as Member;
+      }
+    }),
+  );
+  return found;
+}
+
+/**
+ * פותח סלון חדש, ומי שפותח הוא המנהל שלו.
+ *
+ * ⚠️⚠️ אצווה אחת ולא שתי כתיבות. חוקי המסד דורשים שמסמך הסלון ומסמך המנהל
+ * ייכתבו יחד: סלון בלי מנהל אינו נוצר, ומנהל אינו נוצר בסלון שכבר היה קיים.
+ * שתי הכתיבות בנפרד היו נדחות שתיהן. DOCS/PLANING/18-each-salon-is-a-tenant.md
+ */
+export async function openBranch(
+  user: User,
+  input: { id: string; name: string; city: string },
+): Promise<void> {
+  if (!isValidBranchId(input.id)) {
+    throw new Error('badBranchId');
+  }
+  if ((await getDoc(branchRef(input.id))).exists()) {
+    throw new Error('branchExists');
+  }
+
+  const batch = writeBatch(db);
+  batch.set(branchRef(input.id), newBranch(input, user.uid));
+  batch.set(doc(membersRef(input.id), user.uid), {
+    uid: user.uid,
+    displayName: user.displayName,
+    email: user.email,
+    role: 'manager',
+    status: 'active',
+    joinedAt: Date.now(),
+  });
+  await batch.commit();
+}
+
+/**
+ * מבקש להצטרף לסלון קיים.
+ *
+ * ⚠️ והבקשה אינה נוצרת מעצם הכניסה למסך. עד כאן רשומת החבר נוצרה בכניסה
+ * ל-Google, וזה היה נכון כשהיה סלון אחד. עם כמה סלונים זה היה יוצר בקשת
+ * הצטרפות לכל סלון שמישהו רק הציץ בו.
+ */
+export async function joinBranch(user: User, branchId: string): Promise<Member> {
+  return ensureMember(user, branchId);
+}
 
 export function watchBranch(
   branchId: string,
@@ -388,7 +471,8 @@ export async function setAccessCode(
 // ---------- הזרעה ----------
 
 /** תבניות המשמרת של תל אביב, כפי שנמדדו בגיליון 2026. */
-const TEL_AVIV_TEMPLATES: ShiftTemplate[] = [
+/** ⚠️ נמדדו בתל אביב, ומשמשות נקודת פתיחה לכל סלון. המנהל עורך. */
+const DEFAULT_TEMPLATES: ShiftTemplate[] = [
   {
     id: 'morning',
     label: 'משמרת בוקר',
@@ -408,14 +492,15 @@ const TEL_AVIV_TEMPLATES: ShiftTemplate[] = [
 ];
 
 /**
- * יוצר את סניף תל אביב אם אינו קיים.
+ * סלון חדש, עם מה שצריך כדי שיעבוד מהרגע הראשון.
  *
- * השעות והחללים נמדדו, הגיליון ודף הסלון באתר. המנהלת עורכת אותם אחר כך.
+ * ⚠️ השעות והתבניות כאן הן נקודת פתיחה ולא קביעה. בחיפה השעות שונות מיום
+ * ליום, והמנהל עורך אותן. DOCS/PLANING/12-the-branch-settings-screen.md
  */
-export async function ensureDefaultBranch(): Promise<void> {
-  const ref = branchRef(DEFAULT_BRANCH_ID);
-  if ((await getDoc(ref)).exists()) return;
-
+function newBranch(
+  input: { name: string; city: string },
+  createdBy: string,
+): Omit<Branch, 'id'> {
   const openingHours: Branch['openingHours'] = {
     0: { open: '10:00', close: '22:00' },
     1: { open: '10:00', close: '22:00' },
@@ -426,23 +511,19 @@ export async function ensureDefaultBranch(): Promise<void> {
     6: null,
   };
 
-  const branch: Omit<Branch, 'id'> = {
-    name: 'הסלון בתל אביב',
-    city: 'תל אביב',
+  return {
+    name: input.name,
+    city: input.city,
     timezone: 'Asia/Jerusalem',
     openingHours,
-    shiftTemplates: TEL_AVIV_TEMPLATES,
-    spaces: [
-      { id: 'large', name: 'חלל גדול', isActive: true, order: 1 },
-      { id: 'quiet', name: 'חלל שקט', isActive: true, order: 2 },
-      { id: 'small', name: 'חלל קטן', isActive: true, order: 3 },
-      { id: 'offices', name: 'משרדים', isActive: true, order: 4 },
-    ],
+    shiftTemplates: DEFAULT_TEMPLATES,
+    // ⚠️ בלי חללים. לכל סלון החללים שלו, והמנהל כותב אותם.
+    spaces: [],
     isActive: true,
     icsToken: crypto.randomUUID().replace(/-/g, ''),
+    createdBy,
+    createdAt: Date.now(),
   };
-
-  await setDoc(ref, branch);
 }
 
 /** חותמת שרת, למקום שבו נדרש זמן שאינו מהמכשיר של המשתמש. */

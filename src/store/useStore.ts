@@ -12,6 +12,13 @@ interface AppState {
   member: Member | null;
   branch: Branch | null;
   members: Member[];
+  /** כל הסלונים. ⚠️ רשימה לבחירה, ואינה מקנה גישה לשום דבר שבתוכם. */
+  branches: Branch[];
+  /** הסלון שאני נמצא בו עכשיו, מתוך הכתובת. */
+  branchId: string | null;
+  /** הסלונים שיש לי בהם רשומת חבר, בכל סטטוס. */
+  myMemberships: Record<string, Member>;
+  areBranchesLoading: boolean;
   monthKey: string;
   shifts: Shift[];
   activityDays: ActivityDay[];
@@ -24,6 +31,9 @@ interface AppState {
   setMember: (member: Member | null) => void;
   setBranch: (branch: Branch | null) => void;
   setMembers: (members: Member[]) => void;
+  setBranches: (branches: Branch[]) => void;
+  setBranchId: (branchId: string | null) => void;
+  setMyMemberships: (memberships: Record<string, Member>) => void;
   setMonthKey: (monthKey: string) => void;
   setShifts: (shifts: Shift[]) => void;
   setActivityDays: (days: ActivityDay[]) => void;
@@ -39,6 +49,10 @@ const blank = {
   member: null,
   branch: null,
   members: [],
+  branches: [],
+  branchId: null,
+  myMemberships: {},
+  areBranchesLoading: true,
   shifts: [],
   activityDays: [],
   accessCodes: [],
@@ -55,6 +69,16 @@ export const useStore = create<AppState>((set) => ({
   setMember: (member) => set({ member }),
   setBranch: (branch) => set({ branch }),
   setMembers: (members) => set({ members }),
+  setBranches: (branches) => set({ branches, areBranchesLoading: false }),
+  // ⚠️ מעבר בין סלונים מנקה את מה ששייך לקודם. בלי זה הלוח של תל אביב מוצג
+  // לרגע תחת הכותרת של ירושלים, וזה נקרא כמו נתון ולא כמו שארית.
+  setBranchId: (branchId) =>
+    set((state) =>
+      state.branchId === branchId
+        ? state
+        : { branchId, branch: null, member: null, members: [], shifts: [], activityDays: [], accessCodes: [] },
+    ),
+  setMyMemberships: (myMemberships) => set({ myMemberships }),
   setMonthKey: (monthKey) => set({ monthKey, isMonthLoading: true }),
   setShifts: (shifts) => set({ shifts, isMonthLoading: false }),
   setActivityDays: (activityDays) => set({ activityDays }),
