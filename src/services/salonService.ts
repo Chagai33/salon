@@ -477,6 +477,28 @@ export async function saveActivityDay(
   );
 }
 
+/**
+ * ⚠️⚠️ כותבת את השדות שנמסרו לה בלבד, ואינה נוגעת בשאר.
+ *
+ * `merge: true` של Firestore משמיט שדה שאינו בעצם, **ולא שדה שנשלח ריק.**
+ * `saveActivityDay` שולח את כל השדות תמיד, ולכן ייבוא שני לאותו חודש מחק
+ * הערה שהמנהלת כתבה והחזיר יום שהיא סגרה למצב פתוח.
+ * DOCS/PLANING/25-the-second-import-erases-the-manager-edit.md
+ *
+ * ⚠️ ולכן פונקציה נפרדת ולא הרחבה של הטיפוס הקיים: עורך היום צריך להישאר
+ * מחויב לכתוב יום שלם, והייבוא צריך להיות מחויב לכתוב חלקי.
+ */
+export async function mergeActivityDay(
+  branchId: string,
+  fields: Partial<Omit<ActivityDay, 'id' | 'branchId'>> & { date: string },
+): Promise<void> {
+  await setDoc(
+    doc(activityRef(branchId), fields.date),
+    { ...fields, branchId },
+    { merge: true },
+  );
+}
+
 // ---------- קוד הכניסה ----------
 
 export function watchAccessCodes(

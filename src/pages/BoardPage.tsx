@@ -260,7 +260,14 @@ export function BoardPage({ branchId }: { branchId: string }) {
         רכיב בשתי צורות, והזכאות עצמה אינה משתנה בשום מצב.
       */}
       {/* ⚠️ למנהלת הסניף בלבד. מנהל מערכת שאינו מנהל כאן אינו כותב ימים. */}
-      {isManager && <ImportBoardImage branchId={branchId} monthKey={monthKey} />}
+      {/* ⚠️ ו-activityByDate נמסר כדי שהייבוא ידע מה הוא מחליף. רשומה 25. */}
+      {isManager && (
+        <ImportBoardImage
+          branchId={branchId}
+          monthKey={monthKey}
+          activityByDate={activityByDate}
+        />
+      )}
 
       {/* ⚠️ items-start, אחרת הכרטיס הקצר נמתח לגובה הארוך ונוצר חלל מת. */}
       {canManageMembers ? (
