@@ -90,7 +90,9 @@ export async function readBoardImage(
     */
     const message = error instanceof Error ? error.message : '';
     const known = ['notManager', 'noAuth', 'badImage', 'tooLarge', 'badMonth',
-      'modelFailed', 'emptyAnswer', 'notJson', 'memberLookupFailed', 'unexpected'];
+      'modelFailed', 'emptyAnswer', 'notJson', 'memberLookupFailed', 'unexpected',
+      // ⚠️ חיוב של המודל, ואינו תקלה חולפת. אין טעם לנסות שוב.
+      'quotaExhausted'];
     const code = known.find((candidate) => message.includes(candidate));
     throw new ImportError(code ?? 'modelFailed');
   }

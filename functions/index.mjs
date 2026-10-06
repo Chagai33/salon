@@ -147,6 +147,17 @@ async function handle(request) {
     */
     const detail = await response.text().catch(() => '');
     logger.error('gemini failed', { status: response.status, detail: detail.slice(0, 600) });
+
+    /*
+      ⚠️⚠️ וחיוב אינו תקלה חולפת, ולכן אינו נושא את אותה הודעה.
+
+      402 הוא קרדיטים שנגמרו ו-429 הוא מכסה. **"נסו שוב בעוד רגע" שולח את
+      המנהלת ללופ** שלא ייגמר, כי אין שום דבר שהיא יכולה לעשות. זה קרה
+      בפועל: הקוד היה תקין, והמסך אמר לנסות שוב.
+    */
+    if (response.status === 402 || response.status === 429) {
+      throw new HttpsError('resource-exhausted', 'quotaExhausted');
+    }
     throw new HttpsError('unavailable', 'modelFailed');
   }
 
