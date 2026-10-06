@@ -22,6 +22,7 @@ import { DayList } from '../components/board/DayList';
 import { AccessCodePanel } from '../components/board/AccessCodePanel';
 import { Legend } from '../components/board/Legend';
 import { DayEditor } from '../components/board/DayEditor';
+import { ImportBoardImage } from '../components/admin/ImportBoardImage';
 import { MembersPanel } from '../components/admin/MembersPanel';
 import { PageHeader } from '../components/layout/PageHeader';
 import { StatusLine } from '../components/layout/StatusLine';
@@ -258,6 +259,9 @@ export function BoardPage({ branchId }: { branchId: string }) {
         ⚠️ לחבר קוד הדלת הוא העיקר, ולמנהלת הוא מידע נגיש ולא כותרת. לכן אותו
         רכיב בשתי צורות, והזכאות עצמה אינה משתנה בשום מצב.
       */}
+      {/* ⚠️ למנהלת הסניף בלבד. מנהל מערכת שאינו מנהל כאן אינו כותב ימים. */}
+      {isManager && <ImportBoardImage branchId={branchId} monthKey={monthKey} />}
+
       {/* ⚠️ items-start, אחרת הכרטיס הקצר נמתח לגובה הארוך ונוצר חלל מת. */}
       {canManageMembers ? (
         <div className="grid items-start gap-4 lg:grid-cols-[1.7fr_1fr]">
