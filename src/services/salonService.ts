@@ -6,6 +6,7 @@
 
 import {
   collection,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -258,7 +259,9 @@ export function watchBranch(
 
 export async function saveBranchSettings(
   branchId: string,
-  changes: Partial<Pick<Branch, 'name' | 'openingHours' | 'shiftTemplates' | 'spaces'>>,
+  changes: Partial<
+    Pick<Branch, 'name' | 'openingHours' | 'shiftTemplates' | 'spaces' | 'importIgnore'>
+  >,
 ): Promise<void> {
   await updateDoc(branchRef(branchId), changes);
 }
@@ -470,11 +473,39 @@ export async function saveActivityDay(
   branchId: string,
   day: Omit<ActivityDay, 'id' | 'branchId'>,
 ): Promise<void> {
-  await setDoc(
-    doc(activityRef(branchId), day.date),
-    { ...day, branchId },
-    { merge: true },
-  );
+  /*
+    ⚠️⚠️ שדה `undefined` מפיל את הכתיבה כולה.
+    Firestore זורק `invalid-argument` על `Unsupported field value: undefined`,
+    ⚠️ ולכן המנהלת לא הצליחה למחוק אירוע שיובא: היום נשמר בלי שעת סגירה,
+    `closesAt` יצא `undefined`, וכל הכתיבה נפלה. נמדד 06/10 במסך של בעל
+    המוצר. DOCS/PLANING/26
+
+    ⚠️ ו-`deleteField` ולא השמטה: `merge: true` משמיט שדה שאינו בעצם, ולכן
+    השמטה בלבד הייתה משאירה שעת סגירה ישנה על יום שכבר אינו נסגר מוקדם.
+    DOCS/PLANING/25
+  */
+  const fields: Record<string, unknown> = { ...day, branchId };
+  for (const [key, value] of Object.entries(fields)) {
+    fields[key] = value === undefined ? deleteField() : withoutUndefined(value);
+  }
+
+  await setDoc(doc(activityRef(branchId), day.date), fields, { merge: true });
+}
+
+/*
+  ⚠️⚠️ `undefined` בתוך מערך מפיל את הכתיבה בדיוק כמו בשורש.
+  אירוע בלי חלל נושא `spaceId: undefined`, והוא יושב בתוך `events`.
+  ⚠️ ו-`deleteField` אינו חוקי בתוך מערך, ולכן כאן המפתח מושמט ולא נמחק.
+  DOCS/PLANING/26
+*/
+function withoutUndefined(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withoutUndefined);
+  if (value === null || typeof value !== 'object') return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {
+    if (inner !== undefined) out[key] = withoutUndefined(inner);
+  }
+  return out;
 }
 
 /**
@@ -492,11 +523,16 @@ export async function mergeActivityDay(
   branchId: string,
   fields: Partial<Omit<ActivityDay, 'id' | 'branchId'>> & { date: string },
 ): Promise<void> {
-  await setDoc(
-    doc(activityRef(branchId), fields.date),
-    { ...fields, branchId },
-    { merge: true },
-  );
+  /*
+    ⚠️ וכאן השמטה ולא מחיקה, בכוונה: שדה שהמודל לא קרא אינו נשלח בכלל, וזה
+    מה שמשאיר את מה שהמנהלת כתבה במקומו. DOCS/PLANING/25
+  */
+  const clean: Record<string, unknown> = { branchId };
+  for (const [key, value] of Object.entries(fields)) {
+    if (value !== undefined) clean[key] = withoutUndefined(value);
+  }
+
+  await setDoc(doc(activityRef(branchId), fields.date), clean, { merge: true });
 }
 
 // ---------- קוד הכניסה ----------

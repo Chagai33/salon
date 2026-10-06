@@ -68,7 +68,9 @@ function accessWord(publicAccess: PublicAccess, memberAccess: MemberAccess): str
 
 /** ⚠️ שם ושעות, ולא השם לבד. "פילוסופיה 19:00" ו"פילוסופיה 20:30" אינם אותו אירוע. */
 function eventKey(event: ActivityEvent): string {
-  return `${event.title.trim()}|${event.startTime ?? ''}|${event.endTime ?? ''}`;
+  // ⚠️ והחלל חלק מהמפתח: אירוע שהמנהלת שייכה לחלל בשלב הייבוא הוא שינוי,
+  // ובלי זה היום היה נחשב "ללא שינוי" והשיוך לא היה נשמר. DOCS/PLANING/26
+  return `${event.title.trim()}|${event.startTime ?? ''}|${event.endTime ?? ''}|${event.spaceId ?? ''}`;
 }
 
 function eventLabel(event: ActivityEvent): string {
