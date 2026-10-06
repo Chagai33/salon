@@ -21,7 +21,6 @@ import { MonthBoard } from '../components/board/MonthBoard';
 import { DayList } from '../components/board/DayList';
 import { AccessCodePanel } from '../components/board/AccessCodePanel';
 import { Legend } from '../components/board/Legend';
-import { WhatWeStore } from '../components/common/WhatWeStore';
 import { MembersPanel } from '../components/admin/MembersPanel';
 import { PageHeader } from '../components/layout/PageHeader';
 import { StatusLine } from '../components/layout/StatusLine';
@@ -252,10 +251,6 @@ export function BoardPage({ branchId }: { branchId: string }) {
           />
         </div>
       ) : null}
-
-      {/* ⚠️ מקופל, ובתחתית. בתוך האפליקציה זה מידע שחוזרים אליו ולא מה
-          שצריך לקרוא עכשיו. */}
-      <WhatWeStore />
     </div>
   );
 }

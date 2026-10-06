@@ -26,7 +26,8 @@ import { SalonsPage } from './pages/SalonsPage';
 import { joinBranch } from './services/salonService';
 import { toReadableError } from './utils/errors';
 import { t } from './i18n/dictionary';
-import { WhatWeStore } from './components/common/WhatWeStore';
+import { Footer } from './components/layout/Footer';
+import { PrivacyPage } from './pages/PrivacyPage';
 import { applyTheme, storedTheme } from './utils/theme';
 import type { Theme } from './utils/theme';
 
@@ -38,7 +39,8 @@ function SignIn() {
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-5 p-6">
       <div>
         <h1 className="text-2xl font-bold text-ink">{t.auth.signInTitle}</h1>
-        <p className="mt-3 text-ink-soft">{t.auth.signInBody}</p>
+        <p className="mt-2 text-ink-soft">{t.auth.signInWho}</p>
+        <p className="mt-1 text-ink-soft">{t.auth.signInBody}</p>
       </div>
 
       <button
@@ -69,7 +71,6 @@ function Pending() {
       <h1 className="text-xl font-semibold text-ink">{t.pending.title}</h1>
       <p className="text-ink-soft">{t.pending.body}</p>
       <p className="text-sm text-ink-faint">{t.pending.whoToAsk}</p>
-      <WhatWeStore />
     </main>
   );
 }
@@ -86,9 +87,11 @@ function JoinBranch({ branchId }: { branchId: string }) {
       <h1 className="text-xl font-semibold text-ink">{t.salons.joinTitle}</h1>
       <p className="text-ink-soft">{t.salons.joinBody(branch?.name ?? branchId)}</p>
 
-      {/* ⚠️ פתוח, וכאן. זו נקודת האיסוף: מי שמבקש להצטרף רואה לפני שהוא
-          לוחץ מה נשמר עליו ומי רואה את זה. */}
-      <WhatWeStore open />
+      {/* ⚠️ זו נקודת האיסוף, ולכן הקישור כאן ולא רק בפוטר. מי שמבקש להצטרף
+          רואה לפני שהוא לוחץ מה נשמר עליו ומי רואה את זה. */}
+      <Link to="/privacy" className="text-sm text-brand underline-offset-4 hover:underline">
+        {t.footer.privacy}
+      </Link>
 
       <div>
         <button
@@ -140,9 +143,30 @@ function ThemeToggle() {
         applyTheme(next);
         setTheme(next);
       }}
-      className="rounded-card border border-line px-3 py-1.5 text-ink-soft hover:bg-brand-soft hover:text-ink"
+      aria-label={theme === 'dark' ? t.theme.toLight : t.theme.toDark}
+      title={theme === 'dark' ? t.theme.toLight : t.theme.toDark}
+      className="grid size-9 place-items-center rounded-card border border-line text-ink-soft hover:bg-brand-soft hover:text-ink"
     >
-      {theme === 'dark' ? t.theme.toLight : t.theme.toDark}
+      {/* ⚠️ שמש וסהר אינם אייקונים כיווניים ולכן אינם מתהפכים ב-RTL.
+          aria-hidden, והשם הנגיש יושב על הכפתור עצמו. */}
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 24 24"
+        className="size-4.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      >
+        {theme === 'dark' ? (
+          <>
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19" />
+          </>
+        ) : (
+          <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z" />
+        )}
+      </svg>
     </button>
   );
 }
@@ -156,27 +180,24 @@ export function TopBar() {
   return (
     <header className="border-b border-line bg-surface">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 p-3">
-        <div className="flex items-center gap-2">
+        {/*
+          ⚠️ שם הסלון אינו כאן, ובכוונה. הוא הופיע גם בכותרת העליונה וגם בכותרת
+          העמוד, ושתי הפעמים אותה מחרוזת. הוא נשאר במקום אחד, ליד החודש.
+
+          ⚠️ ו-`/salons` ולא `/`: זה היה הבאג, כי `/` נכנס אוטומטית לסלון
+          היחיד ולכן הקישור חזר מיד לאותו מסך.
+        */}
+        <div className="flex items-center gap-3">
           <Link to="/" className="font-semibold text-ink hover:underline">
             {t.appName}
           </Link>
           {branch && (
-            <>
-              <span className="text-ink-faint">·</span>
-              <span className="text-ink-soft">{branch.name}</span>
-              {/* ⚠️ החלפת סלון היא קישור לרשימה ולא תפריט. עם שלושה סלונים
-                  תפריט הוא שכבה מיותרת, ועם הרשימה רואים גם איפה אני ממתין. */}
-              {/* ⚠️ `/salons` ולא `/`.
-                  זה היה הבאג: `/` נכנס אוטומטית למי שחבר בסלון אחד, ולכן
-                  הקישור חזר מיד לאותו מסך ולא עשה כלום. מי שמבקש להחליף
-                  סלון מבקש לראות את הרשימה, גם כשיש לו אחד. */}
-              <Link
-                to="/salons"
-                className="text-sm text-ink-faint underline-offset-2 hover:underline"
-              >
-                {t.salons.switch}
-              </Link>
-            </>
+            <Link
+              to="/salons"
+              className="text-sm text-ink-soft underline-offset-4 hover:underline"
+            >
+              {t.salons.switch}
+            </Link>
           )}
         </div>
 
@@ -280,9 +301,11 @@ export function Shell() {
         <Route path="/" element={<Home />} />
         {/* ⚠️ הרשימה המפורשת, ואינה מפנה לשום מקום. */}
         <Route path="/salons" element={<SalonsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/s/:branchId" element={<BranchScope />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <Footer />
     </div>
   );
 }

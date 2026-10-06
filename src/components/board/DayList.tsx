@@ -70,7 +70,7 @@ export function DayList({
                ריקים היא עשרים מסכים של גלילה בלי מידע. */
             className={`rounded-lg p-2.5 ${
               today
-                ? 'bg-cell ring-1 ring-brand'
+                ? 'bg-cell ring-2 ring-brand'
                 : shifts.length > 0
                   ? 'bg-cell'
                   : 'py-1.5'

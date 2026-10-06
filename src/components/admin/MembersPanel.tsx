@@ -16,7 +16,8 @@ import { StatusPill } from '../common/StatusPill';
 import { toReadableError } from '../../utils/errors';
 import { shortDateLabel, toDateKey } from '../../utils/dates';
 import type { Member } from '../../types';
-import { displayName } from '../../utils/names';
+// ⚠️ שם מלא כאן, ולא מקוצר. זה המסך שבו מזהים אדם לפני שמאשרים אותו.
+import { fullName } from '../../utils/names';
 
 function joinedLabel(joinedAt: number | undefined): string {
   if (!joinedAt) return '';
@@ -26,7 +27,7 @@ function joinedLabel(joinedAt: number | undefined): string {
 /** ⚠️ ראשי תיבות ולא תמונה. תמונת פרופיל אינה נשמרת במסד, וראשי תיבות
  *  נותנים את אותה עזרה בזיהוי בלי להוסיף שדה. */
 function Initials({ name }: { name: string }) {
-  const letters = displayName(name)
+  const letters = fullName(name)
     .split(/\s+/u)
     .slice(0, 2)
     .map((part) => part[0] ?? '')
@@ -165,7 +166,7 @@ export function MembersPanel({ branchId }: { branchId: string }) {
               <td className="px-4 py-2.5">
                 <div className="flex items-center gap-2.5">
                   <Initials name={member.displayName} />
-                  <bdi className="font-medium text-ink">{displayName(member.displayName)}</bdi>
+                  <bdi className="font-medium text-ink">{fullName(member.displayName)}</bdi>
                   {member.role === 'manager' && (
                     <StatusPill tone="mine">{t.manager.roleManager}</StatusPill>
                   )}

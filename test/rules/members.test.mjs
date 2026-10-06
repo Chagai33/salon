@@ -119,6 +119,36 @@ describe('רשומת החבר של עצמי', () => {
     );
   });
 
+  it('⚠️ מנהלת מגדירה חבר אחר כמנהל, ואז יש שניים בסניף', async () => {
+    await seed();
+    const db = env.authenticatedContext('manager-one').firestore();
+    // בעל המוצר שאל אם אפשר יותר ממנהל אחד לסניף. זו התשובה, במדידה.
+    await assertSucceeds(
+      updateDoc(doc(db, 'branches', BRANCH, 'members', 'active-one'), { role: 'manager' }),
+    );
+  });
+
+  it('⚠️ ומנהל המערכת מאציל גם הוא, בסניף שאינו חבר בו', async () => {
+    await seed();
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'platformAdmins', 'root'), { note: 'מפעיל' });
+    });
+    const db = env.authenticatedContext('root').firestore();
+    await assertSucceeds(
+      updateDoc(doc(db, 'branches', BRANCH, 'members', 'active-one'), {
+        role: 'manager', status: 'active',
+      }),
+    );
+  });
+
+  it('⚠️ וחבר פעיל אינו מגדיר מנהל', async () => {
+    await seed();
+    const db = env.authenticatedContext('active-one').firestore();
+    await assertFails(
+      updateDoc(doc(db, 'branches', BRANCH, 'members', 'pending-one'), { role: 'manager' }),
+    );
+  });
+
   it('מנהלת מאשרת חבר', async () => {
     await seed();
     const db = env.authenticatedContext('manager-one').firestore();

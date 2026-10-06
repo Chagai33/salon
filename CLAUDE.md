@@ -59,7 +59,7 @@
 | **זכאות** | **השיבוץ מזכה. הנוכחות נמדדת ואינה מזכה**, רשומה [09](DOCS/PLANING/09-reports-and-the-dashboard.md) |
 | נוכחות | ברירת מחדל שהמשמרת התקיימה, **והמנהל מסמן את החריג** |
 | רדום | **שלושה חודשים בלי משמרת.** פעיל, מדשדש, רדום |
-| מי רואה את מי | **חבר רואה את כולם.** ⚠️ **ו"מי לא הגיע" למנהלים בלבד** |
+| מי רואה את מי | **חבר רואה מי משובץ**, בשם פרטי ואות. ⚠️ **ורשימת החברים, המיילים ו"מי לא הגיע" למנהלים בלבד**, רשומה [22](DOCS/PLANING/22-the-email-was-readable-by-every-member.md) |
 | פיד ICS | **בלי שמות.** הכתובת נקראת בלי התחברות |
 | החלפות | **מבקש מחליף, והראשון שלוקח זוכה.** חופשי, והמנהל מקבל התראה |
 | **זכאות אחרי החלפה** | ⚠️ **מי שמצא מחליף שומר זכאות**, רשומה [10](DOCS/PLANING/10-shift-handover.md) |
@@ -130,10 +130,13 @@ npm run build        # tsc -b ואז vite build. עובר נקי
 npm run dev
 npm run test:rules   # אמולטור Firestore. 16 בדיקות, כולן עוברות
 node tools/hebrew-closures.mjs 2026
+node tools/check-rtl.mjs    # נכשל על כל כלל CSS פיזי בקוד
 python3 tools/extract-2026-sheet.py <קובץ.xlsx> data
 ```
 
-⚠️ **`test:rules` דורש JDK.** נמדד על 21.
+⚠️ **`test:rules` דורש JDK.** נמדד על 21. ⚠️ **ו-`firebase` אינו תלות של
+הפרויקט**, ולכן בפועל הוא מורץ ב-`npx -y firebase-tools@14`, רשומה
+[19](DOCS/PLANING/19-the-test-command-does-not-run-on-a-clean-machine.md).
 
 ⚠️ **ושניים משלושת קובצי `data/` אינם נדחפים למאגר**, רשומה
 [08](DOCS/PLANING/08-the-repository-is-public.md).

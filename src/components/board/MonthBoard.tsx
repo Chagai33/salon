@@ -127,22 +127,32 @@ export function MonthBoard({
                     <div
                       className={`flex h-full flex-col gap-1.5 rounded-lg p-1.5 ${
                         today
-                          ? 'bg-cell ring-1 ring-brand'
+                          ? 'bg-cell ring-2 ring-brand'
                           : shifts.length > 0
                             ? 'bg-cell'
                             : ''
                       }`}
                     >
                       <div className="flex flex-wrap items-center gap-1.5 px-1 pt-0.5">
+                        {/*
+                          ⚠️ היום נושא עיגול מלא ולא תגית לצידו. הגרסה הקודמת
+                          סימנה אותו בטבעת דקה ובתגית קטנה, ובעל המוצר דיווח
+                          שהוא בדגש חלש עד בלתי נראה. המספר עצמו הוא הסימן.
+                        */}
                         <span
-                          className={`num text-base font-semibold ${
-                            past ? 'text-ink-faint' : 'text-ink'
+                          className={`num font-semibold ${
+                            today
+                              ? 'grid size-7 place-items-center rounded-full bg-brand text-sm text-brand-ink'
+                              : `text-base ${past ? 'text-ink-faint' : 'text-ink'}`
                           }`}
+                          aria-current={today ? 'date' : undefined}
                         >
                           {dayNumber(dateKey)}
                         </span>
 
-                        {today && <StatusPill tone="activity">{t.board.today}</StatusPill>}
+                        {today && (
+                          <span className="text-xs font-medium text-brand">{t.board.today}</span>
+                        )}
 
                         {hasActivity && (
                           <StatusPill tone="activity">{t.day.activity}</StatusPill>
