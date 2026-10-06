@@ -12,7 +12,7 @@
 //
 // DOCS/PLANING/23-the-import-moved-to-firebase.md
 
-import { initializeApp } from 'firebase-admin/app';
+import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
@@ -25,7 +25,23 @@ import {
   sanitiseDays,
 } from './board-image.mjs';
 
-initializeApp();
+/*
+  ⚠️⚠️ האתחול נדחה לרגע הקריאה, ואינו בראש הקובץ.
+  
+  `initializeApp()` בראש הקובץ הפיל את הפריסה ב:
+  
+    Error: User code failed to load. Cannot determine backend specification.
+    Timeout after 10000.
+  
+  ה-CLI טוען את המודול כדי לגלות אילו פונקציות יש בו, ובמכונה שאין בה
+  הרשאות ענן האתחול מחפש אותן ונתקע. מה שרץ בזמן טעינת המודול חייב להיות
+  הצהרות בלבד.
+  https://firebase.google.com/docs/functions/tips#avoid_deployment_timeouts_during_initialization
+*/
+function firestore() {
+  if (getApps().length === 0) initializeApp();
+  return getFirestore();
+}
 
 /**
  * ⚠️ המפתח יושב ב-Secret Manager ולא במשתנה סביבה רגיל.
@@ -42,7 +58,7 @@ const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODE
  * מאושר היה יכול לשרוף את המכסה, וגם לקרוא לוח של סניף שאינו שלו.
  */
 async function assertManager(uid, branchId) {
-  const snapshot = await getFirestore()
+  const snapshot = await firestore()
     .doc(`branches/${branchId}/members/${uid}`)
     .get();
 
