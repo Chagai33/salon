@@ -58,9 +58,18 @@ const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODE
  * מאושר היה יכול לשרוף את המכסה, וגם לקרוא לוח של סניף שאינו שלו.
  */
 async function assertManager(uid, branchId) {
-  const snapshot = await firestore()
-    .doc(`branches/${branchId}/members/${uid}`)
-    .get();
+  let snapshot;
+  try {
+    snapshot = await firestore().doc(`branches/${branchId}/members/${uid}`).get();
+  } catch (error) {
+    /*
+      ⚠️ קריאה ל-Firestore יכולה להיכשל מסיבה שאינה המשתמש: חשבון השירות של
+      הפונקציה צריך הרשאת גישה למסד, ובפרויקט חדש היא אינה מובטחת.
+      בלי התפיסה הזו החריגה עלתה כ-500 בלי שום הסבר, וזה מה שקרה בפועל.
+    */
+    logger.error('member lookup failed', { branchId, message: String(error?.message ?? error) });
+    throw new HttpsError('internal', 'memberLookupFailed');
+  }
 
   const member = snapshot.data();
   if (!snapshot.exists || member?.status !== 'active' || member?.role !== 'manager') {
@@ -79,6 +88,22 @@ export const readBoardImage = onCall(
     region: 'us-central1',
   },
   async (request) => {
+    try {
+      return await handle(request);
+    } catch (error) {
+      // ⚠️ HttpsError עובר כמו שהוא. כל השאר היה 500 בלי שום הסבר, וזה
+      //    בדיוק מה שבעל המוצר קיבל במסך.
+      if (error instanceof HttpsError) throw error;
+      logger.error('unexpected', {
+        message: String(error?.message ?? error),
+        stack: error?.stack,
+      });
+      throw new HttpsError('internal', 'unexpected');
+    }
+  },
+);
+
+async function handle(request) {
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'noAuth');
 
@@ -107,19 +132,41 @@ export const readBoardImage = onCall(
     });
 
     if (!response.ok) {
-      // ⚠️ הגוף של גוגל אינו מוחזר ללקוח. הוא יכול להחזיק את המפתח בהד.
-      logger.error('gemini failed', { status: response.status });
+      /*
+        ⚠️ וגם גוף התשובה נרשם, ולא רק המספר.
+        בלעדיו "המודל נכשל" יכול להיות שם מודל שאינו קיים, מכסה שנגמרה,
+        או מפתח שאינו תקף, ואין שום דרך לדעת איזה מהם.
+        ⚠️ והמפתח אינו בגוף: הוא יושב בשאילתת הכתובת, וגוגל אינה מחזירה אותו.
+      */
+      const detail = await response.text().catch(() => '');
+      logger.error('gemini failed', { status: response.status, detail: detail.slice(0, 600) });
       throw new HttpsError('unavailable', 'modelFailed');
     }
 
-    const body = await response.json();
+    let body;
+    try {
+      body = await response.json();
+    } catch (error) {
+      // ⚠️ תשובה שאינה JSON. זו הייתה חריגה לא נתפסת, כלומר 500 בלי הסבר.
+      logger.error('gemini body not json', { message: String(error?.message ?? error) });
+      throw new HttpsError('unavailable', 'notJson');
+    }
+
     const text = body?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) throw new HttpsError('unavailable', 'emptyAnswer');
+    if (!text) {
+      // ⚠️ ולמה אין טקסט: חסימת תוכן, או סיום בגלל אורך. נרשם כדי שנדע.
+      logger.error('gemini empty answer', {
+        finishReason: body?.candidates?.[0]?.finishReason,
+        promptFeedback: body?.promptFeedback,
+      });
+      throw new HttpsError('unavailable', 'emptyAnswer');
+    }
 
     let parsed;
     try {
       parsed = JSON.parse(text);
     } catch {
+      logger.error('gemini text not json', { head: String(text).slice(0, 300) });
       throw new HttpsError('unavailable', 'notJson');
     }
 
@@ -129,5 +176,4 @@ export const readBoardImage = onCall(
     // ⚠️ ומחזירה ואינה כותבת. המנהלת רואה, מסמנת, ורק אז נכתב.
     // CLAUDE.md, אזור ליבה 4.
     return { model: MODEL, days };
-  },
-);
+}

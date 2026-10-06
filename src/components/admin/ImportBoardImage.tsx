@@ -58,8 +58,10 @@ function messageFor(error: unknown): string {
     missingKey: t.importImage.missingKey,
     notManager: t.importImage.notManager,
     noAuth: t.importImage.noToken,
-    emptyAnswer: t.importImage.modelFailed,
+    emptyAnswer: t.importImage.emptyAnswer,
     notJson: t.importImage.modelFailed,
+    memberLookupFailed: t.importImage.memberLookupFailed,
+    unexpected: t.importImage.unexpected,
   };
   return known[code] ?? t.importImage.modelFailed;
 }
