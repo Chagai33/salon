@@ -130,6 +130,14 @@ export function MonthBoard({
                 const hasActivity = (day?.events?.length ?? 0) > 0;
                 // ⚠️ סדר עדיפות אחד: מה שהמנהלת כתבה, אחר כך סוף שבוע, אחר כך פתוח.
                 const access = dayAccessOf(dateKey, day, namedDays.get(dateKey));
+                /*
+                  ⚠️⚠️ משמרת קיימת רק כשהסלון פתוח לכולם, בתיקון בעל המוצר 06/10.
+                  המשמרת היא שמירה על סלון שפתוח לציבור. בשישי ושבת הסלון פתוח
+                  לחברי האופן ספייס בלבד, ולכן אין בהם מה לשמור ואין משמרת.
+                  ⚠️ ו-`closesEarly` כן נושא משמרת: הסלון פתוח לכולם, ונסגר מוקדם.
+                */
+                const noShifts =
+                  access.publicAccess === 'closed' || access.memberAccess === 'closed';
                 const shut = access.memberAccess === 'closed';
                 const shifts = shiftsByDate.get(dateKey) ?? [];
                 const past = isPast(dateKey);
@@ -213,7 +221,7 @@ export function MonthBoard({
                         </ul>
                       )}
 
-                      {!shut && templates.map((template) => {
+                      {!noShifts && templates.map((template) => {
                         if (!template.weekdays.includes(new Date(dateKey).getDay())) return null;
                         const shift = shifts.find((item) => item.templateId === template.id);
                         if (!shift) return null;

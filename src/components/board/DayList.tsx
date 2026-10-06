@@ -68,6 +68,12 @@ export function DayList({
         const past = isPast(dateKey);
         const today = isToday(dateKey);
         const access = dayAccessOf(dateKey, day, namedDays.get(dateKey));
+        /*
+          ⚠️⚠️ משמרת קיימת רק כשהסלון פתוח לכולם, בתיקון בעל המוצר 06/10.
+          בשישי ושבת הסלון פתוח לחברי האופן ספייס בלבד, ואין בהם מה לשמור.
+          ⚠️ ו-`closesEarly` כן נושא משמרת: פתוח לכולם, ונסגר מוקדם.
+        */
+        const noShifts = access.publicAccess === 'closed' || access.memberAccess === 'closed';
         const shut = access.memberAccess === 'closed';
 
         return (
@@ -117,7 +123,7 @@ export function DayList({
             )}
 
             <div className="mt-2 grid grid-cols-2 gap-2">
-              {!shut && templates.map((template) => {
+              {!noShifts && templates.map((template) => {
                 if (!template.weekdays.includes(weekdayOf(dateKey))) return null;
                 const shift = shifts.find((item) => item.templateId === template.id);
                 if (!shift) return null;
