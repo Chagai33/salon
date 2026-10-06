@@ -9,7 +9,7 @@
 // כתבה, ושם החג הוא מידע בלבד. DOCS/PLANING/14-the-hebrew-calendar.md
 
 import { useEffect, useState } from 'react';
-import type { ActivityDay, MemberAccess, PublicAccess } from '../../types';
+import type { ActivityDay, ActivityEvent, MemberAccess, PublicAccess } from '../../types';
 import { t } from '../../i18n/dictionary';
 import { WEEKDAY_NAMES, shortDateLabel, weekdayOf } from '../../utils/dates';
 import { saveActivityDay } from '../../services/salonService';
@@ -43,6 +43,12 @@ interface Props {
 export function DayEditor({ branchId, dateKey, day, name, onClose }: Props) {
   const [access, setAccess] = useState<Access>(() => accessOf(day));
   const [note, setNote] = useState(day?.note ?? '');
+  /*
+    ⚠️ האירועים נערכים כאן, ובעל המוצר ביקש את זה במפורש אחרי שראה את הייבוא:
+    "חשוב שאחרי הייבוא של האירועים מהתמונה שיהיה ניתן לתקן."
+    מודל שקורא תמונה טועה בכותרת ובשעה, ובלי עריכה הטעות נשארת במסד.
+  */
+  const [events, setEvents] = useState<ActivityEvent[]>(() => day?.events ?? []);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -50,8 +56,18 @@ export function DayEditor({ branchId, dateKey, day, name, onClose }: Props) {
   useEffect(() => {
     setAccess(accessOf(day));
     setNote(day?.note ?? '');
+    setEvents(day?.events ?? []);
     setProblem(null);
   }, [dateKey, day]);
+
+  function patchEvent(index: number, patch: Partial<ActivityEvent>) {
+    setEvents(events.map((event, i) => (i === index ? { ...event, ...patch } : event)));
+  }
+
+  /** ⚠️ שעה ריקה נשמרת כ-undefined ולא כמחרוזת ריקה. אחרת הלוח מציג `-`. */
+  function timeOrNone(value: string): string | undefined {
+    return /^\d{2}:\d{2}$/.test(value) ? value : undefined;
+  }
 
   const options: { value: Access; label: string }[] = [
     { value: 'open', label: t.day.accessOpen },
@@ -64,7 +80,11 @@ export function DayEditor({ branchId, dateKey, day, name, onClose }: Props) {
     setProblem(null);
     void saveActivityDay(branchId, {
       date: dateKey,
-      events: day?.events ?? [],
+      // ⚠️ אירוע בלי כותרת נזרק. שורה ריקה שנשארה בטופס אינה אירוע.
+      events: events.filter((event) => event.title.trim()).map((event) => ({
+        ...event,
+        title: event.title.trim(),
+      })),
       ...TO_FIELDS[access],
       // ⚠️ הערה ריקה נשמרת כריקה ולא נמחקת מהמסמך, כדי שמחיקה תעבוד.
       note: note.trim(),
@@ -117,7 +137,66 @@ export function DayEditor({ branchId, dateKey, day, name, onClose }: Props) {
         </div>
       </fieldset>
 
-      <label className="mt-3 block">
+      <fieldset className="mt-4">
+        <legend className="text-sm text-ink-soft">{t.day.eventsLabel}</legend>
+
+        {events.length === 0 && (
+          <p className="mt-1.5 text-sm text-ink-faint">{t.day.noEvents}</p>
+        )}
+
+        <ul className="mt-1.5 flex flex-col gap-2">
+          {events.map((event, index) => (
+            <li key={index} className="flex flex-wrap items-end gap-2">
+              <label className="min-w-48 flex-1">
+                <span className="block text-xs text-ink-faint">{t.day.eventTitle}</span>
+                <input
+                  dir="auto"
+                  value={event.title}
+                  maxLength={80}
+                  onChange={(e) => patchEvent(index, { title: e.target.value })}
+                  className="mt-1 w-full rounded-card border border-line-strong bg-surface px-3 py-2 text-ink"
+                />
+              </label>
+              <label>
+                <span className="block text-xs text-ink-faint">{t.day.eventFrom}</span>
+                {/* ⚠️ type="time" נותן שעון 24 שעות ומקלדת מספרים בטלפון. */}
+                <input
+                  type="time"
+                  value={event.startTime ?? ''}
+                  onChange={(e) => patchEvent(index, { startTime: timeOrNone(e.target.value) })}
+                  className="num mt-1 rounded-card border border-line-strong bg-surface px-3 py-2 text-ink"
+                />
+              </label>
+              <label>
+                <span className="block text-xs text-ink-faint">{t.day.eventTo}</span>
+                <input
+                  type="time"
+                  value={event.endTime ?? ''}
+                  onChange={(e) => patchEvent(index, { endTime: timeOrNone(e.target.value) })}
+                  className="num mt-1 rounded-card border border-line-strong bg-surface px-3 py-2 text-ink"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => setEvents(events.filter((_, i) => i !== index))}
+                className="rounded-card px-3 py-2 text-sm text-danger underline-offset-4 hover:underline"
+              >
+                {t.day.removeEvent}
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        <button
+          type="button"
+          onClick={() => setEvents([...events, { title: '' }])}
+          className="mt-2 rounded-card border border-line-strong px-3 py-1.5 text-sm text-ink hover:bg-brand-soft"
+        >
+          {t.day.addEvent}
+        </button>
+      </fieldset>
+
+      <label className="mt-4 block">
         <span className="text-sm text-ink-soft">{t.day.noteLabel}</span>
         {/* ⚠️ dir="auto" ו-maxLength: הערה קצרה, ולא מסמך. */}
         <input

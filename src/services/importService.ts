@@ -10,7 +10,14 @@
 
 import { auth } from '../lib/firebase';
 
-export type ImportedAccess = 'open' | 'membersOnly' | 'closed';
+/**
+ * ⚠️⚠️ `unknown` הוא התשובה הנכונה כמעט תמיד.
+ *
+ * בתמונת לוח אירועים אין מידע על מי סגור למי. ברירת מחדל `open` הייתה חותמת
+ * "פתוח לכולם" על כל יום שנקרא, כולל שישי ושבת, ומוחקת את כלל סוף השבוע
+ * ואת מה שהמנהלת הגדירה. כשהמצב אינו ידוע, הייבוא אינו קובע אותו.
+ */
+export type ImportedAccess = 'unknown' | 'open' | 'membersOnly' | 'closed';
 
 export interface ImportedEvent {
   title: string;

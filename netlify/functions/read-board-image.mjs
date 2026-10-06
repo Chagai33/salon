@@ -77,18 +77,29 @@ async function uidFromIdToken(token, projectId) {
  */
 function promptFor(monthKey) {
   return [
-    `התמונה היא לוח חודשי של מרחב עבודה משותף, לחודש ${monthKey}.`,
-    'החזר את ימי הפעילות שמופיעים בלוח.',
+    `התמונה היא לוח אירועים חודשי של מרחב עבודה משותף, לחודש ${monthKey}.`,
+    'החזר את האירועים שמופיעים בתאי הלוח.',
+    '',
+    'מה שיש בתמונה, לפי לוח אמיתי שנמדד:',
+    '- העמודות הן ימי השבוע, מימין לשמאל: ראשון, שני, שלישי, רביעי, חמישי, שישי, שבת.',
+    '- בכל תא מספר היום, ולפעמים אריח עם כותרת ושעה.',
+    '- ⚠️ ליום אחד יכולים להיות שני אירועים ויותר. החזר את כולם.',
+    '- כותרת יכולה להכיל מרכאות, למשל: השקת ספר "איך היא אוחזת".',
+    '- יום יכול לשאת שם חג בלי אריח, למשל שמחת תורה. החזר אותו ב-note.',
     '',
     'כללים:',
     `1. כל תאריך בפורמט YYYY-MM-DD, ובחודש ${monthKey} בלבד.`,
-    '2. אם תאריך אינו קריא בתמונה, אל תחזיר אותו. אל תשלים ואל תנחש.',
-    '3. שעות בפורמט HH:MM בלבד, ורק אם הן כתובות בתמונה.',
+    '2. אם תאריך או כותרת אינם קריאים, אל תחזיר אותם. אל תשלים ואל תנחש.',
+    '3. שעות בפורמט HH:MM בלבד, ורק אם הן כתובות באריח.',
     '4. ⚠️ אל תחזיר שמות של אנשים, גם אם הם מופיעים בתמונה.',
-    '5. `confidence` הוא 0 עד 1, ומבטא כמה הקריאה של אותו יום ברורה.',
-    '6. ב-`note` כתוב מה שכתוב על היום בלוח, בעברית, עד 100 תווים.',
-    '7. `access` הוא open כשהמרחב פתוח לכולם, membersOnly כשהוא פתוח לחברים',
-    '   בלבד, closed כשהוא סגור. אם לא כתוב, החזר open.',
+    '5. ⚠️⚠️ `access` הוא "unknown" כברירת מחדל, וזו התשובה הנכונה כמעט תמיד.',
+    '   החזר open, membersOnly או closed רק אם כתוב על אותו יום במפורש שהמרחב',
+    '   פתוח, פתוח לחברים בלבד, או סגור. שעות פתיחה כלליות בתחתית הלוח אינן',
+    '   מידע על יום מסוים, ואינן סיבה להחזיר open.',
+    '6. ⚠️ התעלם מהכותרת שבראש התמונה, מהלוגו, ומהטקסט שבתחתיתה. קרא רק',
+    '   את תאי הלוח.',
+    '7. `confidence` הוא 0 עד 1, ומבטא כמה הקריאה של אותו יום ברורה.',
+    '8. `note` הוא מה שכתוב על היום ואינו אירוע, למשל שם חג. עד 100 תווים.',
   ].join('\n');
 }
 
@@ -102,7 +113,8 @@ const SCHEMA = {
         properties: {
           date: { type: 'STRING' },
           note: { type: 'STRING' },
-          access: { type: 'STRING', enum: ['open', 'membersOnly', 'closed'] },
+          /* ⚠️ `unknown` ראשון בכוונה, והוא התשובה הנכונה כמעט תמיד. */
+          access: { type: 'STRING', enum: ['unknown', 'open', 'membersOnly', 'closed'] },
           events: {
             type: 'ARRAY',
             items: {
@@ -217,7 +229,13 @@ export default async function handler(request) {
     .map((day) => ({
       date: day.date,
       note: typeof day.note === 'string' ? day.note.slice(0, 100) : '',
-      access: ['open', 'membersOnly', 'closed'].includes(day.access) ? day.access : 'open',
+      /*
+        ⚠️⚠️ `unknown` ולא `open`.
+        בתמונת לוח אמיתית אין שום מידע על מי סגור למי, ולכן ברירת מחדל `open`
+        הייתה חותמת "פתוח לכולם" על כל יום שנקרא, כולל שישי ושבת, ומוחקת
+        בשקט את כלל סוף השבוע ואת מה שהמנהלת הגדירה.
+      */
+      access: ['open', 'membersOnly', 'closed'].includes(day.access) ? day.access : 'unknown',
       events: Array.isArray(day.events)
         ? day.events
             .filter((event) => typeof event?.title === 'string' && event.title.trim())
@@ -229,7 +247,9 @@ export default async function handler(request) {
             }))
         : [],
       confidence: typeof day.confidence === 'number' ? day.confidence : 0,
-    }));
+    }))
+    // ⚠️ יום בלי אירוע, בלי הערה ובלי מצב גישה אינו מידע. הוא רק מספר בלוח.
+    .filter((day) => day.events.length > 0 || day.note || day.access !== 'unknown');
 
   return json(200, { model: MODEL, days: clean });
 }

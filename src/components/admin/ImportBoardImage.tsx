@@ -17,17 +17,32 @@ import { readBoardImage } from '../../services/importService';
 import type { ImportedAccess, ImportedDay } from '../../services/importService';
 import { toReadableError } from '../../utils/errors';
 import { StatusPill } from '../common/StatusPill';
+import { dayAccessOf } from '../../utils/hebrew';
 
 /** ⚠️ קריאה מתחת לזה מסומנת למנהלת. 0.7 הוא שיקול ולא מדידה. */
 const LOW_CONFIDENCE = 0.7;
 
-const TO_FIELDS: Record<ImportedAccess, { publicAccess: 'open' | 'closed'; memberAccess: 'open' | 'closed' }> = {
+const TO_FIELDS = {
   open: { publicAccess: 'open', memberAccess: 'open' },
   membersOnly: { publicAccess: 'closed', memberAccess: 'open' },
   closed: { publicAccess: 'closed', memberAccess: 'closed' },
-};
+} as const;
+
+/**
+ * ⚠️⚠️ מצב שלא נקרא מהתמונה נגזר מהכלל, ואינו נכתב כ"פתוח לכולם".
+ *
+ * `dayAccessOf` בלי רשומה מחזיר את ברירת המחדל: שישי ושבת סגורים לציבור
+ * ופתוחים לחברים, ושאר הימים פתוחים. זה מה שהמוצר אומר ממילא, ולכן הייבוא
+ * אינו משנה כלום כשהתמונה שותקת.
+ */
+function fieldsFor(day: ImportedDay) {
+  if (day.access !== 'unknown') return TO_FIELDS[day.access];
+  const derived = dayAccessOf(day.date, undefined, undefined);
+  return { publicAccess: derived.publicAccess, memberAccess: derived.memberAccess };
+}
 
 const ACCESS_LABEL: Record<ImportedAccess, string> = {
+  unknown: t.importImage.accessUnknown,
   open: t.day.accessOpen,
   membersOnly: t.day.accessMembersOnly,
   closed: t.day.accessClosed,
@@ -87,7 +102,7 @@ export function ImportBoardImage({ branchId, monthKey }: { branchId: string; mon
         saveActivityDay(branchId, {
           date: day.date,
           events: day.events,
-          ...TO_FIELDS[day.access],
+          ...fieldsFor(day),
           note: day.note,
           // ⚠️ `source` הוא מה שמאפשר לדעת אחר כך מה בא ממודל ומה מאדם.
           source: 'import2026',
@@ -165,6 +180,9 @@ export function ImportBoardImage({ branchId, monthKey }: { branchId: string; mon
             {t.importImage.foundTitle(days.length)}
           </h3>
           <p className="mt-0.5 text-xs text-ink-faint">{t.importImage.reviewHint}</p>
+          {/* ⚠️ ובעל המוצר ביקש במפורש שיהיה אפשר לתקן אחרי הייבוא. זה המקום
+              שבו הוא נאמר, כדי שלא יחפש. */}
+          <p className="mt-0.5 text-xs text-ink-faint">{t.importImage.fixAfter}</p>
 
           <ul className="mt-2 flex flex-col divide-y divide-line">
             {days.map((day) => (
@@ -186,7 +204,7 @@ export function ImportBoardImage({ branchId, monthKey }: { branchId: string; mon
                       <span className="text-sm font-medium text-ink">
                         {shortDateLabel(day.date)}
                       </span>
-                      <StatusPill tone={day.access === 'open' ? 'taken' : 'membersOnly'}>
+                      <StatusPill tone={day.access === 'unknown' ? 'taken' : 'membersOnly'}>
                         {ACCESS_LABEL[day.access]}
                       </StatusPill>
                       {day.confidence < LOW_CONFIDENCE && (

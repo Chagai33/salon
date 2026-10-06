@@ -162,6 +162,9 @@ export const he = {
       count === 1 ? 'נמצא יום אחד' : `נמצאו ${count} ימים`,
     reviewHint: 'עברו על מה שנקרא, בטלו סימון ממה שאינו נכון, ואז שמרו.',
     lowConfidence: 'קריאה לא ברורה',
+    // ⚠️ ולא "פתוח". הייבוא אינו קובע מצב שלא כתוב בתמונה.
+    accessUnknown: 'מצב היום לא משתנה',
+    fixAfter: 'אחרי השמירה אפשר לתקן כל יום בלוח: לחצו על מספר היום.',
     save: 'שמירת המסומנים',
     saving: 'שומר',
     saved: (count: number) => `נשמרו ${count} ימים`,
@@ -257,6 +260,13 @@ export const he = {
     //    ובהכרעת בעל המוצר 06/10 הם סגורים למי שאינו חבר.
     weekend: 'סוף שבוע',
     noteLabel: 'הערה ליום',
+    eventsLabel: 'אירועים',
+    eventTitle: 'מה',
+    eventFrom: 'משעה',
+    eventTo: 'עד',
+    addEvent: 'הוספת אירוע',
+    removeEvent: 'מחיקה',
+    noEvents: 'אין אירועים ביום הזה.',
     notePlaceholder: 'מה שחבר צריך לדעת על היום הזה',
     noteSave: 'שמירה',
     noteSaving: 'שומר',
