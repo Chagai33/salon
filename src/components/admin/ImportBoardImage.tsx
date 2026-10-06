@@ -75,6 +75,7 @@ function messageFor(error: unknown): string {
     notManager: t.importImage.notManager,
     noAuth: t.importImage.noToken,
     emptyAnswer: t.importImage.emptyAnswer,
+    quotaExhausted: t.importImage.quotaExhausted,
     notJson: t.importImage.modelFailed,
     memberLookupFailed: t.importImage.memberLookupFailed,
     unexpected: t.importImage.unexpected,
