@@ -12,11 +12,10 @@
 //
 // DOCS/PLANING/23-the-import-moved-to-firebase.md
 
-import { getApps, initializeApp } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import { logger } from 'firebase-functions';
+import { firestore } from './admin-app.mjs';
 import {
   ALLOWED_TYPES,
   MAX_IMAGE_BYTES,
@@ -24,24 +23,6 @@ import {
   requestBodyFor,
   sanitiseDays,
 } from './board-image.mjs';
-
-/*
-  ⚠️⚠️ האתחול נדחה לרגע הקריאה, ואינו בראש הקובץ.
-  
-  `initializeApp()` בראש הקובץ הפיל את הפריסה ב:
-  
-    Error: User code failed to load. Cannot determine backend specification.
-    Timeout after 10000.
-  
-  ה-CLI טוען את המודול כדי לגלות אילו פונקציות יש בו, ובמכונה שאין בה
-  הרשאות ענן האתחול מחפש אותן ונתקע. מה שרץ בזמן טעינת המודול חייב להיות
-  הצהרות בלבד.
-  https://firebase.google.com/docs/functions/tips#avoid_deployment_timeouts_during_initialization
-*/
-function firestore() {
-  if (getApps().length === 0) initializeApp();
-  return getFirestore();
-}
 
 /**
  * ⚠️ המפתח יושב ב-Secret Manager ולא במשתנה סביבה רגיל.
@@ -104,76 +85,76 @@ export const readBoardImage = onCall(
 );
 
 async function handle(request) {
-    const uid = request.auth?.uid;
-    if (!uid) throw new HttpsError('unauthenticated', 'noAuth');
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'noAuth');
 
-    const { branchId, monthKey, mimeType, imageBase64 } = request.data ?? {};
+  const { branchId, monthKey, mimeType, imageBase64 } = request.data ?? {};
 
-    if (typeof branchId !== 'string' || !branchId) {
-      throw new HttpsError('invalid-argument', 'badBranch');
-    }
-    if (!/^\d{4}-\d{2}$/.test(String(monthKey ?? ''))) {
-      throw new HttpsError('invalid-argument', 'badMonth');
-    }
-    if (!ALLOWED_TYPES.includes(mimeType) || typeof imageBase64 !== 'string' || !imageBase64) {
-      throw new HttpsError('invalid-argument', 'badImage');
-    }
-    // ⚠️ אורך base64 הוא בקירוב שליש יותר מהבתים, ולכן החישוב ולא האורך.
-    if (Math.floor((imageBase64.length * 3) / 4) > MAX_IMAGE_BYTES) {
-      throw new HttpsError('invalid-argument', 'tooLarge');
-    }
+  if (typeof branchId !== 'string' || !branchId) {
+    throw new HttpsError('invalid-argument', 'badBranch');
+  }
+  if (!/^\d{4}-\d{2}$/.test(String(monthKey ?? ''))) {
+    throw new HttpsError('invalid-argument', 'badMonth');
+  }
+  if (!ALLOWED_TYPES.includes(mimeType) || typeof imageBase64 !== 'string' || !imageBase64) {
+    throw new HttpsError('invalid-argument', 'badImage');
+  }
+  // ⚠️ אורך base64 הוא בקירוב שליש יותר מהבתים, ולכן החישוב ולא האורך.
+  if (Math.floor((imageBase64.length * 3) / 4) > MAX_IMAGE_BYTES) {
+    throw new HttpsError('invalid-argument', 'tooLarge');
+  }
 
-    await assertManager(uid, branchId);
+  await assertManager(uid, branchId);
 
-    const response = await fetch(`${ENDPOINT}?key=${encodeURIComponent(GEMINI_API_KEY.value())}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(requestBodyFor(monthKey, mimeType, imageBase64)),
+  const response = await fetch(`${ENDPOINT}?key=${encodeURIComponent(GEMINI_API_KEY.value())}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(requestBodyFor(monthKey, mimeType, imageBase64)),
+  });
+
+  if (!response.ok) {
+    /*
+      ⚠️ וגם גוף התשובה נרשם, ולא רק המספר.
+      בלעדיו "המודל נכשל" יכול להיות שם מודל שאינו קיים, מכסה שנגמרה,
+      או מפתח שאינו תקף, ואין שום דרך לדעת איזה מהם.
+      ⚠️ והמפתח אינו בגוף: הוא יושב בשאילתת הכתובת, וגוגל אינה מחזירה אותו.
+    */
+    const detail = await response.text().catch(() => '');
+    logger.error('gemini failed', { status: response.status, detail: detail.slice(0, 600) });
+    throw new HttpsError('unavailable', 'modelFailed');
+  }
+
+  let body;
+  try {
+    body = await response.json();
+  } catch (error) {
+    // ⚠️ תשובה שאינה JSON. זו הייתה חריגה לא נתפסת, כלומר 500 בלי הסבר.
+    logger.error('gemini body not json', { message: String(error?.message ?? error) });
+    throw new HttpsError('unavailable', 'notJson');
+  }
+
+  const text = body?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) {
+    // ⚠️ ולמה אין טקסט: חסימת תוכן, או סיום בגלל אורך. נרשם כדי שנדע.
+    logger.error('gemini empty answer', {
+      finishReason: body?.candidates?.[0]?.finishReason,
+      promptFeedback: body?.promptFeedback,
     });
+    throw new HttpsError('unavailable', 'emptyAnswer');
+  }
 
-    if (!response.ok) {
-      /*
-        ⚠️ וגם גוף התשובה נרשם, ולא רק המספר.
-        בלעדיו "המודל נכשל" יכול להיות שם מודל שאינו קיים, מכסה שנגמרה,
-        או מפתח שאינו תקף, ואין שום דרך לדעת איזה מהם.
-        ⚠️ והמפתח אינו בגוף: הוא יושב בשאילתת הכתובת, וגוגל אינה מחזירה אותו.
-      */
-      const detail = await response.text().catch(() => '');
-      logger.error('gemini failed', { status: response.status, detail: detail.slice(0, 600) });
-      throw new HttpsError('unavailable', 'modelFailed');
-    }
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    logger.error('gemini text not json', { head: String(text).slice(0, 300) });
+    throw new HttpsError('unavailable', 'notJson');
+  }
 
-    let body;
-    try {
-      body = await response.json();
-    } catch (error) {
-      // ⚠️ תשובה שאינה JSON. זו הייתה חריגה לא נתפסת, כלומר 500 בלי הסבר.
-      logger.error('gemini body not json', { message: String(error?.message ?? error) });
-      throw new HttpsError('unavailable', 'notJson');
-    }
+  const days = sanitiseDays(parsed, monthKey);
+  logger.info('board image read', { branchId, monthKey, days: days.length });
 
-    const text = body?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) {
-      // ⚠️ ולמה אין טקסט: חסימת תוכן, או סיום בגלל אורך. נרשם כדי שנדע.
-      logger.error('gemini empty answer', {
-        finishReason: body?.candidates?.[0]?.finishReason,
-        promptFeedback: body?.promptFeedback,
-      });
-      throw new HttpsError('unavailable', 'emptyAnswer');
-    }
-
-    let parsed;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      logger.error('gemini text not json', { head: String(text).slice(0, 300) });
-      throw new HttpsError('unavailable', 'notJson');
-    }
-
-    const days = sanitiseDays(parsed, monthKey);
-    logger.info('board image read', { branchId, monthKey, days: days.length });
-
-    // ⚠️ ומחזירה ואינה כותבת. המנהלת רואה, מסמנת, ורק אז נכתב.
-    // CLAUDE.md, אזור ליבה 4.
-    return { model: MODEL, days };
+  // ⚠️ ומחזירה ואינה כותבת. המנהלת רואה, מסמנת, ורק אז נכתב.
+  // CLAUDE.md, אזור ליבה 4.
+  return { model: MODEL, days };
 }

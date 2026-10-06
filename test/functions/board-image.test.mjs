@@ -4,7 +4,7 @@
 // סכימה אינה הבטחה: המודל יכול להחזיר תאריך מחודש אחר או שעה בפורמט אחר,
 // למרות שההנחיה אמרה אחרת.
 //
-// הרצה: npm run test:functions
+// הרצה: node --test test/functions/*.test.mjs
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
