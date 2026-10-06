@@ -16,10 +16,30 @@ import { StatusPill } from '../common/StatusPill';
 import { toReadableError } from '../../utils/errors';
 import { shortDateLabel, toDateKey } from '../../utils/dates';
 import type { Member } from '../../types';
+import { displayName } from '../../utils/names';
 
 function joinedLabel(joinedAt: number | undefined): string {
   if (!joinedAt) return '';
   return shortDateLabel(toDateKey(new Date(joinedAt)));
+}
+
+/** ⚠️ ראשי תיבות ולא תמונה. תמונת פרופיל אינה נשמרת במסד, וראשי תיבות
+ *  נותנים את אותה עזרה בזיהוי בלי להוסיף שדה. */
+function Initials({ name }: { name: string }) {
+  const letters = displayName(name)
+    .split(/\s+/u)
+    .slice(0, 2)
+    .map((part) => part[0] ?? '')
+    .join('');
+
+  return (
+    <span
+      aria-hidden="true"
+      className="grid size-8 flex-none place-items-center rounded-full bg-brand-soft text-xs font-semibold text-brand"
+    >
+      {letters}
+    </span>
+  );
 }
 
 function Email({ address }: { address: string }) {
@@ -114,13 +134,15 @@ export function MembersPanel({ branchId }: { branchId: string }) {
     );
   }
 
-  function table(rows: Member[], emptyText: string) {
+  function table(rows: Member[], emptyText: string, caption: string) {
     if (rows.length === 0) {
       return <p className="px-4 pb-4 text-sm text-ink-soft">{emptyText}</p>;
     }
 
     return (
       <table className="w-full text-start text-sm">
+        {/* ⚠️ כתובית לקורא מסך. טבלה בלי כתובית נקראת בלי הקשר. */}
+        <caption className="sr-only">{caption}</caption>
         <thead>
           <tr className="text-ink-faint">
             <th scope="col" className="px-4 py-2 text-start font-medium">
@@ -141,14 +163,15 @@ export function MembersPanel({ branchId }: { branchId: string }) {
           {rows.map((member) => (
             <tr key={member.id} className="border-t border-line">
               <td className="px-4 py-2.5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-ink">{member.displayName}</span>
+                <div className="flex items-center gap-2.5">
+                  <Initials name={member.displayName} />
+                  <bdi className="font-medium text-ink">{displayName(member.displayName)}</bdi>
                   {member.role === 'manager' && (
                     <StatusPill tone="mine">{t.manager.roleManager}</StatusPill>
                   )}
                 </div>
                 {/* ⚠️ המייל חוזר כאן ברוחב טלפון, כי עמודת המייל מוסתרת שם. */}
-                <div className="sm:hidden">
+                <div className="ps-10.5 sm:hidden">
                   <Email address={member.email} />
                 </div>
               </td>
@@ -167,7 +190,7 @@ export function MembersPanel({ branchId }: { branchId: string }) {
   }
 
   return (
-    <section className="rounded-xl border border-line bg-surface">
+    <section className="rounded-card border border-line bg-surface shadow-soft">
       <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-4 pt-4">
         <h2 className="text-base font-semibold text-ink">{t.manager.members}</h2>
         <span className="text-sm text-ink-soft">
@@ -184,7 +207,7 @@ export function MembersPanel({ branchId }: { branchId: string }) {
           <h3 className="px-4 text-xs font-semibold uppercase tracking-wide text-shift-open-ink">
             {t.manager.pendingApproval}
           </h3>
-          {table(pending, t.manager.noPending)}
+          {table(pending, t.manager.noPending, t.manager.pendingApproval)}
         </div>
       )}
 
@@ -194,7 +217,7 @@ export function MembersPanel({ branchId }: { branchId: string }) {
         <summary className="cursor-pointer px-4 py-3 text-sm text-ink-soft hover:text-ink">
           {t.manager.showAll}
         </summary>
-        {table(approved, t.manager.noMembers)}
+        {table(approved, t.manager.noMembers, t.manager.approvedMembers)}
       </details>
     </section>
   );

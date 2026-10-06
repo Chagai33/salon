@@ -7,6 +7,7 @@
 
 import { t } from '../../i18n/dictionary';
 import { addMonths, monthLabel, toMonthKey } from '../../utils/dates';
+import { firstName } from '../../utils/names';
 
 interface Props {
   name: string;
@@ -26,8 +27,10 @@ export function PageHeader({ name, branchName, monthKey, onMonthChange }: Props)
   return (
     <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">
-          {t.home.greeting(name)}
+        {/* ⚠️ bdi ולא טקסט חופשי: שם מ-Google יכול להיות עברי או לטיני,
+            ובלי בידוד הוא מסדר מחדש את המשפט סביבו. */}
+        <h1 className="text-2xl font-semibold text-ink">
+          {t.home.greetingPrefix} <bdi>{firstName(name)}</bdi>
         </h1>
         <p className="mt-0.5 text-sm text-ink-soft">
           {t.home.place(branchName, monthLabel(monthKey))}

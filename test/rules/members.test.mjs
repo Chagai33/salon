@@ -129,10 +129,23 @@ describe('רשומת החבר של עצמי', () => {
 });
 
 describe('סריקת החברים', () => {
-  it('חבר סורק את הרשימה', async () => {
+  it('⚠️ חבר פעיל אינו סורק את הרשימה, בהכרעת בעל המוצר 06/10', async () => {
     await seed();
     const db = env.authenticatedContext('active-one').firestore();
+    // הרשומה מחזיקה מייל, ולכן סריקה היא קריאת המיילים של כולם.
+    await assertFails(getDocs(collection(db, 'branches', BRANCH, 'members')));
+  });
+
+  it('מנהלת סורקת את הרשימה', async () => {
+    await seed();
+    const db = env.authenticatedContext('manager-one').firestore();
     await assertSucceeds(getDocs(collection(db, 'branches', BRANCH, 'members')));
+  });
+
+  it('וחבר כן קורא את הרשומה של עצמו', async () => {
+    await seed();
+    const db = env.authenticatedContext('active-one').firestore();
+    await assertSucceeds(getDoc(doc(db, 'branches', BRANCH, 'members', 'active-one')));
   });
 
   it('מי שאינו חבר אינו סורק את הרשימה', async () => {

@@ -154,8 +154,11 @@ function OpenBranchForm({ onDone }: { onDone: () => void }) {
 
       <label className="flex flex-col gap-1 text-sm">
         <span className="text-ink-soft">{t.salons.nameLabel}</span>
+        {/* ⚠️ dir="auto" על כל שדה טקסט חופשי. בלעדיו שם באנגלית שנכתב
+            בטופס עברי קופץ לצד הלא נכון בזמן ההקלדה. */}
         <input
           required
+          dir="auto"
           value={name}
           onChange={(event) => setName(event.target.value)}
           placeholder={t.salons.namePlaceholder}
@@ -167,6 +170,7 @@ function OpenBranchForm({ onDone }: { onDone: () => void }) {
         <span className="text-ink-soft">{t.salons.cityLabel}</span>
         <input
           required
+          dir="auto"
           value={city}
           onChange={(event) => setCity(event.target.value)}
           placeholder={t.salons.cityPlaceholder}

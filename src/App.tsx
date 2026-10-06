@@ -26,6 +26,9 @@ import { SalonsPage } from './pages/SalonsPage';
 import { joinBranch } from './services/salonService';
 import { toReadableError } from './utils/errors';
 import { t } from './i18n/dictionary';
+import { WhatWeStore } from './components/common/WhatWeStore';
+import { applyTheme, storedTheme } from './utils/theme';
+import type { Theme } from './utils/theme';
 
 function SignIn() {
   const [busy, setBusy] = useState(false);
@@ -66,6 +69,7 @@ function Pending() {
       <h1 className="text-xl font-semibold text-ink">{t.pending.title}</h1>
       <p className="text-ink-soft">{t.pending.body}</p>
       <p className="text-sm text-ink-faint">{t.pending.whoToAsk}</p>
+      <WhatWeStore />
     </main>
   );
 }
@@ -81,6 +85,11 @@ function JoinBranch({ branchId }: { branchId: string }) {
     <main className="mx-auto flex max-w-md flex-col gap-3 p-6">
       <h1 className="text-xl font-semibold text-ink">{t.salons.joinTitle}</h1>
       <p className="text-ink-soft">{t.salons.joinBody(branch?.name ?? branchId)}</p>
+
+      {/* ⚠️ פתוח, וכאן. זו נקודת האיסוף: מי שמבקש להצטרף רואה לפני שהוא
+          לוחץ מה נשמר עליו ומי רואה את זה. */}
+      <WhatWeStore open />
+
       <div>
         <button
           type="button"
@@ -98,6 +107,43 @@ function JoinBranch({ branchId }: { branchId: string }) {
         </button>
       </div>
     </main>
+  );
+}
+
+/**
+ * ⚠️ הקישור הראשון בעמוד, ונראה רק במיקוד. מי שמנווט במקלדת אינו צריך לעבור
+ * על כל הכותרת בכל טעינה.
+ *
+ * ⚠️ ו-`start-2` ולא `left-2`. ב-RTL הקישור היה קופץ לצד הלא נכון, וזה בדיוק
+ * מה שהסקיל מונה כתקלה הנפוצה בקישור דילוג.
+ */
+export function SkipLink() {
+  return (
+    <a
+      href="#main"
+      className="absolute start-2 z-50 -translate-y-20 rounded-card bg-brand px-4 py-2 text-sm font-medium text-brand-ink focus:translate-y-2"
+    >
+      {t.a11yNav.skipToMain}
+    </a>
+  );
+}
+
+/** בהיר וכהה, בבחירה. ⚠️ ולא לפי מערכת ההפעלה. src/utils/theme.ts */
+function ThemeToggle() {
+  const [theme, setTheme] = useState<Theme>(() => storedTheme());
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        const next: Theme = theme === 'dark' ? 'light' : 'dark';
+        applyTheme(next);
+        setTheme(next);
+      }}
+      className="rounded-card border border-line px-3 py-1.5 text-ink-soft hover:bg-brand-soft hover:text-ink"
+    >
+      {theme === 'dark' ? t.theme.toLight : t.theme.toDark}
+    </button>
   );
 }
 
@@ -134,7 +180,8 @@ export function TopBar() {
           )}
         </div>
 
-        <div className="flex items-center gap-3 text-sm">
+        <div className="flex items-center gap-2 text-sm">
+          <ThemeToggle />
           <span className="text-ink-soft">{member?.displayName ?? user?.displayName}</span>
           <button
             type="button"
@@ -226,6 +273,7 @@ function SignedIn() {
 export function Shell() {
   return (
     <div className="min-h-screen">
+      <SkipLink />
       <TopBar />
       <ErrorBar />
       <Routes>

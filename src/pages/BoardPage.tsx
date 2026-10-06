@@ -20,6 +20,8 @@ import {
 import { MonthBoard } from '../components/board/MonthBoard';
 import { DayList } from '../components/board/DayList';
 import { AccessCodePanel } from '../components/board/AccessCodePanel';
+import { Legend } from '../components/board/Legend';
+import { WhatWeStore } from '../components/common/WhatWeStore';
 import { MembersPanel } from '../components/admin/MembersPanel';
 import { PageHeader } from '../components/layout/PageHeader';
 import { StatusLine } from '../components/layout/StatusLine';
@@ -33,6 +35,7 @@ import {
   generateMonth,
   releaseShift,
   requestHandover,
+  setAccessCode,
 } from '../services/salonService';
 import type { Shift } from '../types';
 import { toReadableError } from '../utils/errors';
@@ -157,7 +160,12 @@ export function BoardPage({ branchId }: { branchId: string }) {
       )}
 
       {/* אזור העבודה. ⚠️ אין בו כותרת שנייה: החודש והסניף כבר בכותרת העמוד. */}
-      <main className="rounded-xl border border-line bg-surface">
+      {/* ⚠️ tabIndex={-1} כדי שקישור הדילוג יוכל להעביר לכאן מיקוד. */}
+      <main
+        id="main"
+        tabIndex={-1}
+        className="rounded-board border border-line bg-surface shadow-soft"
+      >
         {isMonthLoading ? (
           <p className="p-5 text-ink-soft">{t.board.loading}</p>
         ) : !hasShifts ? (
@@ -224,6 +232,8 @@ export function BoardPage({ branchId }: { branchId: string }) {
             </div>
           </div>
         )}
+
+        {hasShifts && !isMonthLoading && <Legend />}
       </main>
 
       {/*
@@ -235,9 +245,17 @@ export function BoardPage({ branchId }: { branchId: string }) {
       {canManageMembers ? (
         <div className="grid items-start gap-4 lg:grid-cols-[1.7fr_1fr]">
           <MembersPanel branchId={branchId} />
-          <AccessCodePanel visibility={visibility} compact />
+          <AccessCodePanel
+            visibility={visibility}
+            compact
+            onSetCode={(code) => setAccessCode(branchId, code, member!.id)}
+          />
         </div>
       ) : null}
+
+      {/* ⚠️ מקופל, ובתחתית. בתוך האפליקציה זה מידע שחוזרים אליו ולא מה
+          שצריך לקרוא עכשיו. */}
+      <WhatWeStore />
     </div>
   );
 }

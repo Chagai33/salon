@@ -7,6 +7,7 @@
 
 import type { Shift } from '../../types';
 import { t } from '../../i18n/dictionary';
+import { displayName } from '../../utils/names';
 import { StatusPill } from '../common/StatusPill';
 import type { PillTone } from '../common/StatusPill';
 
@@ -100,7 +101,7 @@ export function ShiftCell({
 
       <div className="min-h-5 text-sm leading-tight">
         {shift.assigneeName ? (
-          <span className="font-medium text-ink">{shift.assigneeName}</span>
+          <bdi className="font-medium text-ink">{displayName(shift.assigneeName)}</bdi>
         ) : (
           <span className="text-ink-faint">{t.shift.open}</span>
         )}

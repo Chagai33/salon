@@ -115,7 +115,11 @@ export function useCurrentBranchBinding(branchId: string | null) {
     // ⚠️ תלוי ב-member ולא ב-user, וזה לא קוסמטי. סריקת החברים דורשת חברות,
     // ומאזין שנפתח לפני שהרשומה קיימת נדחה.
     // DOCS/PLANING/17-the-first-sign-in-could-never-work.md
-    if (!branchId || !member) return;
+    //
+    // ⚠️⚠️ ולמנהלת בלבד. רשומת החבר מחזיקה מייל, ואין סיבה שהדפדפן של חבר
+    // יחזיק את המיילים של כל השאר. החוק אוסר את זה עכשיו, ומאזין שנפתח
+    // בכל זאת היה נדחה ומייצר שגיאה במסך.
+    if (!branchId || !member || member.role !== 'manager') return;
     return watchMembers(branchId, setMembers);
   }, [branchId, member, setMembers]);
 }
