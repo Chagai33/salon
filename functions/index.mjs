@@ -47,13 +47,34 @@ async function assertManager(uid, branchId) {
       ⚠️ קריאה ל-Firestore יכולה להיכשל מסיבה שאינה המשתמש: חשבון השירות של
       הפונקציה צריך הרשאת גישה למסד, ובפרויקט חדש היא אינה מובטחת.
       בלי התפיסה הזו החריגה עלתה כ-500 בלי שום הסבר, וזה מה שקרה בפועל.
+
+      ⚠️⚠️ ו-`code` ולא רק `message`, כי בלעדיו ההודעה הזו מטעה.
+      היא נראית כמו בעיה בהרשאות של החבר, והיא נדלקה בפועל על `app/no-app`,
+      כלומר על באג שלי שאין לו שום קשר לחבר. רשומה 24.
     */
-    logger.error('member lookup failed', { branchId, message: String(error?.message ?? error) });
+    logger.error('member lookup failed', {
+      branchId,
+      uid,
+      code: error?.code ?? error?.name ?? 'unknown',
+      message: String(error?.message ?? error),
+    });
     throw new HttpsError('internal', 'memberLookupFailed');
   }
 
+  /*
+    ⚠️ ורשומה חסרה אינה מגיעה לכאן כשגיאה. `get` על מסמך שאינו קיים מצליח
+    ומחזיר `exists: false`, ולכן זה `notManager` ולא `memberLookupFailed`.
+    שתי ההודעות אינן מתחלפות, וזה מה שמאפשר להבחין בין השתיים ביומן.
+  */
   const member = snapshot.data();
   if (!snapshot.exists || member?.status !== 'active' || member?.role !== 'manager') {
+    logger.warn('not a manager', {
+      branchId,
+      uid,
+      exists: snapshot.exists,
+      status: member?.status ?? null,
+      role: member?.role ?? null,
+    });
     throw new HttpsError('permission-denied', 'notManager');
   }
 }
