@@ -50,6 +50,8 @@ interface Props {
   activityByDate: Map<string, ActivityDay>;
   memberId: string | null;
   canAct: boolean;
+  /** ⚠️ ליום ריק אין מה להציג, ולכן הוא אינו נפתח לחבר. DOCS/PLANING/26 */
+  canEdit: boolean;
   onPickDay: (dateKey: string) => void;
   onClaim: (shift: Shift) => Promise<void>;
   onRelease: (shift: Shift) => Promise<void>;
@@ -76,6 +78,7 @@ export function WeekAccordion({
   activityByDate,
   memberId,
   canAct,
+  canEdit,
   onPickDay,
   onClaim,
   onRelease,
@@ -266,18 +269,32 @@ export function WeekAccordion({
                       !today && visibleShifts.length === 0 && events.length === 0 && !access.note;
 
                     if (quiet) {
+                      const line = (
+                        <>
+                          <span className="num w-6 font-medium">{dayNumber(dateKey)}</span>
+                          <span>{WEEKDAY_NAMES[weekdayOf(dateKey)]}</span>
+                          <DayName name={access.name} />
+                          <DayStatus access={access} weekend={weekend} />
+                        </>
+                      );
+                      const row = 'flex min-h-8 w-full items-center gap-2 rounded px-1 text-start text-sm text-ink-faint';
+
+                      /*
+                        ⚠️ יום ריק אינו נפתח לחבר.
+                        בלשון בעל המוצר, 06/10: "חלון שאין בו כלום אין טעם
+                        שייפתח, למשל שישי ושבת". DOCS/PLANING/26
+                      */
+                      const empty = access.from !== 'manager' && !access.name;
+
                       return (
                         <li key={dateKey}>
-                          <button
-                            type="button"
-                            onClick={() => onPickDay(dateKey)}
-                            className="flex min-h-8 w-full items-center gap-2 rounded px-1 text-start text-sm text-ink-faint"
-                          >
-                            <span className="num w-6 font-medium">{dayNumber(dateKey)}</span>
-                            <span>{WEEKDAY_NAMES[weekdayOf(dateKey)]}</span>
-                            <DayName name={access.name} />
-                            <DayStatus access={access} weekend={weekend} />
-                          </button>
+                          {canEdit || !empty ? (
+                            <button type="button" onClick={() => onPickDay(dateKey)} className={row}>
+                              {line}
+                            </button>
+                          ) : (
+                            <div className={row}>{line}</div>
+                          )}
                         </li>
                       );
                     }

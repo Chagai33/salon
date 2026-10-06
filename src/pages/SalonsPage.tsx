@@ -49,36 +49,46 @@ function BranchRow({ branch, membership }: { branch: Branch; membership?: Member
     }
   }
 
+  /*
+    ⚠️ כרטיס ולא שורה ברשימה צרה.
+    בעל המוצר מדד 06/10 שהמסך נראה "כאילו התצוגה היא של פלאפון" על המחשב:
+    עמודה ברוחב 672 במרכז מסך רחב, ושורות דקות בתוכה. DOCS/PLANING/26
+  */
   return (
-    <li className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-3 py-3 last:border-0">
-      <div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium text-ink">{branch.name}</span>
-          {membership?.role === 'manager' && (
-            <StatusPill tone="mine">{t.salons.managerHere}</StatusPill>
-          )}
-          {isPending && <StatusPill tone="open">{t.salons.waiting}</StatusPill>}
-        </div>
-        {branch.city && <p className="text-sm text-ink-soft">{branch.city}</p>}
+    <li className="flex h-full flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-raised">
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="text-base font-semibold text-ink">
+          <bdi>{branch.name}</bdi>
+        </h3>
+        {membership?.role === 'manager' && (
+          <StatusPill tone="mine">{t.salons.managerHere}</StatusPill>
+        )}
+        {isPending && <StatusPill tone="open">{t.salons.waiting}</StatusPill>}
       </div>
 
-      {membership ? (
-        <Link
-          to={`/s/${branch.id}`}
-          className="rounded-md border border-line-strong px-3 py-1.5 text-sm hover:bg-brand-soft"
-        >
-          {t.salons.enter}
-        </Link>
-      ) : (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void join()}
-          className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-brand-ink disabled:opacity-50"
-        >
-          {busy ? t.salons.joining : t.salons.join}
-        </button>
-      )}
+      {branch.city && <p className="text-sm text-ink-soft">{branch.city}</p>}
+
+      {/* ⚠️ הפעולה בתחתית הכרטיס, ובאותו מקום בכל כרטיס. mt-auto מיישר אותן
+          גם כשלסלון אחד יש עיר ולשני אין. */}
+      <div className="mt-auto pt-1">
+        {membership ? (
+          <Link
+            to={`/s/${branch.id}`}
+            className="inline-flex min-h-11 items-center rounded-card border border-line-strong px-4 text-sm font-medium text-ink hover:bg-brand-soft"
+          >
+            {t.salons.enter}
+          </Link>
+        ) : (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void join()}
+            className="inline-flex min-h-11 items-center rounded-card bg-brand px-4 text-sm font-semibold text-brand-ink disabled:opacity-50"
+          >
+            {busy ? t.salons.joining : t.salons.join}
+          </button>
+        )}
+      </div>
     </li>
   );
 }
@@ -190,6 +200,19 @@ function OpenBranchForm({ onDone }: { onDone: () => void }) {
           className={`${field} text-start`}
         />
         <span className="text-xs text-ink-faint">{t.salons.idHint}</span>
+        {/*
+          ⚠️ הכתובת המלאה, וכפי שהיא תיראה באמת.
+          origin מהדפדפן ולא מחרוזת קשיחה, כדי שבפיתוח ובאתר החי ייכתב מה
+          שבאמת יהיה. ⚠️ ובתוך dir=ltr, כי כתובת נקראת משמאל. DOCS/PLANING/26
+        */}
+        <span className="text-xs text-ink-faint">
+          {t.salons.idExample}
+          {/* ⚠️ רק הכתובת ב-num. dir=ltr על המשפט כולו היה מסדר את העברית
+              שבתוכו הפוך. */}
+          <span className="num ms-1 break-all">
+            {window.location.origin}/s/{id.trim() || t.salons.idPlaceholder}
+          </span>
+        </span>
       </label>
 
       <div className="flex gap-2">
@@ -227,16 +250,17 @@ export function SalonsPage() {
 
   if (loading) return <p className="p-6 text-ink-soft">{t.salons.loading}</p>;
 
+  // ⚠️ רשת שמתרחבת עם המסך, ולא עמודה אחת בכל רוחב.
+  const grid = 'grid gap-3 sm:grid-cols-2 lg:grid-cols-3';
+
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-4 p-4">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-5">
       {claimed === false && <ClaimSystem />}
 
       {mine.length > 0 && (
-        <section className="rounded-xl border border-line bg-surface">
-          <h2 className="border-b border-line p-3 text-lg font-semibold text-ink">
-            {t.salons.mine}
-          </h2>
-          <ul>
+        <section>
+          <h2 className="mb-2 text-lg font-semibold text-ink">{t.salons.mine}</h2>
+          <ul className={grid}>
             {mine.map((branch) => (
               <BranchRow key={branch.id} branch={branch} membership={memberships[branch.id]} />
             ))}
@@ -244,14 +268,16 @@ export function SalonsPage() {
         </section>
       )}
 
-      <section className="rounded-xl border border-line bg-surface">
-        <h2 className="border-b border-line p-3 text-lg font-semibold text-ink">
+      <section>
+        <h2 className="mb-2 text-lg font-semibold text-ink">
           {mine.length > 0 ? t.salons.others : t.salons.title}
         </h2>
         {others.length === 0 ? (
-          <p className="px-3 py-4 text-sm text-ink-soft">{t.salons.none}</p>
+          <p className="rounded-card border border-line bg-surface px-4 py-4 text-sm text-ink-soft">
+            {t.salons.none}
+          </p>
         ) : (
-          <ul>
+          <ul className={grid}>
             {others.map((branch) => (
               <BranchRow key={branch.id} branch={branch} />
             ))}
@@ -263,24 +289,24 @@ export function SalonsPage() {
           שנכנס ב-Google. החוקים אוכפים את זה, וזו רק ההסתרה בממשק.
           DOCS/PLANING/20-who-may-open-a-salon.md */}
       {canOpen && (
-      <section className="rounded-xl border border-line bg-surface">
-        {opening ? (
-          <>
-            <h2 className="border-b border-line p-3 text-lg font-semibold text-ink">
-              {t.salons.openTitle}
-            </h2>
-            <OpenBranchForm onDone={() => setOpening(false)} />
-          </>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setOpening(true)}
-            className="w-full px-3 py-3 text-start text-sm font-medium text-ink hover:bg-brand-soft"
-          >
-            {t.salons.openAction}
-          </button>
-        )}
-      </section>
+        <section className="max-w-xl rounded-card border border-line bg-surface">
+          {opening ? (
+            <>
+              <h2 className="border-b border-line p-3 text-lg font-semibold text-ink">
+                {t.salons.openTitle}
+              </h2>
+              <OpenBranchForm onDone={() => setOpening(false)} />
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setOpening(true)}
+              className="min-h-12 w-full px-4 text-start text-sm font-medium text-ink hover:bg-brand-soft"
+            >
+              {t.salons.openAction}
+            </button>
+          )}
+        </section>
       )}
     </div>
   );

@@ -113,6 +113,19 @@ export function ShiftCell({
     <bdi className="font-medium text-ink">{displayName(shift.assigneeName)}</bdi>
   ) : null;
 
+  /*
+    ⚠️⚠️ משמרת שעברה אינה נושאת תגית.
+    בלשון בעל המוצר, 06/10: "באירועים שעברו במקום לכתוב עברה פשוט להציג
+    באפור, ואם מישהו לא שובץ אז להשאיר ריק ורק השעות יופיעו".
+    ⚠️ והמילה נשארת ב-sr-only, כי קורא מסך אינו רואה אפור. DOCS/PLANING/26
+  */
+  const past = state === 'past';
+  const pill = past ? (
+    <span className="sr-only">{LABEL.past}</span>
+  ) : (
+    <StatusPill tone={TONE[state]}>{LABEL[state]}</StatusPill>
+  );
+
   if (wide) {
     /*
       ⚠️⚠️ עוטף, ולא שורה אחת שנדחסת.
@@ -130,7 +143,7 @@ export function ShiftCell({
 
         <span className="min-w-0 flex-1 truncate text-sm leading-tight">{name}</span>
 
-        <StatusPill tone={TONE[state]}>{LABEL[state]}</StatusPill>
+        {pill}
 
         {(action || (interactive && state === 'mine')) && (
           <div className="flex w-full items-center gap-2 sm:w-auto">
@@ -162,7 +175,7 @@ export function ShiftCell({
         <span className="num text-xs text-ink-soft">
           {shift.startTime}-{shift.endTime}
         </span>
-        <StatusPill tone={TONE[state]}>{LABEL[state]}</StatusPill>
+        {pill}
       </div>
 
       {/* ⚠️ ואינו תופס מקום כשאין משובץ. אין מה לכתוב שם. */}

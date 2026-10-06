@@ -46,6 +46,12 @@ interface Props {
   shiftsByDate: Map<string, Shift[]>;
   activityByDate: Map<string, ActivityDay>;
   memberId: string | null;
+  /**
+   * ⚠️ למנהלת היום נפתח תמיד, כי זה המקום שבו היא כותבת אותו.
+   * ⚠️⚠️ ולחבר, יום ריק אינו נפתח: בלשון בעל המוצר 06/10 "חלון שאין בו כלום
+   * אין טעם שייפתח, למשל שישי ושבת". DOCS/PLANING/26
+   */
+  canEdit: boolean;
 }
 
 export function MonthBoard({
@@ -56,6 +62,7 @@ export function MonthBoard({
   shiftsByDate,
   activityByDate,
   memberId,
+  canEdit,
 }: Props) {
   const templates = useMemo(
     () => branch.shiftTemplates.filter((template) => template.isActive),
@@ -125,6 +132,23 @@ export function MonthBoard({
               */
               const weekend = isWeekend(dateKey);
 
+              /*
+                ⚠️ יום ריק אינו נפתח לחבר.
+                ריק פירושו: בלי משמרת שמוצגת, בלי אירוע, בלי הערה, ובלי מצב
+                שהמנהלת כתבה. DOCS/PLANING/26
+              */
+              const visibleShifts = noShifts
+                ? []
+                : shifts.filter((shift) =>
+                    templates.some((template) => template.id === shift.templateId),
+                  );
+              const empty =
+                visibleShifts.length === 0 &&
+                events.length === 0 &&
+                !access.note &&
+                access.from !== 'manager';
+              const opens = canEdit || !empty;
+
               return (
                 <td key={dayIndex} className="align-top">
                   {/*
@@ -135,17 +159,23 @@ export function MonthBoard({
                     ⚠️ ויש לו role ו-tabIndex, כדי שמקלדת תגיע אליו.
                   */}
                   <div
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`${t.day.openDay} ${shortDateLabel(dateKey)}`}
-                    onClick={() => onPickDay(dateKey)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        onPickDay(dateKey);
-                      }
-                    }}
-                    className={`flex h-[var(--cell-h)] cursor-pointer flex-col gap-1 overflow-hidden rounded-lg p-1.5 ${
+                    role={opens ? 'button' : undefined}
+                    tabIndex={opens ? 0 : undefined}
+                    aria-label={opens ? `${t.day.openDay} ${shortDateLabel(dateKey)}` : undefined}
+                    onClick={opens ? () => onPickDay(dateKey) : undefined}
+                    onKeyDown={
+                      opens
+                        ? (event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              onPickDay(dateKey);
+                            }
+                          }
+                        : undefined
+                    }
+                    className={`flex h-[var(--cell-h)] flex-col gap-1 overflow-hidden rounded-lg p-1.5 ${
+                      opens ? 'cursor-pointer' : ''
+                    } ${
                       today
                         ? 'bg-cell ring-2 ring-brand'
                         : access.memberAccess === 'closed'
@@ -208,18 +238,14 @@ export function MonthBoard({
                     {!noShifts && (
                       <div className="flex min-h-0 flex-col gap-1">
                         {/* ⚠️ לפי השעון ולא לפי סדר התבניות. DOCS/PLANING/26 */}
-                        {shifts
-                          .filter((shift) =>
-                            templates.some((template) => template.id === shift.templateId),
-                          )
-                          .map((shift) => (
+                        {visibleShifts.map((shift) => (
                             <ShiftChip
                               key={shift.id}
                               shift={shift}
                               state={shiftViewState(shift, memberId, past)}
-                              onOpen={() => onPickDay(dateKey)}
-                            />
-                          ))}
+                            onOpen={() => onPickDay(dateKey)}
+                          />
+                        ))}
                       </div>
                     )}
 

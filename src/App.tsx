@@ -29,6 +29,8 @@ import { toReadableError } from './utils/errors';
 import { t } from './i18n/dictionary';
 import { Footer } from './components/layout/Footer';
 import { ThemeToggle } from './components/layout/ThemeToggle';
+import { SignOut } from './components/layout/Icons';
+import { firstName } from './utils/names';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { TermsPage } from './pages/TermsPage';
 
@@ -143,7 +145,7 @@ export function TopBar() {
 
   return (
     <header className="border-b border-line bg-surface">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 p-3">
+      <div className="mx-auto flex min-h-14 max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-1.5">
         {/*
           ⚠️ שם הסלון אינו כאן, ובכוונה. הוא הופיע גם בכותרת העליונה וגם בכותרת
           העמוד, ושתי הפעמים אותה מחרוזת. הוא נשאר במקום אחד, ליד החודש.
@@ -165,16 +167,22 @@ export function TopBar() {
           )}
         </div>
 
-        <div className="flex items-center gap-2 text-sm">
-          <ThemeToggle />
-          <span className="text-ink-soft">{member?.displayName ?? user?.displayName}</span>
+        {/* ⚠️ אותם פקדים ובאותה צורה כמו בכותרת הלוח: שם פרטי, אייקון יציאה
+            בלי טקסט, ומצב כהה. DOCS/PLANING/26 */}
+        <div className="flex items-center gap-1">
+          <span className="hidden text-sm text-ink-soft sm:inline">
+            <bdi>{firstName(member?.displayName ?? user?.displayName ?? '')}</bdi>
+          </span>
           <button
             type="button"
             onClick={() => void signOutOfSalon()}
-            className="rounded-md border border-line-strong px-3 py-1.5 hover:bg-brand-soft"
+            aria-label={t.auth.signOut}
+            title={t.auth.signOut}
+            className="grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-brand-soft hover:text-ink"
           >
-            {t.auth.signOut}
+            <SignOut />
           </button>
+          <ThemeToggle />
         </div>
       </div>
     </header>

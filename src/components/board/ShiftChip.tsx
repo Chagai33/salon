@@ -52,8 +52,16 @@ export function ShiftChip({ shift, state, onOpen }: Props) {
     ⚠️ מה שנכתב בצ'יפ הוא מי שמשובץ, וכשאין משובץ המילה היא המצב.
     ולא שניהם: "פתוחה" שנכתב בתגית ושוב מתחתיה הוא מה שבעל המוצר ראה בצילום.
   */
-  const label = shift.assigneeName ? displayName(shift.assigneeName) : WORD[state];
-  const needsPerson = !shift.assigneeName && state !== 'past';
+  /*
+    ⚠️⚠️ ומשמרת שעברה אינה נושאת מילה.
+    בלשון בעל המוצר, 06/10: "באירועים שעברו במקום לכתוב עברה פשוט להציג
+    באפור, ואם מישהו לא שובץ אז להשאיר ריק ורק השעות של המשמרת יופיעו".
+    ⚠️ "עברה" אינו מצב שדורש פעולה, והתאריך עצמו כבר אומר אותו.
+    ⚠️ והמילה נשארת ב-sr-only, כי קורא מסך אינו רואה אפור. DOCS/PLANING/26
+  */
+  const past = state === 'past';
+  const label = shift.assigneeName ? displayName(shift.assigneeName) : past ? '' : WORD[state];
+  const needsPerson = !shift.assigneeName && !past;
 
   return (
     <button
@@ -72,6 +80,7 @@ export function ShiftChip({ shift, state, onOpen }: Props) {
     >
       <span className="num shrink-0 opacity-80">{shift.startTime}</span>
       <bdi className="min-w-0 flex-1 truncate">{label}</bdi>
+      {past && <span className="sr-only">{WORD.past}</span>}
     </button>
   );
 }

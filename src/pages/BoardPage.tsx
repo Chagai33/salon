@@ -251,6 +251,7 @@ export function BoardPage({ branchId }: { branchId: string }) {
                 activityByDate={activityByDate}
                 memberId={member?.id ?? null}
                 canAct={canAct}
+                canEdit={isManager}
                 onPickDay={setPickedDay}
                 onClaim={onClaim}
                 onRelease={onRelease}
@@ -267,6 +268,7 @@ export function BoardPage({ branchId }: { branchId: string }) {
                 shiftsByDate={shiftsByDate}
                 activityByDate={activityByDate}
                 memberId={member?.id ?? null}
+                canEdit={isManager}
               />
             </div>
           </div>
@@ -327,6 +329,8 @@ export function BoardPage({ branchId }: { branchId: string }) {
               setMenuOpen(false);
               setPickedDay(date);
             }}
+            /* ⚠️ וגם התפריט נסגר, כדי שהלוח יהיה מה שרואים אחרי הייבוא. */
+            onFinished={() => setMenuOpen(false)}
           />
         </SideMenu>
       )}

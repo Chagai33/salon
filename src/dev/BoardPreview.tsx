@@ -116,6 +116,7 @@ export function BoardPreview() {
             activityByDate={activityByDate}
             memberId={ME}
             canAct
+            canEdit={false}
             onPickDay={() => {}}
             onClaim={noop}
             onRelease={noop}
@@ -129,6 +130,7 @@ export function BoardPreview() {
             monthKey={MONTH}
             namedDays={new Map()}
             onPickDay={() => {}}
+            canEdit={false}
             shiftsByDate={shiftsByDate}
             activityByDate={activityByDate}
             memberId={ME}
