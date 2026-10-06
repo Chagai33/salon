@@ -73,21 +73,38 @@ const callReadBoardImage = httpsCallable<
   CallResult
 >(functions, 'readBoardImage');
 
+/**
+ * השלב שבו הקריאה נמצאת.
+ *
+ * ⚠️ שלוש מדרגות ולא אחוזים. אין אחוזים אמיתיים כאן: הקריאה היא קריאה אחת
+ * לפונקציה, והמודל אינו מדווח התקדמות. ⚠️ ופס שמתמלא בלי שהוא נמדד הוא שקר
+ * קטן. בעל המוצר דיווח 06/10 שהמסך "נראה שבור" בזמן הקריאה.
+ * DOCS/PLANING/26
+ */
+export type ImportStage = 'preparing' | 'sending' | 'reading';
+
 export async function readBoardImage(
   file: File,
   branchId: string,
   monthKey: string,
+  onStage?: (stage: ImportStage) => void,
 ): Promise<ImportedDay[]> {
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) throw new ImportError('badType');
   if (file.size > MAX_IMAGE_BYTES) throw new ImportError('tooLarge');
 
   try {
-    const result = await callReadBoardImage({
-      branchId,
-      monthKey,
-      mimeType: file.type,
-      imageBase64: await base64Of(file),
-    });
+    onStage?.('preparing');
+    const imageBase64 = await base64Of(file);
+
+    onStage?.('sending');
+    const call = callReadBoardImage({ branchId, monthKey, mimeType: file.type, imageBase64 });
+
+    /*
+      ⚠️ השליחה והקריאה אינן נבדלות בצד הלקוח, ולכן המדרגה השלישית נקבעת
+      בזמן: אחרי שתי שניות הבייטים כבר אצל הפונקציה, ומה שנשאר הוא המודל.
+    */
+    const toReading = setTimeout(() => onStage?.('reading'), 2000);
+    const result = await call.finally(() => clearTimeout(toReading));
     return Array.isArray(result.data?.days) ? result.data.days : [];
   } catch (error) {
     /*

@@ -24,7 +24,7 @@ import { shortDateLabel } from '../../utils/dates';
 import { monthNameOf } from '../../utils/dates';
 import { mergeActivityDay } from '../../services/salonService';
 import { readBoardImage } from '../../services/importService';
-import type { ImportedDay } from '../../services/importService';
+import type { ImportedDay, ImportedEvent, ImportStage } from '../../services/importService';
 import { toReadableError } from '../../utils/errors';
 import { StatusPill } from '../common/StatusPill';
 import { Sheet } from '../common/Sheet';
@@ -59,6 +59,15 @@ const VERDICT_TONE: Record<DayVerdict, 'open' | 'taken' | 'membersOnly'> = {
   conflict: 'open',
 };
 
+/** ⚠️ שלוש מדרגות, בסדר הזה, וזה גם הסדר של הפסים. */
+const STAGES: ImportStage[] = ['preparing', 'sending', 'reading'];
+
+const STAGE_LABEL: Record<ImportStage, string> = {
+  preparing: t.importImage.stagePreparing,
+  sending: t.importImage.stageSending,
+  reading: t.importImage.stageReading,
+};
+
 /** ⚠️ מפתח ההשוואה של מאגר הדילוג. */
 function normalizeTitle(title: string): string {
   return title.trim().toLowerCase();
@@ -88,6 +97,7 @@ export function ImportBoardImage({
   monthKey,
   activityByDate,
   onOpenDay,
+  onFinished,
 }: {
   branchId: string;
   monthKey: string;
@@ -100,16 +110,23 @@ export function ImportBoardImage({
    * הטעות נראית. DOCS/PLANING/26
    */
   onOpenDay: (dateKey: string) => void;
+  /**
+   * ⚠️ נקראת אחרי שמירה שהצליחה.
+   * בלשון בעל המוצר, 06/10: "בסיום הייבוא לסגור גם את החלון, כי הוא מוצג
+   * אחרי שסיימתי ייבוא בהצלחה, אין לזה טעם". DOCS/PLANING/26
+   */
+  onFinished?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [reading, setReading] = useState(false);
   const [days, setDays] = useState<ImportedDay[] | null>(null);
   const [chosen, setChosen] = useState<Set<string>>(new Set());
-  const [savedCount, setSavedCount] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   /** כמה אירועים הושמטו לפי מאגר הדילוג של הסלון. */
   const [skippedCount, setSkippedCount] = useState(0);
+  /** ⚠️ null כשאין קריאה רצה. */
+  const [stage, setStage] = useState<ImportStage | null>(null);
 
   const branch = useStore((state) => state.branch);
   const spaces = useMemo(
@@ -136,7 +153,17 @@ export function ImportBoardImage({
     if (!days) return null;
     const byDate = new Map<string, DayPlan>();
     for (const day of days) {
-      byDate.set(day.date, planFor(day, activityByDate.get(day.date), fallbackFor(day.date)));
+      /*
+        ⚠️ אירוע בלי כותרת נזרק, כמו בעורך היום.
+        שורה שהמנהלת רוקנה אינה אירוע, והיא גם לא תיכתב למסד.
+      */
+      const clean = {
+        ...day,
+        events: day.events
+          .filter((event) => event.title.trim())
+          .map((event) => ({ ...event, title: event.title.trim() })),
+      };
+      byDate.set(day.date, planFor(clean, activityByDate.get(day.date), fallbackFor(day.date)));
     }
     return byDate;
   }, [days, activityByDate]);
@@ -158,14 +185,14 @@ export function ImportBoardImage({
     setDays(null);
     setChosen(new Set());
     setProblem(null);
-    setSavedCount(null);
   }
 
   function onPick(file: File | undefined) {
     if (!file) return;
     reset();
     setReading(true);
-    void readBoardImage(file, branchId, monthKey)
+    setStage('preparing');
+    void readBoardImage(file, branchId, monthKey, setStage)
       .then((raw) => {
         /*
           ⚠️ מה שבמאגר הדילוג אינו נכנס לרשימה בכלל.
@@ -204,7 +231,10 @@ export function ImportBoardImage({
         );
       })
       .catch((error: unknown) => setProblem(messageFor(error)))
-      .finally(() => setReading(false));
+      .finally(() => {
+        setReading(false);
+        setStage(null);
+      });
   }
 
   function save() {
@@ -224,9 +254,13 @@ export function ImportBoardImage({
     setProblem(null);
     void Promise.all(picked.map((plan) => mergeActivityDay(branchId, plan.fields)))
       .then(() => {
-        setSavedCount(picked.length);
-        setDays(null);
-        setChosen(new Set());
+        /*
+          ⚠️ נסגר, ולא נשאר פתוח עם הודעת הצלחה.
+          הלוח מאחוריו כבר מראה את מה שנכתב, וזו ההודעה האמיתית.
+        */
+        reset();
+        setOpen(false);
+        onFinished?.();
       })
       .catch((error: unknown) => setProblem(toReadableError(error, t.errors.saveFailed)))
       .finally(() => setSaving(false));
@@ -264,8 +298,16 @@ export function ImportBoardImage({
     setOpen(false);
   }
 
-  /** שיוך חלל לאירוע, עוד לפני השמירה. ⚠️ משנה את מה שייכתב, לא רק את התצוגה. */
-  function setEventSpace(date: string, index: number, spaceId: string | undefined) {
+  /*
+    עריכת אירוע עוד לפני השמירה. ⚠️ משנה את מה שייכתב, ולא רק את התצוגה.
+
+    ⚠️⚠️ והשם נערך כאן ולא רק אחרי השמירה.
+    בעל המוצר שאל 06/10 "למה אני לא יכול לערוך את השם של האירוע שייבאתי":
+    השם היה טקסט בלבד בחלון הייבוא, והיה ניתן לעריכה רק בעורך היום, אחרי
+    שהוא כבר נכתב למסד. מודל שקורא תמונה טועה בכותרת, והתיקון צריך להיות
+    לפני הכתיבה. DOCS/PLANING/26
+  */
+  function patchEvent(date: string, index: number, patch: Partial<ImportedEvent>) {
     setDays(
       (current) =>
         current?.map((day) =>
@@ -273,12 +315,17 @@ export function ImportBoardImage({
             ? {
                 ...day,
                 events: day.events.map((event, i) =>
-                  i === index ? { ...event, spaceId } : event,
+                  i === index ? { ...event, ...patch } : event,
                 ),
               }
             : day,
         ) ?? null,
     );
+  }
+
+  /** ⚠️ שעה ריקה נשמרת כ-undefined ולא כמחרוזת ריקה. אחרת הלוח מציג `-`. */
+  function timeOrNone(value: string): string | undefined {
+    return /^\d{2}:\d{2}$/.test(value) ? value : undefined;
   }
 
   /*
@@ -357,17 +404,35 @@ export function ImportBoardImage({
               <ul className="mt-1 flex flex-col gap-1">
                 {day.events.map((event, index) => (
                   <li key={index} className="flex flex-wrap items-center gap-2">
-                    <span className="num w-11 shrink-0 text-xs text-ink-faint">
-                      {event.startTime ?? ''}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-xs text-activity">
-                      {event.title}
-                    </span>
+                    {/* ⚠️ שדות ולא טקסט: מה שהמודל קרא נערך לפני שהוא נכתב. */}
+                    <input
+                      type="time"
+                      aria-label={t.day.eventFrom}
+                      value={event.startTime ?? ''}
+                      onChange={(e) => patchEvent(date, index, { startTime: timeOrNone(e.target.value) })}
+                      className="num shrink-0 rounded-card border border-line px-1.5 py-1 text-xs text-ink"
+                    />
+                    <input
+                      type="time"
+                      aria-label={t.day.eventTo}
+                      value={event.endTime ?? ''}
+                      onChange={(e) => patchEvent(date, index, { endTime: timeOrNone(e.target.value) })}
+                      className="num shrink-0 rounded-card border border-line px-1.5 py-1 text-xs text-ink"
+                    />
+
+                    <input
+                      dir="auto"
+                      aria-label={t.day.eventTitle}
+                      value={event.title}
+                      maxLength={80}
+                      onChange={(e) => patchEvent(date, index, { title: e.target.value })}
+                      className="min-w-32 flex-1 rounded-card border border-line px-2 py-1 text-xs text-ink"
+                    />
 
                     <select
                       aria-label={t.day.spaceLabel}
                       value={event.spaceId ?? ''}
-                      onChange={(e) => setEventSpace(date, index, e.target.value || undefined)}
+                      onChange={(e) => patchEvent(date, index, { spaceId: e.target.value || undefined })}
                       className="rounded-card border border-line px-2 py-1 text-xs text-ink"
                     >
                       <option value="">{t.day.noSpace}</option>
@@ -469,14 +534,38 @@ export function ImportBoardImage({
         {reading ? t.importImage.reading : days ? t.importImage.readAgain : t.importImage.pick}
       </label>
 
-      {savedCount !== null && (
-        <p role="status" className="mt-3 text-sm text-shift-mine-ink">
-          {t.importImage.saved(savedCount)}
-        </p>
+      {/*
+        ⚠️⚠️ חיווי התקדמות, ולא מסך שנראה תקוע.
+        בעל המוצר, 06/10: "כשאני מעלה תמונה אין איזה סטטוס מצב וזה נראה
+        שבור". ⚠️ ושלוש מדרגות ולא פס אחוזים: אין כאן אחוז אמיתי, והמודל
+        אינו מדווח התקדמות. DOCS/PLANING/26
+      */}
+      {stage && (
+        <div role="status" aria-live="polite" className="mt-3 rounded-card bg-surface-sunken p-3">
+          <div className="flex items-center gap-2">
+            {/* ⚠️ מסתובב, וזה מה שאומר שהמערכת עובדת. */}
+            <span className="size-4 shrink-0 animate-spin rounded-full border-2 border-line border-t-brand" />
+            <span className="text-sm font-medium text-ink">{STAGE_LABEL[stage]}</span>
+          </div>
+
+          <ol className="mt-2 flex gap-1">
+            {STAGES.map((item) => (
+              <li
+                key={item}
+                aria-hidden="true"
+                className={`h-1 flex-1 rounded-full ${
+                  STAGES.indexOf(item) <= STAGES.indexOf(stage) ? 'bg-brand' : 'bg-line'
+                }`}
+              />
+            ))}
+          </ol>
+
+          <p className="mt-2 text-xs text-ink-faint">{t.importImage.stageHint}</p>
+        </div>
       )}
 
       {days && days.length === 0 && (
-        <p className="mt-3 text-sm text-ink-soft">{t.importImage.nothingFound}</p>
+        <p className="mt-3 text-sm text-ink-soft">{t.importImage.nothingFound(monthName)}</p>
       )}
 
       {groups && days && days.length > 0 && (
