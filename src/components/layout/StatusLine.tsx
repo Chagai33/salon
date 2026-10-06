@@ -29,7 +29,7 @@ export function StatusLine({ items }: { items: Item[] }) {
       {shown.map((item) => (
         <li
           key={item.key}
-          className={`rounded-full px-3 py-1 text-sm ring-1 ring-inset ${TONES[item.tone ?? 'plain']}`}
+          className={`rounded-full px-2.5 py-0.5 text-xs ring-1 ring-inset ${TONES[item.tone ?? "plain"]}`}
         >
           {item.label}
         </li>

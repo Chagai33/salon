@@ -5,7 +5,7 @@
 // הנתונים כאן מומצאים. שמות החברים הם אותיות, ולא אנשים אמיתיים.
 
 import { MonthBoard } from '../components/board/MonthBoard';
-import { DayList } from '../components/board/DayList';
+import { WeekAccordion } from '../components/board/WeekAccordion';
 import { AccessCodePanel } from '../components/board/AccessCodePanel';
 import type { AccessCode, ActivityDay, Branch, Shift } from '../types';
 import { codeVisibilityFor } from '../utils/eligibility';
@@ -108,14 +108,15 @@ export function BoardPreview() {
       <AccessCodePanel visibility={visibility} />
       <section className="rounded-xl border border-line bg-surface p-2">
         <div className="md:hidden">
-          <DayList
+          <WeekAccordion
             branch={branch}
-            dates={dates}
+            monthKey={MONTH}
             namedDays={new Map()}
             shiftsByDate={shiftsByDate}
             activityByDate={activityByDate}
             memberId={ME}
             canAct
+            onPickDay={() => {}}
             onClaim={noop}
             onRelease={noop}
             onRequestHandover={noop}
@@ -123,19 +124,15 @@ export function BoardPreview() {
           />
         </div>
         <div className="hidden md:block">
-        <MonthBoard
-          branch={branch}
-          monthKey={MONTH}
-        namedDays={new Map()}
-          shiftsByDate={shiftsByDate}
-          activityByDate={activityByDate}
-          memberId={ME}
-          canAct
-          onClaim={noop}
-          onRelease={noop}
-          onRequestHandover={noop}
-          onCancelHandover={noop}
-        />
+          <MonthBoard
+            branch={branch}
+            monthKey={MONTH}
+            namedDays={new Map()}
+            onPickDay={() => {}}
+            shiftsByDate={shiftsByDate}
+            activityByDate={activityByDate}
+            memberId={ME}
+          />
         </div>
       </section>
     </div>

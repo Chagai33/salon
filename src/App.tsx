@@ -10,6 +10,7 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
   useParams,
 } from 'react-router-dom';
 import { useStore } from './store/useStore';
@@ -27,10 +28,9 @@ import { joinBranch } from './services/salonService';
 import { toReadableError } from './utils/errors';
 import { t } from './i18n/dictionary';
 import { Footer } from './components/layout/Footer';
+import { ThemeToggle } from './components/layout/ThemeToggle';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { TermsPage } from './pages/TermsPage';
-import { applyTheme, storedTheme } from './utils/theme';
-import type { Theme } from './utils/theme';
 
 function SignIn() {
   const [busy, setBusy] = useState(false);
@@ -68,6 +68,8 @@ function SignIn() {
 
 function Pending() {
   return (
+    /* ⚠️ הכותרת העליונה כאן ולא ב-Shell: מסך הלוח נושא כותרת משלו, ובמסך
+       הזה היא הדרך היחידה לצאת. DOCS/PLANING/26 */
     <main className="mx-auto flex max-w-md flex-col gap-3 p-6">
       <h1 className="text-xl font-semibold text-ink">{t.pending.title}</h1>
       <p className="text-ink-soft">{t.pending.body}</p>
@@ -133,45 +135,6 @@ export function SkipLink() {
 }
 
 /** בהיר וכהה, בבחירה. ⚠️ ולא לפי מערכת ההפעלה. src/utils/theme.ts */
-function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>(() => storedTheme());
-
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        const next: Theme = theme === 'dark' ? 'light' : 'dark';
-        applyTheme(next);
-        setTheme(next);
-      }}
-      aria-label={theme === 'dark' ? t.theme.toLight : t.theme.toDark}
-      title={theme === 'dark' ? t.theme.toLight : t.theme.toDark}
-      className="grid size-9 place-items-center rounded-card border border-line text-ink-soft hover:bg-brand-soft hover:text-ink"
-    >
-      {/* ⚠️ שמש וסהר אינם אייקונים כיווניים ולכן אינם מתהפכים ב-RTL.
-          aria-hidden, והשם הנגיש יושב על הכפתור עצמו. */}
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 24 24"
-        className="size-4.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      >
-        {theme === 'dark' ? (
-          <>
-            <circle cx="12" cy="12" r="4" />
-            <path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19" />
-          </>
-        ) : (
-          <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z" />
-        )}
-      </svg>
-    </button>
-  );
-}
-
 /** ⚠️ מיוצא כדי שאפשר יהיה לרנדר את המסך בבדיקה בלי המאזינים. */
 export function TopBar() {
   const user = useStore((state) => state.user);
@@ -216,6 +179,15 @@ export function TopBar() {
       </div>
     </header>
   );
+}
+
+/** ⚠️ הכותרת העליונה בכל מסך חוץ ממסך הלוח, שיש לו כותרת נעוצה משלו. */
+function BoardAwareTopBar() {
+  const { pathname } = useLocation();
+  const member = useStore((state) => state.member);
+  const onBoard = pathname.startsWith('/s/') && member?.status === 'active';
+  if (onBoard) return null;
+  return <TopBar />;
 }
 
 export function ErrorBar() {
@@ -294,9 +266,13 @@ function SignedIn() {
 /** ⚠️ בלי המאזינים, כדי שאפשר יהיה לרנדר את עץ המסכים בבדיקה. */
 export function Shell() {
   return (
-    <div className="min-h-screen">
+    /* ⚠️ עמודה בגובה המסך, כדי שהפוטר יישב למטה גם כשהתוכן קצר.
+       בעל המוצר ראה 06/10 שתנאי השימוש עולים למעלה. DOCS/PLANING/26 */
+    <div className="flex min-h-screen flex-col">
       <SkipLink />
-      <TopBar />
+      {/* ⚠️ מסך הלוח נושא כותרת אחת משלו, שכוללת את מה שהיה כאן.
+          DOCS/PLANING/26 */}
+      <BoardAwareTopBar />
       <ErrorBar />
       <Routes>
         <Route path="/" element={<Home />} />
@@ -307,7 +283,9 @@ export function Shell() {
         <Route path="/s/:branchId" element={<BranchScope />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      <Footer />
+      <div className="mt-auto">
+        <Footer />
+      </div>
     </div>
   );
 }

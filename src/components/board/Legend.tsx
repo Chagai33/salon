@@ -19,12 +19,20 @@ const ITEMS: { tone: PillTone; label: string }[] = [
 
 export function Legend() {
   return (
-    <ul className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-3">
-      {ITEMS.map((item) => (
-        <li key={item.tone}>
-          <StatusPill tone={item.tone}>{item.label}</StatusPill>
-        </li>
-      ))}
-    </ul>
+    <div className="border-t border-line px-4 py-3">
+      <ul className="flex flex-wrap items-center gap-2">
+        {ITEMS.map((item) => (
+          <li key={item.tone}>
+            <StatusPill tone={item.tone}>{item.label}</StatusPill>
+          </li>
+        ))}
+      </ul>
+
+      {/*
+        ⚠️⚠️ ואין כאן שורה על שישי ושבת.
+        בלשון בעל המוצר, 06/10: "כולם יודעים את זה ולכן מיותר לרשום את זה".
+        מה שכל חבר בסלון יודע אינו נכתב על המסך. DOCS/PLANING/26
+      */}
+    </div>
   );
 }

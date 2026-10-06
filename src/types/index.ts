@@ -72,6 +72,16 @@ export interface Branch {
   openingHours: Record<number, OpeningHours | null>;
   shiftTemplates: ShiftTemplate[];
   spaces: Space[];
+  /**
+   * ⚠️ שמות של אירועים שהייבוא מדלג עליהם.
+   *
+   * בלשון בעל המוצר, 06/10: "קבוצת ריצה זו לא פעילות שמתקיימת בסלון ולכן
+   * אפשר לדלג עליה. אולי שווה לנהל איזה מאגר למנהלת שתוכל לדלג על ייבוא של
+   * אירועים חוזרים שאינם מתקיימים בסלון".
+   *
+   * ⚠️ והוא על הסניף ולא על החודש: אירוע חוזר חוזר בכל חודש.
+   */
+  importIgnore?: string[];
   isActive: boolean;
   icsToken: string;
 }

@@ -119,11 +119,31 @@ export const selectIsManager = (state: AppState) => state.member?.role === 'mana
 export const selectIsActive = (state: AppState) => state.member?.status === 'active';
 
 // ✅ מספרים. אלה בטוחים: ערך פרימיטיבי משווה בערך ולא בהפניה.
-export const selectOpenShiftCount = (state: AppState) =>
-  state.shifts.filter((shift) => !shift.assigneeMemberId).length;
-
 export const selectHandoverCount = (state: AppState) =>
   state.shifts.filter((shift) => shift.handoverState === 'requested').length;
+
+/**
+ * כמה משמרות פתוחות, ⚠️ בלי ימים שהמנהלת סגרה.
+ *
+ * ⚠️⚠️ בלשון בעל המוצר, 06/10: "אם המנהלת בחרה שהסלון סגור לחברים ביום
+ * מסויים אז אין סיבה שתיספר שיש משמרת פתוחה". יום כזה אינו מציג משמרת בשום
+ * תצוגה, ולכן מונה שסופר אותה שולח לחפש משהו שאינו על המסך.
+ *
+ * ⚠️ ואינה בורר. היא מקבלת מערך ומוחזרת לתוך useMemo ברכיב, כי היא סופרת
+ * לפי אוסף שני. CLAUDE.md, זרימת נתונים.
+ */
+export function countOpenShifts(shifts: Shift[], shutDates: Set<string>): number {
+  return shifts.filter((shift) => !shift.assigneeMemberId && !shutDates.has(shift.date)).length;
+}
+
+/** התאריכים שבהם הסלון סגור, ולכן אין בהם משמרת. */
+export function shutDatesOf(days: ActivityDay[]): Set<string> {
+  const out = new Set<string>();
+  for (const day of days) {
+    if (day.publicAccess === 'closed' || day.memberAccess === 'closed') out.add(day.date);
+  }
+  return out;
+}
 
 // ⚠️ אלה אינן בוררים ואינן נקראות עם useStore. הן פונקציות עזר שמקבלות את
 // המערך ומוחזרות לתוך useMemo ברכיב.
@@ -133,6 +153,14 @@ export function groupShiftsByDate(shifts: Shift[]): Map<string, Shift[]> {
     const list = map.get(shift.date) ?? [];
     list.push(shift);
     map.set(shift.date, list);
+  }
+  /*
+    ⚠️⚠️ ממוין לפי שעת ההתחלה.
+    בעל המוצר ראה 06/10 שמשמרת הערב מופיעה לפני משמרת הבוקר. הסדר הגיע מסדר
+    המסמכים במסד ולא מהשעון, וזה אינו סדר. DOCS/PLANING/26
+  */
+  for (const list of map.values()) {
+    list.sort((a, b) => a.startTime.localeCompare(b.startTime));
   }
   return map;
 }

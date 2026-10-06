@@ -2,8 +2,13 @@
 //
 // תא משמרת אחד.
 //
-// ⚠️ כפתור, ולא div שאפשר ללחוץ עליו. מקלדת מגיעה אליו, וקורא מסך מקריא את מה
+// ⚠️ כפתור, ולא div שאפשר ללחוץ עליו. מקלדת מגיעה אליו וקורא מסך מקריא את מה
 // שהוא עושה. DOCS/PLANING/03-the-design-standard.md
+//
+// ⚠️⚠️ ומקום השם ריק כשאין משובץ, ולא נושא את המילה "פתוחה".
+// בצילום של בעל המוצר, 06/10, כל משמרת פתוחה כתבה "פתוחה" פעמיים: בתגית
+// ומתחתיה. ⚠️ ובמשמרת שעברה זה היה גרוע יותר, כי התגית אמרה "עברה" והטקסט
+// מתחתיה אמר "פתוחה", ושתי המילים סותרות. DOCS/PLANING/26
 
 import type { Shift } from '../../types';
 import { t } from '../../i18n/dictionary';
@@ -27,7 +32,9 @@ const LABEL: Record<ShiftViewState, string> = {
   mine: t.shift.mine,
   taken: t.shift.taken,
   handoverRequested: t.shift.handoverRequested,
-  mineHandover: t.shift.handoverRequested,
+  // ⚠️ כשזו המשמרת שלי המצב נאמר במילים שלי, ולא באותן מילים
+  // שבהן הוא נאמר למי שרואה משמרת של אחר. DOCS/PLANING/26
+  mineHandover: t.shift.handoverMine,
   past: t.shift.past,
 };
 
@@ -54,6 +61,8 @@ interface Props {
   state: ShiftViewState;
   canAct: boolean;
   busy: boolean;
+  /** ⚠️ בטלפון כרטיס אחד בשורה, והפעולה יושבת בצד ולא מתחת. */
+  wide?: boolean;
   onClaim: () => void;
   onRelease: () => void;
   onRequestHandover: () => void;
@@ -65,6 +74,7 @@ export function ShiftCell({
   state,
   canAct,
   busy,
+  wide = false,
   onClaim,
   onRelease,
   onRequestHandover,
@@ -88,27 +98,78 @@ export function ShiftCell({
     }
   })();
 
+  /*
+    ⚠️⚠️ כפתור נראה כמו כפתור, ותגית נראית כמו תווית.
+    בעל המוצר דיווח 06/10 שלא ברור אם "צריך מחליף" הוא הסטטוס שלו או פעולה
+    שעליו ללחוץ. ⚠️ שתי ההפרדות יחד: הכפתור מלא בצבע הפעולה ונושא פועל בגוף
+    ראשון, והתגית שטוחה ונושאת שם של מצב. DOCS/PLANING/26
+
+    ⚠️ ו-44 פיקסלים ולא py-1.5. זה יעד הנגיעה המינימלי, ורוב השימוש בטלפון.
+  */
+  const actionClass =
+    'min-h-11 rounded-md bg-brand px-3 text-sm font-semibold text-brand-ink transition-opacity hover:opacity-90 disabled:opacity-50';
+
+  const name = shift.assigneeName ? (
+    <bdi className="font-medium text-ink">{displayName(shift.assigneeName)}</bdi>
+  ) : null;
+
+  if (wide) {
+    /*
+      ⚠️⚠️ עוטף, ולא שורה אחת שנדחסת.
+      ברוחב 393 שעה, שם, תגית ושני כפתורים הם כ-370 פיקסלים, והשורה גלשה
+      מהמסך. בעל המוצר דיווח 06/10 ש"משהו נדפק בתצוגה לנייד".
+      ⚠️ ולכן הפעולות יורדות לשורה משלהן בטלפון, ומצטרפות לשורה בדסקטופ.
+      DOCS/PLANING/26
+    */
+    return (
+      <div className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border p-2.5 ${SURFACE[state]}`}>
+        {/* מקף טווח ולא מקף מפריד. הגיליון עצמו כותב 10:00-14:00. */}
+        <span className="num shrink-0 text-sm text-ink-soft">
+          {shift.startTime}-{shift.endTime}
+        </span>
+
+        <span className="min-w-0 flex-1 truncate text-sm leading-tight">{name}</span>
+
+        <StatusPill tone={TONE[state]}>{LABEL[state]}</StatusPill>
+
+        {(action || (interactive && state === 'mine')) && (
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            {action && (
+              <button type="button" onClick={action.run} disabled={busy} className={`${actionClass} flex-1 sm:flex-none`}>
+                {action.label}
+              </button>
+            )}
+
+            {interactive && state === 'mine' && (
+              <button
+                type="button"
+                onClick={onRelease}
+                disabled={busy}
+                className="min-h-11 shrink-0 px-2 text-sm text-ink-faint underline-offset-2 hover:underline disabled:opacity-50"
+              >
+                {t.shift.release}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className={`flex h-full flex-col gap-1.5 rounded-lg border p-2 ${SURFACE[state]}`}>
       <div className="flex items-baseline justify-between gap-2">
-        {/* מקף טווח ולא מקף מפריד. הגיליון עצמו כותב 10:00-14:00, ובלי משהו
-            בין השעות הן נקראות כשתי שעות ולא כטווח. */}
         <span className="num text-xs text-ink-soft">
           {shift.startTime}-{shift.endTime}
         </span>
         <StatusPill tone={TONE[state]}>{LABEL[state]}</StatusPill>
       </div>
 
-      <div className="min-h-5 text-sm leading-tight">
-        {shift.assigneeName ? (
-          <bdi className="font-medium text-ink">{displayName(shift.assigneeName)}</bdi>
-        ) : (
-          <span className="text-ink-faint">{t.shift.open}</span>
-        )}
-      </div>
+      {/* ⚠️ ואינו תופס מקום כשאין משובץ. אין מה לכתוב שם. */}
+      {name && <div className="truncate text-sm leading-tight">{name}</div>}
 
       {shift.handoverFromName && state !== 'past' && (
-        <div className="text-xs text-ink-faint">{t.shift.handoverFrom(shift.handoverFromName)}</div>
+        <div className="truncate text-xs text-ink-faint">{t.shift.handoverFrom(shift.handoverFromName)}</div>
       )}
 
       {action && (
@@ -116,7 +177,7 @@ export function ShiftCell({
           type="button"
           onClick={action.run}
           disabled={busy}
-          className="mt-auto w-full rounded-md border border-line-strong bg-surface px-2 py-1.5 text-xs font-medium text-ink transition-colors hover:bg-brand-soft disabled:opacity-50"
+          className="mt-auto w-full rounded-md bg-brand px-2 py-1.5 text-xs font-semibold text-brand-ink transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {action.label}
         </button>

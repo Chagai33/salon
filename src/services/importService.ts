@@ -25,6 +25,13 @@ export interface ImportedEvent {
   title: string;
   startTime?: string;
   endTime?: string;
+  /**
+   * ⚠️ החלל שבו האירוע מתקיים, והמנהלת משייכת אותו.
+   * המודל אינו קורא אותו מהתמונה: הגיליון אינו כותב חללים, ובלשון בעל המוצר
+   * 06/10 "לאפשר למנהלת לערוך אירועים מהייבוא ולשייך אותם לחלל בהם הם
+   * מתקיימים, וזה עוד בשלב הייבוא". DOCS/PLANING/26
+   */
+  spaceId?: string;
 }
 
 export interface ImportedDay {

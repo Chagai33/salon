@@ -18,6 +18,18 @@ interface Props {
   visibility: CodeVisibility;
   compact?: boolean;
   /**
+   * ⚠️ שורה בכותרת ולא כרטיס.
+   * בעל המוצר מדד על מסך 14 אינץ, 06/10: הכרטיס תפס גובה 230 פיקסלים לארבע
+   * ספרות, ובתוכו ארבע שורות שאומרות כמעט אותו דבר. DOCS/PLANING/26
+   */
+  inline?: boolean;
+  /**
+   * ⚠️ הטופס בלבד, בלי הקוד.
+   * בהכרעת בעל המוצר 06/10: "בתפריט המבורגר אין טעם להציג את הקוד אלא רק
+   * כפתור החלפת הקוד". הקוד כבר מוצג בכותרת. DOCS/PLANING/26
+   */
+  formOnly?: boolean;
+  /**
    * ⚠️ להגדיר קוד ולראות קוד הם שני דברים נפרדים, ובכוונה.
    *
    * מנהלת שלא השתבצה החודש אינה זכאית לראות את הקוד, והיא כן זו שמגדירה
@@ -25,41 +37,6 @@ interface Props {
    * DOCS/PLANING/15-the-code-is-not-enforced-yet.md
    */
   onSetCode?: (code: string) => Promise<void>;
-}
-
-function CopyButton({ value }: { value: string }) {
-  const [state, setState] = useState<'idle' | 'done' | 'failed'>('idle');
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <button
-        type="button"
-        onClick={() => {
-          // ⚠️ "הועתק" מוצג רק אחרי העתקה שהצליחה בפועל. כפתור שאומר הועתק
-          // כשהלוח חסום הוא שקר קטן שמתגלה רק כשמדביקים.
-          //
-          // ⚠️ ו-navigator.clipboard אינו קיים בהקשר שאינו מאובטח. הטיפוסים
-          // מבטיחים שהוא תמיד שם, והדפדפן לא.
-          const clipboard = navigator.clipboard as Clipboard | undefined;
-          if (!clipboard) {
-            setState('failed');
-            return;
-          }
-          void clipboard
-            .writeText(value)
-            .then(() => setState('done'))
-            .catch(() => setState('failed'));
-        }}
-        className="rounded-lg border border-line-strong px-3 py-1.5 text-sm text-ink hover:bg-brand-soft"
-      >
-        {state === 'done' ? t.code.copied : t.code.copy}
-      </button>
-      {/* ⚠️ role="status" ולא טקסט שקט: "הועתק" צריך להישמע, לא רק להיראות. */}
-      <span role="status" aria-live="polite" className="text-xs text-danger">
-        {state === 'failed' ? t.code.copyFailed : ''}
-      </span>
-    </div>
-  );
 }
 
 /** הטופס שבו המנהלת מגדירה את הקוד. ⚠️ לא היה קיים, והפונקציה הייתה כתובה. */
@@ -154,8 +131,60 @@ function SetCodeForm({ onSetCode }: { onSetCode: (code: string) => Promise<void>
   );
 }
 
-export function AccessCodePanel({ visibility, compact = false, onSetCode }: Props) {
+export function AccessCodePanel({
+  visibility,
+  compact = false,
+  inline = false,
+  formOnly = false,
+  onSetCode,
+}: Props) {
   const { canSee, code, eligibility, codeIsStale } = visibility;
+
+  if (formOnly) {
+    return onSetCode ? <SetCodeForm onSetCode={onSetCode} /> : null;
+  }
+
+  if (inline) {
+    /*
+      ⚠️ שלוש מילים ומספר, ובלי חזרות.
+      "קוד הכניסה", "הקוד שלך החודש", "6 משמרות החודש" ו"זה הקוד שמנהלת הסלון
+      הגדירה" הן ארבע שורות על אותו דבר. מה שנשאר: התווית, הקוד, והעתקה.
+      ⚠️ וההסתייגות עברה ל-title, כדי שתהיה זמינה ולא תתפוס שורה.
+    */
+    if (!code) {
+      return <span className="text-sm text-ink-faint">{t.code.noCode}</span>;
+    }
+
+    if (!canSee) {
+      return (
+        <span className="text-sm text-ink-soft" title={t.code.notEligibleHint}>
+          {t.code.notEligible}
+        </span>
+      );
+    }
+
+    return (
+      <span className="flex items-center gap-2" title={`${t.code.title}. ${t.code.disclaimer}`}>
+        {/* ⚠️ בלי המילים "קוד הכניסה", בהכרעת בעל המוצר 06/10, ובשתי
+            התצוגות. השם יושב ב-title וב-sr-only. */}
+        <span className="sr-only">{t.code.title}</span>
+        {/*
+          ⚠️ dir="ltr" דרך .num. קוד שמסתדר הפוך הוא קוד אחר שנראה סביר.
+          ⚠️⚠️ ובלי כפתור העתקה, בהכרעת בעל המוצר 06/10: "מיותר לחלוטין".
+          ארבע ספרות נקראות ומוקלדות, ולא מועתקות ללוח. DOCS/PLANING/26
+          ⚠️ ו-select-all כדי שסימון בעכבר יתפוס את הקוד כולו.
+        */}
+        {/* ⚠️ הוקטן, בהכרעת בעל המוצר 06/10: "קצת חורג מהגודל ההגיוני". */}
+        <span className="num select-all text-lg font-bold tracking-[0.1em] text-ink">
+          {code.code}
+        </span>
+        {/* ⚠️ אזהרת קוד ישן נשארת, והיא נקודה ולא פסקה. */}
+        {codeIsStale && (
+          <span className="size-2 rounded-full bg-shift-open-line" title={t.code.staleWarning} />
+        )}
+      </span>
+    );
+  }
 
   return (
     <section
@@ -185,16 +214,15 @@ export function AccessCodePanel({ visibility, compact = false, onSetCode }: Prop
             ⚠️ dir="ltr" דרך .num, והוא הדבר החשוב ביותר במסך הזה.
             קוד שמסתדר הפוך הוא קוד אחר שנראה סביר.
           */}
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            <p
-              className={`num font-bold text-ink ${
-                compact ? 'text-2xl tracking-[0.15em]' : 'text-4xl tracking-[0.2em]'
-              }`}
-            >
-              {code.code}
-            </p>
-            <CopyButton value={code.code} />
-          </div>
+          {/* ⚠️ בלי כפתור העתקה, בהכרעת בעל המוצר 06/10. select-all כדי
+              שסימון בעכבר יתפוס את הקוד כולו. */}
+          <p
+            className={`num mt-2 select-all font-bold text-ink ${
+              compact ? 'text-2xl tracking-[0.15em]' : 'text-4xl tracking-[0.2em]'
+            }`}
+          >
+            {code.code}
+          </p>
 
           {/* ⚠️ אצל המנהלת שתי השורות האלה אינן נחוצות: היא יודעת מה הקוד
               ומי הגדיר אותו. אצל חבר הן מה שמסביר למה הוא רואה אותו. */}
