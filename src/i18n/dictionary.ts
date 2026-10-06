@@ -79,21 +79,39 @@ export const he = {
     cancel: 'ביטול',
   },
 
+  home: {
+    greeting: (name: string) => `שלום, ${name}`,
+    // ⚠️ הסניף והחודש מגיעים מהמצב ואינם טקסט. `·` ולא מקף.
+    place: (branch: string, month: string) => `${branch} · ${month}`,
+  },
+
   board: {
     title: 'לוח המשמרות',
     previousMonth: 'חודש קודם',
     nextMonth: 'חודש הבא',
     today: 'היום',
-    empty: 'אין עוד משמרות בחודש הזה.',
-    generate: 'יצירת משמרות החודש',
+
+    // ⚠️ חודש בלי משמרות אינו הצלחה ואינו תקלה. הוא מצב שצריך הכוונה,
+    // ולכן יש לו כותרת, שורת הסבר, ופעולה אחת.
+    emptyTitle: (month: string) => `עדיין אין משמרות ב${month}`,
+    // ⚠️ מצב אחר לגמרי: לסניף אין תבנית משמרת פעילה, ולכן אין לחודש ימים
+    // שאפשר לשבץ בהם בכלל.
+    noTemplates: 'לסלון אין עדיין תבניות משמרת, ולכן אין ימים לשיבוץ.',
+    emptyBodyManager: 'המשמרות נוצרות לפי תבניות הסלון, והחברים משבצים את עצמם.',
+    emptyBodyMember: 'מנהלת הסלון עוד לא יצרה את המשמרות של החודש הזה.',
+    generateFor: (month: string) => `יצירת משמרות ל${month}`,
     generating: 'רגע',
     generated: (count: number) => `נוצרו ${count} משמרות`,
+
     loading: 'טוען',
     openShifts: (count: number) =>
       count === 1 ? 'משמרת אחת פתוחה' : `${count} משמרות פתוחות`,
     noOpenShifts: 'כל המשמרות משובצות',
     handoverWaiting: (count: number) =>
       count === 1 ? 'בקשת מחליף אחת' : `${count} בקשות מחליף`,
+    membersCount: (count: number) => (count === 1 ? 'חבר אחד' : `${count} חברים`),
+    joinRequests: (count: number) =>
+      count === 1 ? 'בקשת הצטרפות אחת' : `${count} בקשות הצטרפות`,
   },
 
   shift: {
@@ -114,6 +132,11 @@ export const he = {
   },
 
   code: {
+    copy: 'העתקה',
+    copied: 'הועתק',
+    // ⚠️ והעתקה נכשלת. דפדפן בלי הרשאה ללוח אינו מקרה קצה, וההודעה אומרת
+    // מה לעשות במקומה.
+    copyFailed: 'ההעתקה לא עברה. סמנו את הקוד והעתיקו ידנית.',
     title: 'קוד הכניסה',
     eligible: 'הקוד שלך החודש',
     eligibleByHandover: 'מצאת מחליף, והקוד נשאר שלך',
@@ -164,6 +187,11 @@ export const he = {
     noMembers: 'אין עוד חברים',
     roleManager: 'מנהלת',
     roleMember: 'חבר',
+    summary: (approved: number, pending: number) =>
+      pending > 0
+        ? `${approved} מאושרים · ${pending} ממתינים`
+        : `${approved} מאושרים`,
+    showAll: 'כל החברים',
     makeManager: 'הגדרה כמנהלת',
     promoteMe: 'הגדרה של עצמי כמנהלת',
     unmakeManager: 'הסרה מניהול',

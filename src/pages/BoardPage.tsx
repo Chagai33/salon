@@ -1,4 +1,12 @@
 // src/pages/BoardPage.tsx
+//
+// מסך העבודה. ⚠️ ואינו דאשבורד של מדדים.
+//
+// הסדר כאן הוא הכרעה: מי אני ואיפה, מה דורש טיפול, אזור העבודה, ואחר כך
+// המשני. קוד הדלת היה בראש העמוד בכרטיס גדול, וזה הפך מידע משני לכותרת.
+//
+// ⚠️ ומה שאפס אינו מוצג. חודש בלי משמרות אינו "הכל מסודר", הוא מצב שצריך
+// הכוונה, ולכן יש לו כותרת ופעולה אחת.
 
 import { useMemo, useState } from 'react';
 import {
@@ -7,13 +15,17 @@ import {
   groupShiftsByDate,
   selectHandoverCount,
   selectOpenShiftCount,
+  splitMembers,
 } from '../store/useStore';
 import { MonthBoard } from '../components/board/MonthBoard';
 import { DayList } from '../components/board/DayList';
 import { AccessCodePanel } from '../components/board/AccessCodePanel';
 import { MembersPanel } from '../components/admin/MembersPanel';
+import { PageHeader } from '../components/layout/PageHeader';
+import { StatusLine } from '../components/layout/StatusLine';
+import type { StatusItem } from '../components/layout/StatusLine';
 import { t } from '../i18n/dictionary';
-import { addMonths, datesInMonth, monthLabel, toMonthKey } from '../utils/dates';
+import { datesInMonth, monthNameOf } from '../utils/dates';
 import { codeVisibilityFor } from '../utils/eligibility';
 import {
   cancelHandoverRequest,
@@ -28,29 +40,30 @@ import { toReadableError } from '../utils/errors';
 export function BoardPage({ branchId }: { branchId: string }) {
   const branch = useStore((state) => state.branch);
   const member = useStore((state) => state.member);
+  const user = useStore((state) => state.user);
   const monthKey = useStore((state) => state.monthKey);
   const setMonthKey = useStore((state) => state.setMonthKey);
   const shifts = useStore((state) => state.shifts);
+  const members = useStore((state) => state.members);
   const codes = useStore((state) => state.accessCodes);
   const isMonthLoading = useStore((state) => state.isMonthLoading);
   const setError = useStore((state) => state.setError);
-
   const canOpenBranch = useStore((state) => state.canOpenBranch);
+
   const activityDays = useStore((state) => state.activityDays);
   const openCount = useStore(selectOpenShiftCount);
   const handoverCount = useStore(selectHandoverCount);
 
-  // ⚠️ ב-useMemo ולא בבורר. בורר שבונה Map חדש בכל קריאה גורם ללולאה
+  // ⚠️ ב-useMemo ולא בבורר. בורר שבונה Map או מערך חדש בכל קריאה גורם ללולאה
   // אינסופית, וזה קרה. DOCS/PLANING/16-the-selector-that-looped.md
   const shiftsByDate = useMemo(() => groupShiftsByDate(shifts), [shifts]);
   const activityByDate = useMemo(() => groupActivityByDate(activityDays), [activityDays]);
+  const { pending } = useMemo(() => splitMembers(members), [members]);
 
   const [generating, setGenerating] = useState(false);
 
   const canAct = member?.status === 'active';
   const isManager = member?.role === 'manager';
-  // ⚠️ ומנהל העל רואה את מסך החברים גם בסלון שאינו מנהל בו, כדי שיוכל להגדיר
-  // בו מנהלת ראשונה. זו ההרשאה שחוקי המסד נותנים לו, לא יותר.
   const canManageMembers = isManager || canOpenBranch;
 
   const visibility = useMemo(
@@ -79,9 +92,7 @@ export function BoardPage({ branchId }: { branchId: string }) {
   }
 
   const onClaim = (shift: Shift) =>
-    guarded(() =>
-      claimShift(branchId, shift.id, member!.id, member!.displayName),
-    );
+    guarded(() => claimShift(branchId, shift.id, member!.id, member!.displayName));
   const onRelease = (shift: Shift) => guarded(() => releaseShift(branchId, shift.id));
   const onRequestHandover = (shift: Shift) =>
     guarded(() => requestHandover(branchId, shift.id));
@@ -92,59 +103,74 @@ export function BoardPage({ branchId }: { branchId: string }) {
     return <p className="p-6 text-ink-soft">{t.errors.noBranch}</p>;
   }
 
+  const hasShifts = shifts.length > 0;
+  const monthName = monthNameOf(monthKey);
+
+  // ⚠️ מה שאפס אינו נכנס לשורה. ובקשות הצטרפות נראות גם כשרשימת החברים
+  // המלאה מקופלת, כי הן מה שדורש טיפול.
+  const status: StatusItem[] = [];
+  // ⚠️ משמרת פתוחה היא מצב ולא תקלה, ולכן היא שקטה. מה שצבוע הוא מה שמחכה
+  // להכרעה של אדם: בקשת מחליף ובקשת הצטרפות.
+  if (hasShifts) {
+    status.push(
+      openCount > 0
+        ? { key: 'open', label: t.board.openShifts(openCount) }
+        : { key: 'open', label: t.board.noOpenShifts, tone: 'good' },
+    );
+  }
+  if (handoverCount > 0) {
+    status.push({
+      key: 'handover',
+      label: t.board.handoverWaiting(handoverCount),
+      tone: 'attention',
+    });
+  }
+  if (canManageMembers && pending.length > 0) {
+    status.push({
+      key: 'pending',
+      label: t.board.joinRequests(pending.length),
+      tone: 'attention',
+    });
+  }
+  // ⚠️ ומספר החברים אינו בשורה. הוא כתוב בכרטיס החברים ממילא, ומונה שחוזר
+  // פעמיים אינו מוסיף מידע.
+
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-4 p-4">
-      <AccessCodePanel visibility={visibility} />
+    <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5">
+      <PageHeader
+        name={member?.displayName ?? user?.displayName ?? ''}
+        branchName={branch.name}
+        monthKey={monthKey}
+        onMonthChange={setMonthKey}
+      />
 
-      {canManageMembers && <MembersPanel branchId={branchId} />}
+      <StatusLine items={status} />
 
-      <section className="rounded-xl border border-line bg-surface">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-3">
-          <div className="flex items-center gap-2">
-            {/* ⚠️ חצי חודש. בעברית חודש קודם הוא לכיוון ימין, ולכן לא מראה חץ עיוור. */}
-            <button
-              type="button"
-              onClick={() => setMonthKey(addMonths(monthKey, -1))}
-              className="rounded-md border border-line-strong px-3 py-1.5 text-sm hover:bg-brand-soft"
-            >
-              {t.board.previousMonth}
-            </button>
-            <h1 className="min-w-40 text-center text-lg font-semibold">{monthLabel(monthKey)}</h1>
-            <button
-              type="button"
-              onClick={() => setMonthKey(addMonths(monthKey, 1))}
-              className="rounded-md border border-line-strong px-3 py-1.5 text-sm hover:bg-brand-soft"
-            >
-              {t.board.nextMonth}
-            </button>
-            {monthKey !== toMonthKey(new Date()) && (
-              <button
-                type="button"
-                onClick={() => setMonthKey(toMonthKey(new Date()))}
-                className="rounded-md px-2 py-1 text-sm text-ink-faint underline-offset-2 hover:underline"
-              >
-                {t.board.today}
-              </button>
-            )}
-          </div>
+      {/* ⚠️ לחבר הקוד הוא העיקר, ולכן הוא לפני הלוח. למנהלת הוא יורד לאזור
+          המשני בתחתית, ושם הוא קומפקטי. */}
+      {!canManageMembers && (
+        /* ⚠️ ברוחב התוכן ולא ברוחב העמוד. קוד של ארבע ספרות בכרטיס שנמתח על
+           1280 פיקסלים הוא בעיקר חלל ריק. */
+        <div className="max-w-md">
+          <AccessCodePanel visibility={visibility} />
+        </div>
+      )}
 
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            <span className={openCount > 0 ? 'text-shift-open-ink' : 'text-ink-soft'}>
-              {openCount > 0 ? t.board.openShifts(openCount) : t.board.noOpenShifts}
-            </span>
-            {handoverCount > 0 && (
-              <span className="text-shift-handover-ink">
-                {t.board.handoverWaiting(handoverCount)}
-              </span>
-            )}
-          </div>
-        </header>
-
+      {/* אזור העבודה. ⚠️ אין בו כותרת שנייה: החודש והסניף כבר בכותרת העמוד. */}
+      <main className="rounded-xl border border-line bg-surface">
         {isMonthLoading ? (
-          <p className="p-6 text-ink-soft">{t.board.loading}</p>
-        ) : shifts.length === 0 ? (
-          <div className="flex flex-col items-start gap-3 p-6">
-            <p className="text-ink-soft">{t.board.empty}</p>
+          <p className="p-5 text-ink-soft">{t.board.loading}</p>
+        ) : !hasShifts ? (
+          /* ⚠️ ממורכז ולא נצמד לצד: תוכן בצד אחד של כרטיס רחב משאיר חלל גדול
+             בצד השני, וזה נקרא כמו משהו שלא נטען. */
+          <div className="mx-auto max-w-md px-5 py-10 text-center">
+            <h2 className="text-lg font-semibold text-ink">{t.board.emptyTitle(monthName)}</h2>
+            <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">
+              {isManager ? t.board.emptyBodyManager : t.board.emptyBodyMember}
+            </p>
+
+            {/* ⚠️ פעולה אחת, ורק למי שהמסד יתיר לו אותה. יצירת משמרות דורשת
+                תפקיד מנהלת בסניף הזה, ולא הרשאת מנהל מערכת. */}
             {isManager && (
               <button
                 type="button"
@@ -155,9 +181,9 @@ export function BoardPage({ branchId }: { branchId: string }) {
                     .catch((error: unknown) => setError(toReadableError(error, t.errors.saveFailed)))
                     .finally(() => setGenerating(false));
                 }}
-                className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-brand-ink disabled:opacity-50"
+                className="mt-5 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-brand-ink hover:opacity-90 disabled:opacity-50"
               >
-                {generating ? t.board.generating : t.board.generate}
+                {generating ? t.board.generating : t.board.generateFor(monthName)}
               </button>
             )}
           </div>
@@ -198,7 +224,20 @@ export function BoardPage({ branchId }: { branchId: string }) {
             </div>
           </div>
         )}
-      </section>
+      </main>
+
+      {/*
+        האזור המשני.
+        ⚠️ לחבר קוד הדלת הוא העיקר, ולמנהלת הוא מידע נגיש ולא כותרת. לכן אותו
+        רכיב בשתי צורות, והזכאות עצמה אינה משתנה בשום מצב.
+      */}
+      {/* ⚠️ items-start, אחרת הכרטיס הקצר נמתח לגובה הארוך ונוצר חלל מת. */}
+      {canManageMembers ? (
+        <div className="grid items-start gap-4 lg:grid-cols-[1.7fr_1fr]">
+          <MembersPanel branchId={branchId} />
+          <AccessCodePanel visibility={visibility} compact />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -66,8 +66,14 @@ export function DayList({
         return (
           <li
             key={dateKey}
-            className={`rounded-lg border bg-surface p-2.5 ${
-              today ? 'border-brand ring-1 ring-brand' : 'border-line'
+            /* ⚠️ יום בלי משמרות אינו כרטיס. בטלפון שורה של עשרים כרטיסים
+               ריקים היא עשרים מסכים של גלילה בלי מידע. */
+            className={`rounded-lg p-2.5 ${
+              today
+                ? 'bg-cell ring-1 ring-brand'
+                : shifts.length > 0
+                  ? 'bg-cell'
+                  : 'py-1.5'
             } ${past ? 'opacity-70' : ''}`}
           >
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">

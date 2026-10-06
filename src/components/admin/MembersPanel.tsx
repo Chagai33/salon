@@ -116,31 +116,31 @@ export function MembersPanel({ branchId }: { branchId: string }) {
 
   function table(rows: Member[], emptyText: string) {
     if (rows.length === 0) {
-      return <p className="px-3 py-4 text-sm text-ink-soft">{emptyText}</p>;
+      return <p className="px-4 pb-4 text-sm text-ink-soft">{emptyText}</p>;
     }
 
     return (
       <table className="w-full text-start text-sm">
         <thead>
-          <tr className="border-b border-line text-ink-faint">
-            <th scope="col" className="px-3 py-2 text-start font-medium">
+          <tr className="text-ink-faint">
+            <th scope="col" className="px-4 py-2 text-start font-medium">
               {t.manager.nameColumn}
             </th>
-            <th scope="col" className="px-3 py-2 text-start font-medium">
+            <th scope="col" className="hidden px-4 py-2 text-start font-medium sm:table-cell">
               {t.manager.emailColumn}
             </th>
-            <th scope="col" className="hidden px-3 py-2 text-start font-medium sm:table-cell">
+            <th scope="col" className="hidden px-4 py-2 text-start font-medium lg:table-cell">
               {t.manager.joinedColumn}
             </th>
-            <th scope="col" className="px-3 py-2 text-start font-medium">
+            <th scope="col" className="px-4 py-2 text-start font-medium">
               {t.manager.actionColumn}
             </th>
           </tr>
         </thead>
         <tbody>
           {rows.map((member) => (
-            <tr key={member.id} className="border-b border-line last:border-0">
-              <td className="px-3 py-2">
+            <tr key={member.id} className="border-t border-line">
+              <td className="px-4 py-2.5">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-ink">{member.displayName}</span>
                   {member.role === 'manager' && (
@@ -152,13 +152,13 @@ export function MembersPanel({ branchId }: { branchId: string }) {
                   <Email address={member.email} />
                 </div>
               </td>
-              <td className="hidden px-3 py-2 sm:table-cell">
+              <td className="hidden px-4 py-2.5 sm:table-cell">
                 <Email address={member.email} />
               </td>
-              <td className="hidden px-3 py-2 text-ink-soft sm:table-cell">
+              <td className="hidden px-4 py-2.5 text-ink-soft lg:table-cell">
                 {joinedLabel(member.joinedAt)}
               </td>
-              <td className="px-3 py-2">{rowActions(member)}</td>
+              <td className="px-4 py-2.5">{rowActions(member)}</td>
             </tr>
           ))}
         </tbody>
@@ -168,29 +168,31 @@ export function MembersPanel({ branchId }: { branchId: string }) {
 
   return (
     <section className="rounded-xl border border-line bg-surface">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line p-3">
-        <h2 className="text-lg font-semibold text-ink">{t.manager.members}</h2>
-        {pending.length > 0 && (
-          <span className="text-sm text-shift-open-ink">
-            {t.manager.waitingToApprove(pending.length)}
-          </span>
-        )}
+      <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-4 pt-4">
+        <h2 className="text-base font-semibold text-ink">{t.manager.members}</h2>
+        <span className="text-sm text-ink-soft">
+          {t.manager.summary(approved.length, pending.length)}
+        </span>
       </header>
 
-      <div className="border-b border-line">
-        <h3 className="px-3 pt-3 text-sm font-medium text-ink-soft">
-          {t.manager.pendingApproval}
-        </h3>
-        {table(pending, t.manager.noPending)}
-      </div>
-
       {/*
-        ⚠️ הרשימה המאושרת מקופלת, והממתינים אינם. מי שממתין הוא מה שדורש פעולה
-        עכשיו, ורשימת כל החברים היא מה שמסתכלים בו כשמחפשים משהו.
+        ⚠️ הממתינים אינם מקופלים, גם כשרשימת כל החברים כן. מי שממתין הוא מה
+        שדורש פעולה עכשיו, ובקשה שמסתתרת מאחורי מתג היא בקשה שלא מטופלת.
       */}
-      <details>
-        <summary className="cursor-pointer px-3 py-3 text-sm font-medium text-ink-soft">
-          {t.manager.approvedMembers} ({approved.length})
+      {pending.length > 0 && (
+        <div className="mt-3">
+          <h3 className="px-4 text-xs font-semibold uppercase tracking-wide text-shift-open-ink">
+            {t.manager.pendingApproval}
+          </h3>
+          {table(pending, t.manager.noPending)}
+        </div>
+      )}
+
+      {/* ⚠️ והרשימה המלאה מקופלת. היא מה שמסתכלים בו כשמחפשים מישהו, ולא מה
+          שצריך לראות בכל פתיחה של המסך. כל הפעולות נשארות בתוכה. */}
+      <details className="group mt-2">
+        <summary className="cursor-pointer px-4 py-3 text-sm text-ink-soft hover:text-ink">
+          {t.manager.showAll}
         </summary>
         {table(approved, t.manager.noMembers)}
       </details>

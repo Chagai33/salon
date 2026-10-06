@@ -58,6 +58,12 @@ export function monthKeyOfDateKey(dateKey: string): string {
   return dateKey.slice(0, 7);
 }
 
+/** `אוקטובר`, בלי השנה. לניסוח "משמרות לאוקטובר". */
+export function monthNameOf(monthKey: string): string {
+  const month = Number(monthKey.slice(5, 7));
+  return MONTH_NAMES[month - 1];
+}
+
 export function monthLabel(monthKey: string): string {
   const [year, month] = monthKey.split('-').map(Number);
   return `${MONTH_NAMES[month - 1]} ${year}`;

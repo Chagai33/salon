@@ -101,7 +101,8 @@ function JoinBranch({ branchId }: { branchId: string }) {
   );
 }
 
-function TopBar() {
+/** ⚠️ מיוצא כדי שאפשר יהיה לרנדר את המסך בבדיקה בלי המאזינים. */
+export function TopBar() {
   const user = useStore((state) => state.user);
   const member = useStore((state) => state.member);
   const branch = useStore((state) => state.branch);
@@ -148,7 +149,7 @@ function TopBar() {
   );
 }
 
-function ErrorBar() {
+export function ErrorBar() {
   const error = useStore((state) => state.error);
   if (!error) return null;
   return (

@@ -19,6 +19,10 @@
   --color-line: #dfe4e2;
   --color-line-strong: #c2cac7;
 
+  /* ⚠️ תא בלוח שיש בו משמרת. טוקן משלו, כי במצב בהיר הוא כהה מהמשטח
+     ובמצב כהה הוא בהיר ממנו, ואותו שם לא יכול לעשות את שניהם. */
+  --color-cell: #f6f8f7;
+
   /* טקסט */
   --color-ink: #16201d;
   --color-ink-soft: #5b6a66;
@@ -60,45 +64,55 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --color-surface: #111916;
-    --color-surface-sunken: #0b120f;
-    --color-surface-raised: #182320;
-    --color-line: #2a3833;
-    --color-line-strong: #3b4c46;
+    /*
+      ⚠️ המצב הכהה אינו החלפת רקע. הוא אותה היררכיה בגוונים אחרים.
+      הגרסה הראשונה כאן הייתה כמעט שחורה, וההפרדה בין אזורים נעשתה במסגרות.
+      התוצאה קרה ושטוחה: כל אזור קופסה, ושום אזור לא בולט על השני.
 
-    --color-ink: #e8efec;
-    --color-ink-soft: #a7b5b0;
-    --color-ink-faint: #7a8a85;
+      מה שהשתנה: הרקע ירוק שחור רך ולא שחור, המשטחים מופרדים בגוון ולא
+      במסגרת, והקווים כמעט בלתי נראים וקיימים רק להפרדה שבאמת נחוצה.
+    */
+    --color-surface: #16201d;
+    --color-surface-sunken: #101816;
+    --color-surface-raised: #1d2a26;
+    --color-line: #263531;
+    --color-line-strong: #33453f;
+    --color-cell: #1e2b27;
 
-    --color-brand: #cfe3d8;
-    --color-brand-soft: #1c2d26;
-    --color-brand-ink: #0b120f;
+    /* ⚠️ וטקסט משני אינו בהיר מדי. 7.5:1 ו-4.8:1 על המשטח. */
+    --color-ink: #e9efec;
+    --color-ink-soft: #b2c0bb;
+    --color-ink-faint: #8b9a95;
 
-    --color-shift-open: #2e2611;
-    --color-shift-open-line: #8a6f22;
-    --color-shift-open-ink: #f0dc9f;
+    --color-brand: #8fd3b4;
+    --color-brand-soft: #1e2f29;
+    --color-brand-ink: #0c1512;
 
-    --color-shift-mine: #16301f;
-    --color-shift-mine-line: #3f8a62;
-    --color-shift-mine-ink: #a8e0c0;
+    --color-shift-open: #33290f;
+    --color-shift-open-line: #7d6520;
+    --color-shift-open-ink: #f3e2a8;
 
-    --color-shift-taken: #182320;
-    --color-shift-taken-line: #2a3833;
-    --color-shift-taken-ink: #9baaa5;
+    --color-shift-mine: #19352a;
+    --color-shift-mine-line: #3f7f62;
+    --color-shift-mine-ink: #a9e3c3;
 
-    --color-shift-handover: #33200f;
-    --color-shift-handover-line: #9a5c25;
-    --color-shift-handover-ink: #f2bd91;
+    --color-shift-taken: #1d2a26;
+    --color-shift-taken-line: #2b3a35;
+    --color-shift-taken-ink: #a6b4af;
 
-    --color-activity: #7fb2e8;
-    --color-activity-soft: #142433;
-    --color-closed: #1d1b1a;
-    --color-closed-ink: #a09792;
-    --color-members-only: #241a33;
-    --color-members-only-ink: #c9aef0;
+    --color-shift-handover: #38240f;
+    --color-shift-handover-line: #955d28;
+    --color-shift-handover-ink: #f4c49c;
 
-    --color-danger: #f09583;
-    --color-danger-soft: #30160f;
+    --color-activity: #8ebde9;
+    --color-activity-soft: #16283a;
+    --color-closed: #211f1d;
+    --color-closed-ink: #a7a09a;
+    --color-members-only: #261c35;
+    --color-members-only-ink: #cdb4f2;
+
+    --color-danger: #f5a28f;
+    --color-danger-soft: #341810;
   }
 }
 
@@ -112,6 +126,16 @@ body {
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  /* ⚠️ עברית צפופה קשה לקריאה, ו-1.6 הוא מה שמפריד שורה משורה בלי לפזר. */
+  line-height: 1.6;
+}
+
+/* כותרות צמודות יותר מהטקסט, וזו ההיררכיה. */
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+  letter-spacing: -0.015em;
 }
 
 /* מיקוד נראה, ובלי להסתמך על ברירת המחדל של הדפדפן */

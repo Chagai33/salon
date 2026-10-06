@@ -79,12 +79,12 @@ export function MonthBoard({
   }
 
   if (weeks.length === 0 || activeWeekdays.length === 0) {
-    return <p className="p-6 text-ink-soft">{t.board.empty}</p>;
+    return <p className="p-4 text-sm text-ink-soft">{t.board.noTemplates}</p>;
   }
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full border-separate border-spacing-1" aria-label={t.a11y.monthTable}>
+      <table className="w-full border-separate border-spacing-1.5" aria-label={t.a11y.monthTable}>
         <caption className="sr-only">{t.a11y.monthTable}</caption>
         <thead>
           <tr>
@@ -92,7 +92,9 @@ export function MonthBoard({
               <th
                 key={weekday}
                 scope="col"
-                className="sticky top-0 z-10 rounded-md bg-brand px-2 py-2 text-sm font-semibold text-brand-ink"
+                /* ⚠️ טקסט שקט ולא בלוק צבעוני. שבע רצועות צבע ברוחב העמודה
+                   צועקות, ושם היום אינו הדבר שצריך לבלוט בלוח. */
+                className="sticky top-0 z-10 bg-surface px-2 pb-2 text-sm font-medium text-ink-soft"
               >
                 {WEEKDAY_NAMES[weekday]}
               </th>
@@ -117,9 +119,18 @@ export function MonthBoard({
 
                 return (
                   <td key={dayIndex} className="min-w-36 align-top">
+                    {/*
+                      ⚠️ יום בלי משמרות אינו כרטיס. הוא מספר על הרקע.
+                      גבול סביב כל תא בחודש שלם הוא 35 מסגרות על מסך אחד, ואז
+                      שום דבר אינו בולט. היום שמשובץ בו משהו הוא זה שנושא משטח.
+                    */}
                     <div
-                      className={`flex h-full flex-col gap-1.5 rounded-lg border bg-surface p-1.5 ${
-                        today ? 'border-brand ring-1 ring-brand' : 'border-line'
+                      className={`flex h-full flex-col gap-1.5 rounded-lg p-1.5 ${
+                        today
+                          ? 'bg-cell ring-1 ring-brand'
+                          : shifts.length > 0
+                            ? 'bg-cell'
+                            : ''
                       }`}
                     >
                       <div className="flex flex-wrap items-center gap-1.5 px-1 pt-0.5">
