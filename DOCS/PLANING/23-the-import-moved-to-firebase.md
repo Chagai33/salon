@@ -78,6 +78,24 @@ if (!snapshot.exists || member?.status !== 'active' || member?.role !== 'manager
 ⚠️ והמודל אינו 2.5, שנסגר ב-16/10/2026
 ```
 
+## ⚠️ ו-`firebase deploy` אינו מתקין לבד
+
+**דיווחתי שהוא כן, וזה לא נכון.** הפריסה נפלה ב:
+
+```
+functions: Couldn't find firebase-functions package in your source code.
+Have you run 'npm install'?
+```
+
+**ה-CLI מנתח את קוד המקור על ידי טעינה שלו**, ולכן החבילות צריכות להיות
+מותקנות מקומית לפני הפריסה. `npm install` בתוך `functions/` הוא שלב, ולא
+אוטומציה.
+
+⚠️ **ומה שזה חשף אצלי:** מספרי הגרסאות ב-`functions/package.json` היו ניחוש.
+`firebase-admin: ^13.6.0` נפתר בפועל ל-13.10.0, **והפונקציה נטענה מול
+החבילות האמיתיות רק אחרי ההתקנה.** `functions/package-lock.json` נדחף למאגר
+כדי שההתקנה תהיה זהה בכל מקום.
+
 ## ⚠️ ומה שנדרש מבעל המוצר
 
 **1. המפתח ב-Secret Manager של Firebase**, ולא ב-Netlify:
