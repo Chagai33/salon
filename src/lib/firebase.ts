@@ -5,6 +5,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getFunctions } from 'firebase/functions';
 
 const required = [
   'VITE_FIREBASE_API_KEY',
@@ -34,5 +35,12 @@ const app = initializeApp({
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+/*
+  ⚠️ האזור חייב להיות זהה לזה שבפונקציה. אזור שונה כאן ושם נותן
+  "functions/not-found" שנראה כמו באג בקוד ואינו באג בקוד.
+  functions/index.mjs אומר region: 'us-central1'.
+*/
+export const functions = getFunctions(app, 'us-central1');
 
 export const googleProvider = new GoogleAuthProvider();

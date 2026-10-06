@@ -1,22 +1,24 @@
 // src/services/importService.ts
 //
-// קורא תמונה של לוח חודשי דרך פונקציית Netlify.
+// קורא תמונה של לוח חודשי דרך פונקציה של Firebase.
 //
-// ⚠️⚠️ והאפליקציה אינה מחזיקה את מפתח המודל ואינה יכולה להחזיק אותו. כל מה
-// שמתחיל ב-`VITE_` נדחף לחבילה שהדפדפן מוריד, והמאגר הזה ציבורי. המפתח יושב
-// במשתנה סביבה של Netlify, והפונקציה היא היחידה שרואה אותו.
+// ⚠️⚠️ וזה עבר לכאן מ-Netlify אחרי כשל שנמדד, ולא מהעדפה:
 //
-// ⚠️ והפונקציה אינה כותבת למסד. היא מחזירה הצעה.
+//   1. ⚠️ הפונקציה ב-Netlify חזרה ב-504. שער Netlify סוגר חיבור סינכרוני
+//      אחרי עשר שניות, וקריאת לוח של שישה עשר ימים אורכת יותר.
+//      ⚠️ והתיקון הראשון שלי היה להקטין את התמונה, וזה היה תיקון לבעיה הלא
+//      נכונה: התמונה שוקלת 300 קילובייט. מה שלוקח זמן הוא המודל.
+//   2. שם היה צריך לאמת חתימה של אסימון ביד. `httpsCallable` מעביר זהות.
+//   3. ⚠️ ושם לא הייתה דרך לבדוק שהקורא הוא מנהלת. כאן הפונקציה בודקת.
+//
+// ⚠️ והאפליקציה אינה מחזיקה את מפתח המודל ואינה יכולה להחזיק אותו. כל מה
+// שמתחיל ב-`VITE_` נדחף לחבילה שהדפדפן מוריד, והמאגר הזה ציבורי.
+//
+// DOCS/PLANING/23-the-import-moved-to-firebase.md
 
-import { auth } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../lib/firebase';
 
-/**
- * ⚠️⚠️ `unknown` הוא התשובה הנכונה כמעט תמיד.
- *
- * בתמונת לוח אירועים אין מידע על מי סגור למי. ברירת מחדל `open` הייתה חותמת
- * "פתוח לכולם" על כל יום שנקרא, כולל שישי ושבת, ומוחקת את כלל סוף השבוע
- * ואת מה שהמנהלת הגדירה. כשהמצב אינו ידוע, הייבוא אינו קובע אותו.
- */
 export type ImportedAccess = 'unknown' | 'open' | 'membersOnly' | 'closed';
 
 export interface ImportedEvent {
@@ -34,16 +36,14 @@ export interface ImportedDay {
   confidence: number;
 }
 
-const ENDPOINT = '/.netlify/functions/read-board-image';
-
-/** ⚠️ שני מגה, כמו בפונקציה. נבדק כאן כדי לא לשלוח ולהיכשל. */
-export const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+/** ⚠️ עשרה מגה, כמו בפונקציה. נבדק כאן כדי לא לשלוח ולהיכשל. */
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 export class ImportError extends Error {}
 
-function base64Of(file: File): Promise<string> {
+function base64Of(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new ImportError('readFailed'));
@@ -52,34 +52,46 @@ function base64Of(file: File): Promise<string> {
       // `data:image/png;base64,XXXX`, והפונקציה רוצה את XXXX בלבד.
       resolve(result.slice(result.indexOf(',') + 1));
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(blob);
   });
 }
 
-export async function readBoardImage(file: File, monthKey: string): Promise<ImportedDay[]> {
+interface CallResult {
+  model: string;
+  days: ImportedDay[];
+}
+
+const callReadBoardImage = httpsCallable<
+  { branchId: string; monthKey: string; mimeType: string; imageBase64: string },
+  CallResult
+>(functions, 'readBoardImage');
+
+export async function readBoardImage(
+  file: File,
+  branchId: string,
+  monthKey: string,
+): Promise<ImportedDay[]> {
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) throw new ImportError('badType');
   if (file.size > MAX_IMAGE_BYTES) throw new ImportError('tooLarge');
 
-  // ⚠️ אסימון הזהות, ולא "האפליקציה מדברת עם הפונקציה". בלעדיו הכתובת פתוחה
-  // לכל העולם וכל מי שימצא אותה שורף את המכסה.
-  const token = await auth.currentUser?.getIdToken();
-  if (!token) throw new ImportError('noToken');
-
-  const response = await fetch(ENDPOINT, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-    body: JSON.stringify({
-      imageBase64: await base64Of(file),
-      mimeType: file.type,
+  try {
+    const result = await callReadBoardImage({
+      branchId,
       monthKey,
-    }),
-  });
-
-  if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new ImportError(body.error ?? 'modelFailed');
+      mimeType: file.type,
+      imageBase64: await base64Of(file),
+    });
+    return Array.isArray(result.data?.days) ? result.data.days : [];
+  } catch (error) {
+    /*
+      ⚠️ השגיאה של `httpsCallable` נושאת את ההודעה שהפונקציה זרקה, ולכן
+      `notManager` או `modelFailed` מגיעים לכאן כמו שהם ומתורגמים במסך.
+      שגיאה שאינה מוכרת אינה מוצגת כלשונה.
+    */
+    const message = error instanceof Error ? error.message : '';
+    const known = ['notManager', 'noAuth', 'badImage', 'tooLarge', 'badMonth',
+      'modelFailed', 'emptyAnswer', 'notJson'];
+    const code = known.find((candidate) => message.includes(candidate));
+    throw new ImportError(code ?? 'modelFailed');
   }
-
-  const body = (await response.json()) as { days?: ImportedDay[] };
-  return Array.isArray(body.days) ? body.days : [];
 }

@@ -56,6 +56,10 @@ function messageFor(error: unknown): string {
     noToken: t.importImage.noToken,
     badToken: t.importImage.noToken,
     missingKey: t.importImage.missingKey,
+    notManager: t.importImage.notManager,
+    noAuth: t.importImage.noToken,
+    emptyAnswer: t.importImage.modelFailed,
+    notJson: t.importImage.modelFailed,
   };
   return known[code] ?? t.importImage.modelFailed;
 }
@@ -82,7 +86,7 @@ export function ImportBoardImage({ branchId, monthKey }: { branchId: string; mon
     if (!file) return;
     reset();
     setReading(true);
-    void readBoardImage(file, monthKey)
+    void readBoardImage(file, branchId, monthKey)
       .then((found) => {
         setDays(found);
         // ⚠️ מסומן מראש רק מה שנקרא בבירור. השאר דורש החלטה מפורשת.
