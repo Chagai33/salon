@@ -90,7 +90,7 @@ export function MembersPanel({ branchId }: { branchId: string }) {
               approveMember(branchId, member.id, me!.id),
             )
           }
-          className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-brand-ink disabled:opacity-50"
+          className="inline-flex min-h-9 items-center rounded-lg bg-brand px-3 text-sm font-semibold text-brand-ink disabled:opacity-50"
         >
           {busy ? t.manager.approving : t.manager.approve}
         </button>
@@ -105,7 +105,7 @@ export function MembersPanel({ branchId }: { branchId: string }) {
           type="button"
           disabled={busy}
           onClick={() => void run(member.id, () => setMemberRole(branchId, member.id, 'manager'))}
-          className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-brand-ink disabled:opacity-50"
+          className="inline-flex min-h-9 items-center rounded-lg bg-brand px-3 text-sm font-semibold text-brand-ink disabled:opacity-50"
         >
           {busy ? t.manager.working : t.manager.promoteMe}
         </button>

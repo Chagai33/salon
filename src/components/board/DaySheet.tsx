@@ -9,6 +9,7 @@
 // ⚠️⚠️ ולמנהלת זה גם העורך, ליד היום שהיא בחרה.
 // קודם העורך ישב מתחת ללוח, רחוק מהיום שנפתח בו.
 
+import { Button } from '../common/Button';
 import { useState } from 'react';
 import type { ActivityDay, Shift } from '../../types';
 import { t } from '../../i18n/dictionary';
@@ -118,13 +119,14 @@ export function DaySheet({
                   !past &&
                   shift.assigneeMemberId &&
                   shift.assigneeMemberId !== memberId && (
-                    <button
-                      type="button"
+                    <Button
+                      tone="danger"
+                      size="xs"
+                      className="self-start"
                       onClick={() => setReleasing(shift)}
-                      className="self-start px-1 text-xs text-danger underline-offset-4 hover:underline"
                     >
                       {t.manager.releaseOther}
-                    </button>
+                    </Button>
                   )}
               </div>
             ))}

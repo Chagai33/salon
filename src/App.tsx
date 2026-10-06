@@ -56,7 +56,7 @@ function SignIn() {
             .catch(() => setFailed(true))
             .finally(() => setBusy(false));
         }}
-        className="rounded-lg bg-brand px-5 py-3 font-medium text-brand-ink disabled:opacity-50"
+        className="inline-flex min-h-12 items-center rounded-lg bg-brand px-5 font-semibold text-brand-ink disabled:opacity-50"
       >
         {busy ? t.auth.signingIn : t.auth.signInWithGoogle}
       </button>
@@ -109,7 +109,7 @@ function JoinBranch({ branchId }: { branchId: string }) {
               .catch((error: unknown) => setError(toReadableError(error, t.errors.saveFailed)))
               .finally(() => setBusy(false));
           }}
-          className="rounded-md bg-brand px-4 py-2 font-medium text-brand-ink disabled:opacity-50"
+          className="inline-flex min-h-11 items-center rounded-lg bg-brand px-4 font-semibold text-brand-ink disabled:opacity-50"
         >
           {busy ? t.salons.joining : t.salons.join}
         </button>

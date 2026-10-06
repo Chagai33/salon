@@ -9,6 +9,7 @@
 // ⚠️⚠️ והוא נצמד לקצה הסופי, כלומר לשמאל בעברית.
 // inset-inline, ולא left. כלל הפרויקט הוא תכונות לוגיות. CLAUDE.md, עיצוב.
 
+import { Button } from '../common/Button';
 import { useEffect, useRef } from 'react';
 import { t } from '../../i18n/dictionary';
 
@@ -38,13 +39,9 @@ export function SideMenu({ onClose, children }: Props) {
       <div className="flex h-full flex-col">
         <header className="flex shrink-0 items-center gap-3 border-b border-line px-4 py-3">
           <h2 className="flex-1 text-base font-semibold text-ink">{t.menu.title}</h2>
-          <button
-            type="button"
-            onClick={() => ref.current?.close()}
-            className="min-h-11 min-w-11 rounded-lg text-sm text-ink-soft hover:bg-brand-soft"
-          >
+          <Button tone="quiet" onClick={() => ref.current?.close()}>
             {t.menu.close}
-          </button>
+          </Button>
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">{children}</div>

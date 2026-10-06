@@ -9,6 +9,7 @@
 // ⚠️ ומה שאפס אינו מוצג. חודש בלי משמרות אינו "הכל מסודר", הוא מצב שצריך
 // הכוונה, ולכן יש לו כותרת ופעולה אחת.
 
+import { Button } from '../components/common/Button';
 import { useMemo, useState } from 'react';
 import {
   useStore,
@@ -92,6 +93,7 @@ export function BoardPage({ branchId }: { branchId: string }) {
   const [pickedDay, setPickedDay] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const navigate = useNavigate();
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -204,7 +206,9 @@ export function BoardPage({ branchId }: { branchId: string }) {
       <main
         id="main"
         tabIndex={-1}
-        className="rounded-board border border-line bg-surface shadow-soft"
+        /* ⚠️ בטלפון אין כאן משטח: הלוח הוא העמוד. כרטיס בתוך כרטיס בתוך
+           כרטיס על מסך 375 הוא מה שבעל המוצר ראה. DOCS/PLANING/26 */
+        className="md:rounded-board md:border md:border-line md:bg-surface md:shadow-soft"
       >
         {isMonthLoading ? (
           <p className="p-5 text-ink-soft">{t.board.loading}</p>
@@ -220,8 +224,9 @@ export function BoardPage({ branchId }: { branchId: string }) {
             {/* ⚠️ פעולה אחת, ורק למי שהמסד יתיר לו אותה. יצירת משמרות דורשת
                 תפקיד מנהלת בסניף הזה, ולא הרשאת מנהל מערכת. */}
             {isManager && (
-              <button
-                type="button"
+              <Button
+                tone="primary"
+                className="mt-5"
                 disabled={generating}
                 onClick={() => {
                   setGenerating(true);
@@ -229,14 +234,13 @@ export function BoardPage({ branchId }: { branchId: string }) {
                     .catch((error: unknown) => setError(toReadableError(error, t.errors.saveFailed)))
                     .finally(() => setGenerating(false));
                 }}
-                className="mt-5 min-h-11 rounded-lg bg-brand px-5 text-sm font-semibold text-brand-ink hover:opacity-90 disabled:opacity-50"
               >
                 {generating ? t.board.generating : t.board.generateFor(monthName)}
-              </button>
+              </Button>
             )}
           </div>
         ) : (
-          <div className="p-2">
+          <div className="md:p-2">
             {/*
               ⚠️ שתי תצוגות לאותו מידע, ולא טבלה שגוללת לצדדים.
               בטלפון אקורדיון שבועי, בהכרעת בעל המוצר 06/10: נפתח השבוע שהיום
@@ -317,23 +321,37 @@ export function BoardPage({ branchId }: { branchId: string }) {
             onSetCode={(code) => setAccessCode(branchId, code, member!.id)}
           />
 
-          {/* ⚠️ למנהלת הסניף בלבד. מנהל מערכת שאינו מנהל כאן אינו כותב ימים. */}
-          {/* ⚠️ ו-activityByDate נמסר כדי שהייבוא ידע מה הוא מחליף. רשומה 25. */}
-          <ImportBoardImage
-            branchId={branchId}
-            monthKey={monthKey}
-            activityByDate={activityByDate}
-            /* ⚠️ פותח את גיליון היום, ובתוכו העורך הרגיל. ⚠️ וסוגר את
-               התפריט, אחרת הגיליון נפתח מאחוריו. */
-            onOpenDay={(date) => {
+          {/* ⚠️ שורה ברשימה, ולא כפתור בודד שמרחף בחלל ריק. */}
+          <Button
+            tone="secondary"
+            block
+            className="min-h-12 justify-start"
+            onClick={() => {
               setMenuOpen(false);
-              setPickedDay(date);
+              setImportOpen(true);
             }}
-            /* ⚠️ וגם התפריט נסגר, כדי שהלוח יהיה מה שרואים אחרי הייבוא. */
-            onFinished={() => setMenuOpen(false)}
-          />
+          >
+            {t.importImage.title}
+          </Button>
         </SideMenu>
       )}
+
+      {/* ⚠️ בשורש העמוד ולא בתוך התפריט, אחרת שני הרקעים נראים יחד. */}
+      {isManager && (
+        <ImportBoardImage
+          branchId={branchId}
+          monthKey={monthKey}
+          activityByDate={activityByDate}
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          onOpenDay={(date) => {
+            setImportOpen(false);
+            setPickedDay(date);
+          }}
+          onFinished={() => setImportOpen(false)}
+        />
+      )}
+
       </div>
     </>
   );

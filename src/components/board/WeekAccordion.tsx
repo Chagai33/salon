@@ -204,13 +204,15 @@ export function WeekAccordion({
           const empty = filter !== 'all' && week.matching.length === 0;
 
           return (
-            <li key={week.index} className="overflow-hidden rounded-card border border-line bg-surface">
+            /* ⚠️ כותרת ולא כרטיס. ארבע רמות של כרטיס בתוך כרטיס ברוחב 375 הן
+               מה שבעל המוצר ראה, 06/10. DOCS/PLANING/26 */
+            <li key={week.index} className="border-b border-line last:border-0">
               <button
                 type="button"
                 onClick={() => toggle(week)}
                 aria-expanded={open}
                 disabled={empty}
-                className="flex min-h-12 w-full items-center gap-2 px-3 py-2 text-start hover:bg-brand-soft disabled:opacity-60 disabled:hover:bg-transparent"
+                className="flex min-h-12 w-full items-center gap-2 px-1 py-2 text-start hover:bg-brand-soft disabled:opacity-60 disabled:hover:bg-transparent"
               >
                 <span className="flex-1 text-sm font-semibold text-ink">
                   {t.board.weekRange(shortDateLabel(first), shortDateLabel(last))}
@@ -239,7 +241,7 @@ export function WeekAccordion({
               </button>
 
               {open && (
-                <ol className="flex flex-col gap-1.5 border-t border-line p-2">
+                <ol className="flex flex-col gap-1 pb-2">
                   {(filter === 'all' ? week.dates : week.matching).map((dateKey) => {
                     const day = activityByDate.get(dateKey);
                     const name = namedDays.get(dateKey);
@@ -302,16 +304,16 @@ export function WeekAccordion({
                     return (
                       <li
                         key={dateKey}
-                        className={`rounded-lg p-2.5 ${
+                        /* ⚠️ היום שמשובץ בו משהו אינו נושא משטח משלו.
+                           מה שנושא משטח הוא היום של עכשיו, והיום הסגור. */
+                        className={`rounded-lg px-1 py-1.5 ${
                           today
                             ? 'bg-cell ring-2 ring-brand'
                             : access.memberAccess === 'closed'
                               ? 'bg-closed'
                               : weekend || access.publicAccess === 'closed'
                                 ? 'bg-surface-sunken'
-                                : visibleShifts.length > 0
-                                  ? 'bg-cell'
-                                  : ''
+                                : ''
                         } ${past ? 'opacity-70' : ''}`}
                       >
                         <button

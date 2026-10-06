@@ -270,7 +270,7 @@ export function DayEditor({ branchId, dateKey, day, name, bare = false, onClose 
               <button
                 type="button"
                 onClick={() => setEvents(events.filter((_, i) => i !== index))}
-                className="rounded-card px-3 py-2 text-sm text-danger underline-offset-4 hover:underline"
+                className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-danger underline-offset-4 hover:underline"
               >
                 {t.day.removeEvent}
               </button>
@@ -282,7 +282,7 @@ export function DayEditor({ branchId, dateKey, day, name, bare = false, onClose 
           <button
             type="button"
             onClick={() => setEvents([...events, { title: '' }])}
-            className="rounded-card border border-line-strong px-3 py-1.5 text-sm text-ink hover:bg-brand-soft"
+            className="inline-flex min-h-9 items-center rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-ink hover:bg-brand-soft"
           >
             {t.day.addEvent}
           </button>
@@ -292,7 +292,7 @@ export function DayEditor({ branchId, dateKey, day, name, bare = false, onClose 
             <button
               type="button"
               onClick={() => setNewSpace('')}
-              className="rounded-card px-2 py-1.5 text-sm text-brand underline-offset-4 hover:underline"
+              className="inline-flex min-h-9 items-center rounded-lg px-3 text-sm font-medium text-brand underline-offset-4 hover:underline"
             >
               {t.day.addSpace}
             </button>
@@ -310,7 +310,7 @@ export function DayEditor({ branchId, dateKey, day, name, bare = false, onClose 
                 type="button"
                 disabled={savingSpace || !newSpace.trim()}
                 onClick={addSpace}
-                className="rounded-card border border-line-strong px-3 py-1.5 text-sm text-ink hover:bg-brand-soft disabled:opacity-50"
+                className="inline-flex min-h-9 items-center rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-ink hover:bg-brand-soft disabled:opacity-50"
               >
                 {savingSpace ? t.day.spaceSaving : t.day.noteSave}
               </button>
@@ -346,7 +346,7 @@ export function DayEditor({ branchId, dateKey, day, name, bare = false, onClose 
           type="button"
           disabled={busy}
           onClick={save}
-          className="min-h-11 rounded-card bg-brand px-4 text-sm font-semibold text-brand-ink disabled:opacity-50"
+          className="inline-flex min-h-11 items-center rounded-lg bg-brand px-4 text-sm font-semibold text-brand-ink disabled:opacity-50"
         >
           {busy ? t.day.noteSaving : t.day.noteSave}
         </button>
@@ -355,7 +355,7 @@ export function DayEditor({ branchId, dateKey, day, name, bare = false, onClose 
             type="button"
             disabled={busy}
             onClick={() => setNote('')}
-            className="min-h-11 rounded-card px-3 text-sm text-ink-soft hover:underline"
+            className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm text-ink-soft underline-offset-4 hover:underline"
           >
             {t.day.noteClear}
           </button>

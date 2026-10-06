@@ -18,6 +18,7 @@
 //
 // ⚠️ ולכן יום שמחליף משהו קיים אינו מסומן מראש, בשום רמת ביטחון.
 
+import { Button } from '../common/Button';
 import { useMemo, useState } from 'react';
 import { t } from '../../i18n/dictionary';
 import { shortDateLabel } from '../../utils/dates';
@@ -98,6 +99,8 @@ export function ImportBoardImage({
   activityByDate,
   onOpenDay,
   onFinished,
+  open,
+  onOpenChange,
 }: {
   branchId: string;
   monthKey: string;
@@ -116,8 +119,15 @@ export function ImportBoardImage({
    * אחרי שסיימתי ייבוא בהצלחה, אין לזה טעם". DOCS/PLANING/26
    */
   onFinished?: () => void;
+  /**
+   * ⚠️⚠️ הפתיחה נשלטת מבחוץ.
+   * קודם הרכיב החזיק את המצב בעצמו, והוא ישב בתוך התפריט, ולכן החלון נפתח
+   * מעל התפריט ושני הרקעים נראו יחד. בצילום הנייד של בעל המוצר, 06/10, זה
+   * נראה כמו שני חלונות שנתקעו זה בזה. DOCS/PLANING/26
+   */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [reading, setReading] = useState(false);
   const [days, setDays] = useState<ImportedDay[] | null>(null);
   const [chosen, setChosen] = useState<Set<string>>(new Set());
@@ -259,7 +269,7 @@ export function ImportBoardImage({
           הלוח מאחוריו כבר מראה את מה שנכתב, וזו ההודעה האמיתית.
         */
         reset();
-        setOpen(false);
+        onOpenChange(false);
         onFinished?.();
       })
       .catch((error: unknown) => setProblem(toReadableError(error, t.errors.saveFailed)))
@@ -281,21 +291,11 @@ export function ImportBoardImage({
     }));
   }, [days, plans]);
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="min-h-11 rounded-card border border-line px-4 text-sm text-ink hover:bg-brand-soft"
-      >
-        {t.importImage.title}
-      </button>
-    );
-  }
+  if (!open) return null;
 
   function close() {
     reset();
-    setOpen(false);
+    onOpenChange(false);
   }
 
   /*
@@ -379,13 +379,9 @@ export function ImportBoardImage({
             <span className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-medium text-ink">{shortDateLabel(date)}</span>
               {/* ⚠️ אותו עורך שבו נערך כל יום אחר, ולא מסך נפרד לייבוא. */}
-              <button
-                type="button"
-                onClick={() => onOpenDay(date)}
-                className="text-xs text-brand underline-offset-4 hover:underline"
-              >
+              <Button tone="quiet" size="xs" className="text-brand" onClick={() => onOpenDay(date)}>
                 {t.importImage.openDay}
-              </button>
+              </Button>
               {/* ⚠️ "מצב היום לא משתנה". מה שכן משתנה מפורט למטה. */}
               {day.access === 'unknown' && (
                 <StatusPill tone="taken">{t.importImage.accessUnknown}</StatusPill>
@@ -403,6 +399,8 @@ export function ImportBoardImage({
             {day.events.length > 0 && (
               <ul className="mt-1 flex flex-col gap-1">
                 {day.events.map((event, index) => (
+                  /* ⚠️ בטלפון השם בשורה משלו והפקדים מתחתיו: חמישה פקדים
+                     ברוחב 390 נדחסים לשורה שאי אפשר להקליד בה. */
                   <li key={index} className="flex flex-wrap items-center gap-2">
                     {/* ⚠️ שדות ולא טקסט: מה שהמודל קרא נערך לפני שהוא נכתב. */}
                     <input
@@ -426,7 +424,7 @@ export function ImportBoardImage({
                       value={event.title}
                       maxLength={80}
                       onChange={(e) => patchEvent(date, index, { title: e.target.value })}
-                      className="min-w-32 flex-1 rounded-card border border-line px-2 py-1 text-xs text-ink"
+                      className="order-first w-full min-w-32 rounded-card border border-line px-2 py-1.5 text-sm text-ink sm:order-none sm:w-auto sm:flex-1 sm:text-xs"
                     />
 
                     <select
@@ -443,13 +441,9 @@ export function ImportBoardImage({
                       ))}
                     </select>
 
-                    <button
-                      type="button"
-                      onClick={() => skipAlways(event.title)}
-                      className="text-xs text-danger underline-offset-4 hover:underline"
-                    >
+                    <Button tone="danger" size="xs" onClick={() => skipAlways(event.title)}>
                       {t.importImage.skipAlways}
-                    </button>
+                    </Button>
                   </li>
                 ))}
               </ul>
@@ -488,14 +482,9 @@ export function ImportBoardImage({
       footer={
         days && days.length > 0 ? (
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              disabled={saving || chosen.size === 0}
-              onClick={save}
-              className="min-h-11 rounded-card bg-brand px-4 text-sm font-semibold text-brand-ink disabled:opacity-50"
-            >
+            <Button tone="primary" disabled={saving || chosen.size === 0} onClick={save}>
               {saving ? t.importImage.saving : t.importImage.save}
-            </button>
+            </Button>
 
             {/* ⚠️ המונה ליד הכפתור, ולא בסוף גלילה ארוכה. */}
             <span className="text-xs text-ink-soft">
@@ -523,7 +512,7 @@ export function ImportBoardImage({
         {t.importImage.sendsToGoogle}
       </p>
 
-      <label className="mt-3 inline-flex min-h-11 cursor-pointer items-center rounded-card bg-brand px-4 text-sm font-semibold text-brand-ink">
+      <label className="mt-3 inline-flex min-h-11 cursor-pointer items-center rounded-lg bg-brand px-4 text-sm font-semibold text-brand-ink">
         <input
           type="file"
           accept="image/jpeg,image/png,image/webp"
@@ -605,8 +594,10 @@ export function ImportBoardImage({
                   <span className="num text-xs text-ink-faint">{group.days.length}</span>
 
                   {canPickAll && (
-                    <button
-                      type="button"
+                    <Button
+                      tone="quiet"
+                      size="xs"
+                      className="ms-auto text-brand"
                       onClick={() => {
                         const next = new Set(chosen);
                         for (const day of group.days) {
@@ -615,10 +606,9 @@ export function ImportBoardImage({
                         }
                         setChosen(next);
                       }}
-                      className="ms-auto min-h-9 px-2 text-xs text-brand underline-offset-4 hover:underline"
                     >
                       {allPicked ? t.importImage.pickNone : t.importImage.pickAllNew}
-                    </button>
+                    </Button>
                   )}
                 </div>
 

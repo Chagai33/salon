@@ -9,6 +9,7 @@
 // רוב השימוש הוא בטלפון, ויד אחת מגיעה לתחתית המסך ולא למרכזו.
 // DOCS/PLANING/26
 
+import { Button } from './Button';
 import { useEffect, useRef } from 'react';
 import { t } from '../../i18n/dictionary';
 
@@ -36,18 +37,20 @@ export function Sheet({ title, onClose, children, footer }: Props) {
       onClick={(event) => {
         if (event.target === ref.current) ref.current?.close();
       }}
-      className="m-0 mt-auto max-h-[92dvh] w-full rounded-t-2xl border border-line bg-surface p-0 text-ink shadow-soft backdrop:bg-ink/40 sm:m-auto sm:max-h-[85dvh] sm:w-[min(42rem,92vw)] sm:rounded-card"
+      /*
+        ⚠️ ממורכז בכל רוחב, בשאלת בעל המוצר 06/10: "למה החלון לא נפתח באמצע
+        בצורה רגילה". ⚠️ וזה מה שעשיתי קודם לא נכון: גיליון שנצמד לתחתית
+        המסך הוא דפוס של אפליקציה מקורית, ⚠️ וכאן זה דפדפן, וחלון באמצע הוא
+        מה שמצפים לו. DOCS/PLANING/26
+      */
+      className="m-auto max-h-[85dvh] w-[min(42rem,92vw)] rounded-card border border-line bg-surface p-0 text-ink shadow-soft backdrop:bg-ink/50"
     >
-      <div className="flex max-h-[92dvh] flex-col sm:max-h-[85dvh]">
+      <div className="flex max-h-[85dvh] flex-col">
         <header className="flex shrink-0 items-center gap-3 border-b border-line px-4 py-3">
           <h2 className="flex-1 text-base font-semibold text-ink">{title}</h2>
-          <button
-            type="button"
-            onClick={() => ref.current?.close()}
-            className="min-h-11 min-w-11 rounded-lg text-sm text-ink-soft hover:bg-brand-soft"
-          >
+          <Button tone="quiet" onClick={() => ref.current?.close()}>
             {t.menu.close}
-          </button>
+          </Button>
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">{children}</div>

@@ -6,6 +6,7 @@
 // שבתוך הסלון סגור לחבריו, וזה נמדד מול אמולטור.
 // DOCS/PLANING/18-each-salon-is-a-tenant.md
 
+import { Button } from '../components/common/Button';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
@@ -79,14 +80,9 @@ function BranchRow({ branch, membership }: { branch: Branch; membership?: Member
             {t.salons.enter}
           </Link>
         ) : (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void join()}
-            className="inline-flex min-h-11 items-center rounded-card bg-brand px-4 text-sm font-semibold text-brand-ink disabled:opacity-50"
-          >
+          <Button tone="action" disabled={busy} onClick={() => void join()}>
             {busy ? t.salons.joining : t.salons.join}
-          </button>
+          </Button>
         )}
       </div>
     </li>
@@ -122,7 +118,7 @@ function ClaimSystem() {
             .catch((error: unknown) => setError(toReadableError(error, t.errors.saveFailed)))
             .finally(() => setBusy(false));
         }}
-        className="mt-3 rounded-md bg-brand px-4 py-2 text-sm font-medium text-brand-ink disabled:opacity-50"
+        className="mt-3 inline-flex min-h-11 items-center rounded-lg bg-brand px-4 text-sm font-semibold text-brand-ink disabled:opacity-50"
       >
         {busy ? t.salons.claiming : t.salons.claimAction}
       </button>
@@ -216,20 +212,12 @@ function OpenBranchForm({ onDone }: { onDone: () => void }) {
       </label>
 
       <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={busy}
-          className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-brand-ink disabled:opacity-50"
-        >
+        <Button type="submit" tone="primary" disabled={busy}>
           {busy ? t.salons.creating : t.salons.create}
-        </button>
-        <button
-          type="button"
-          onClick={onDone}
-          className="rounded-md px-4 py-2 text-sm text-ink-soft hover:underline"
-        >
+        </Button>
+        <Button tone="quiet" onClick={onDone}>
           {t.salons.cancel}
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -298,13 +286,14 @@ export function SalonsPage() {
               <OpenBranchForm onDone={() => setOpening(false)} />
             </>
           ) : (
-            <button
-              type="button"
+            <Button
+              tone="quiet"
+              block
+              className="min-h-12 justify-start px-4 text-ink no-underline hover:bg-brand-soft"
               onClick={() => setOpening(true)}
-              className="min-h-12 w-full px-4 text-start text-sm font-medium text-ink hover:bg-brand-soft"
             >
               {t.salons.openAction}
-            </button>
+            </Button>
           )}
         </section>
       )}

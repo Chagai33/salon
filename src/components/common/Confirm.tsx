@@ -8,6 +8,7 @@
 //
 // ⚠️ ו-dialog אמיתי: מלכודת מיקוד, Escape, ורקע שאי אפשר ללחוץ דרכו.
 
+import { Button } from './Button';
 import { useEffect, useRef } from 'react';
 import { t } from '../../i18n/dictionary';
 
@@ -43,22 +44,13 @@ export function Confirm({ title, body, confirmLabel, busy = false, onConfirm, on
         <p className="text-sm leading-relaxed text-ink-soft">{body}</p>
 
         <div className="mt-1 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onConfirm}
-            className="min-h-11 rounded-card bg-danger px-4 text-sm font-semibold text-brand-ink disabled:opacity-50"
-          >
+          {/* ⚠️ מילוי אדום: זו פעולה שמוחקת משהו של מישהו אחר. */}
+          <Button tone="primary" className="bg-danger" disabled={busy} onClick={onConfirm}>
             {confirmLabel}
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => ref.current?.close()}
-            className="min-h-11 rounded-card px-3 text-sm text-ink-soft hover:underline disabled:opacity-50"
-          >
+          </Button>
+          <Button tone="quiet" disabled={busy} onClick={() => ref.current?.close()}>
             {t.salons.cancel}
-          </button>
+          </Button>
         </div>
       </div>
     </dialog>

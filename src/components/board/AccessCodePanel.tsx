@@ -103,7 +103,7 @@ function SetCodeForm({ onSetCode }: { onSetCode: (code: string) => Promise<void>
         <button
           type="submit"
           disabled={busy}
-          className="rounded-card bg-brand px-4 py-2 text-sm font-semibold text-brand-ink disabled:opacity-50"
+          className="inline-flex min-h-11 items-center rounded-lg bg-brand px-4 text-sm font-semibold text-brand-ink disabled:opacity-50"
         >
           {busy ? t.manager.saving : t.manager.save}
         </button>

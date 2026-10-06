@@ -10,6 +10,7 @@
 // ומתחתיה. ⚠️ ובמשמרת שעברה זה היה גרוע יותר, כי התגית אמרה "עברה" והטקסט
 // מתחתיה אמר "פתוחה", ושתי המילים סותרות. DOCS/PLANING/26
 
+import { Button } from '../common/Button';
 import type { Shift } from '../../types';
 import { t } from '../../i18n/dictionary';
 import { displayName } from '../../utils/names';
@@ -101,14 +102,16 @@ export function ShiftCell({
   /*
     ⚠️⚠️ כפתור נראה כמו כפתור, ותגית נראית כמו תווית.
     בעל המוצר דיווח 06/10 שלא ברור אם "צריך מחליף" הוא הסטטוס שלו או פעולה
-    שעליו ללחוץ. ⚠️ שתי ההפרדות יחד: הכפתור מלא בצבע הפעולה ונושא פועל בגוף
-    ראשון, והתגית שטוחה ונושאת שם של מצב. DOCS/PLANING/26
+    שעליו ללחוץ. ההפרדה: הכפתור נושא פועל בגוף ראשון ומסגרת בצבע הפעולה,
+    והתגית שטוחה ונושאת שם של מצב.
 
-    ⚠️ ו-44 פיקסלים ולא py-1.5. זה יעד הנגיעה המינימלי, ורוב השימוש בטלפון.
+    ⚠️⚠️ ומסגרת ולא מילוי, ובלי רוחב מלא.
+    בצילום הנייד של בעל המוצר, 06/10, כל משמרת פתוחה נשאה בלוק ירוק מלא ברוחב
+    המסך, והמסך כולו היה קיר ירוק. ⚠️ מילוי שחוזר בכל כרטיס אינו מדגיש דבר.
+    DOCS/PLANING/26
+
+    ⚠️ ו-44 פיקסלים הוא יעד הנגיעה המינימלי, ורוב השימוש בטלפון.
   */
-  const actionClass =
-    'min-h-11 rounded-md bg-brand px-3 text-sm font-semibold text-brand-ink transition-opacity hover:opacity-90 disabled:opacity-50';
-
   const name = shift.assigneeName ? (
     <bdi className="font-medium text-ink">{displayName(shift.assigneeName)}</bdi>
   ) : null;
@@ -125,6 +128,24 @@ export function ShiftCell({
   ) : (
     <StatusPill tone={TONE[state]}>{LABEL[state]}</StatusPill>
   );
+
+  /*
+    ⚠️⚠️ משמרת שעברה היא שורה דקה ולא כרטיס.
+    בצילום הנייד, 06/10, יום שעבר תפס שני כרטיסים גבוהים ובתוכם שעה בלבד.
+    אין בה פעולה ואין בה מה להדגיש, ולכן היא תופסת את מה שהיא אומרת.
+    DOCS/PLANING/26
+  */
+  if (wide && past) {
+    return (
+      <div className="flex items-center gap-2 rounded-md bg-surface-sunken px-2.5 py-1 text-xs text-ink-faint">
+        <span className="num shrink-0">
+          {shift.startTime}-{shift.endTime}
+        </span>
+        <span className="min-w-0 flex-1 truncate">{name}</span>
+        <span className="sr-only">{LABEL.past}</span>
+      </div>
+    );
+  }
 
   if (wide) {
     /*
@@ -146,22 +167,18 @@ export function ShiftCell({
         {pill}
 
         {(action || (interactive && state === 'mine')) && (
-          <div className="flex w-full items-center gap-2 sm:w-auto">
+          /* ⚠️ נצמד לקצה ואינו נמתח. קיר של כפתורים אינו היררכיה. */
+          <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
             {action && (
-              <button type="button" onClick={action.run} disabled={busy} className={`${actionClass} flex-1 sm:flex-none`}>
+              <Button tone="action" onClick={action.run} disabled={busy}>
                 {action.label}
-              </button>
+              </Button>
             )}
 
             {interactive && state === 'mine' && (
-              <button
-                type="button"
-                onClick={onRelease}
-                disabled={busy}
-                className="min-h-11 shrink-0 px-2 text-sm text-ink-faint underline-offset-2 hover:underline disabled:opacity-50"
-              >
+              <Button tone="quiet" onClick={onRelease} disabled={busy}>
                 {t.shift.release}
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -186,25 +203,15 @@ export function ShiftCell({
       )}
 
       {action && (
-        <button
-          type="button"
-          onClick={action.run}
-          disabled={busy}
-          className="mt-auto w-full rounded-md bg-brand px-2 py-1.5 text-xs font-semibold text-brand-ink transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
+        <Button tone="action" size="xs" block onClick={action.run} disabled={busy} className="mt-auto">
           {action.label}
-        </button>
+        </Button>
       )}
 
       {interactive && state === 'mine' && (
-        <button
-          type="button"
-          onClick={onRelease}
-          disabled={busy}
-          className="w-full rounded-md px-2 py-1 text-xs text-ink-faint underline-offset-2 hover:underline disabled:opacity-50"
-        >
+        <Button tone="quiet" size="xs" block onClick={onRelease} disabled={busy}>
           {t.shift.release}
-        </button>
+        </Button>
       )}
     </div>
   );
