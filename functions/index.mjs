@@ -48,15 +48,18 @@ async function assertManager(uid, branchId) {
       הפונקציה צריך הרשאת גישה למסד, ובפרויקט חדש היא אינה מובטחת.
       בלי התפיסה הזו החריגה עלתה כ-500 בלי שום הסבר, וזה מה שקרה בפועל.
 
-      ⚠️⚠️ ו-`code` ולא רק `message`, כי בלעדיו ההודעה הזו מטעה.
-      היא נראית כמו בעיה בהרשאות של החבר, והיא נדלקה בפועל על `app/no-app`,
-      כלומר על באג שלי שאין לו שום קשר לחבר. רשומה 24.
+      ⚠️⚠️ ו-`cause` ולא `message`, כי `message` הוא מפתח שמור.
+      `entryFromArgs` של firebase-functions בונה `{...entry, severity}` ואז
+      דורס את `message` בטקסט שלו, ולכשל ברמת ERROR הוא עוד עוטף אותו
+      ב-`new Error().stack`. כלומר השדה שרשמתי נמחק, **והלוג הראה מחסנית של
+      הלוגר עצמו ולא את השגיאה.** נשארנו עיוורים בדיוק במקום שבו הוספתי אבחון.
+      node_modules/firebase-functions/lib/esm/logger/index.mjs
     */
     logger.error('member lookup failed', {
       branchId,
       uid,
       code: error?.code ?? error?.name ?? 'unknown',
-      message: String(error?.message ?? error),
+      cause: String(error?.message ?? error),
     });
     throw new HttpsError('internal', 'memberLookupFailed');
   }
@@ -96,8 +99,10 @@ export const readBoardImage = onCall(
       // ⚠️ HttpsError עובר כמו שהוא. כל השאר היה 500 בלי שום הסבר, וזה
       //    בדיוק מה שבעל המוצר קיבל במסך.
       if (error instanceof HttpsError) throw error;
+      // ⚠️ `cause` ולא `message`. `message` מפתח שמור, והלוגר דורס אותו.
       logger.error('unexpected', {
-        message: String(error?.message ?? error),
+        code: error?.code ?? error?.name ?? 'unknown',
+        cause: String(error?.message ?? error),
         stack: error?.stack,
       });
       throw new HttpsError('internal', 'unexpected');
@@ -150,7 +155,7 @@ async function handle(request) {
     body = await response.json();
   } catch (error) {
     // ⚠️ תשובה שאינה JSON. זו הייתה חריגה לא נתפסת, כלומר 500 בלי הסבר.
-    logger.error('gemini body not json', { message: String(error?.message ?? error) });
+    logger.error('gemini body not json', { cause: String(error?.message ?? error) });
     throw new HttpsError('unavailable', 'notJson');
   }
 
