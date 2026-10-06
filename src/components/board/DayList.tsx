@@ -15,10 +15,14 @@ import { t } from '../../i18n/dictionary';
 import { WEEKDAY_NAMES, dayNumber, isPast, isToday, shortDateLabel, weekdayOf } from '../../utils/dates';
 import { ShiftCell, shiftViewState } from './ShiftCell';
 import { StatusPill } from '../common/StatusPill';
+import { DayNote, DayStatus } from './DayStatus';
+import { dayAccessOf } from '../../utils/hebrew';
 
 interface Props {
   branch: Branch;
   dates: string[];
+  /** שם החג לכל תאריך. ⚠️ מידע ולא מדיניות. */
+  namedDays: Map<string, string>;
   shiftsByDate: Map<string, Shift[]>;
   activityByDate: Map<string, ActivityDay>;
   memberId: string | null;
@@ -32,6 +36,7 @@ interface Props {
 export function DayList({
   branch,
   dates,
+  namedDays,
   shiftsByDate,
   activityByDate,
   memberId,
@@ -62,6 +67,8 @@ export function DayList({
         const shifts = shiftsByDate.get(dateKey) ?? [];
         const past = isPast(dateKey);
         const today = isToday(dateKey);
+        const access = dayAccessOf(dateKey, day, namedDays.get(dateKey));
+        const shut = access.memberAccess === 'closed';
 
         return (
           <li
@@ -71,9 +78,13 @@ export function DayList({
             className={`rounded-lg p-2.5 ${
               today
                 ? 'bg-cell ring-2 ring-brand'
-                : shifts.length > 0
-                  ? 'bg-cell'
-                  : 'py-1.5'
+                : shut
+                  ? 'bg-closed'
+                  : access.publicAccess === 'closed'
+                    ? 'bg-members-only'
+                    : shifts.length > 0
+                      ? 'bg-cell'
+                      : 'py-1.5'
             } ${past ? 'opacity-70' : ''}`}
           >
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -83,17 +94,11 @@ export function DayList({
               </span>
               {today && <StatusPill tone="activity">{t.board.today}</StatusPill>}
               {hasActivity && <StatusPill tone="activity">{t.day.activity}</StatusPill>}
-              {day?.memberAccess === 'closed' && (
-                <StatusPill tone="closed">{t.day.closed}</StatusPill>
-              )}
-              {day?.publicAccess === 'closed' && day?.memberAccess === 'open' && (
-                <StatusPill tone="membersOnly">{t.day.membersOnly}</StatusPill>
-              )}
-              {day?.publicAccess === 'closesEarly' && day.closesAt && (
-                <StatusPill tone="closed">{t.day.closesEarly(day.closesAt)}</StatusPill>
-              )}
+              <DayStatus access={access} />
               <span className="sr-only">{shortDateLabel(dateKey)}</span>
             </div>
+
+            <DayNote note={access.note} />
 
             {hasActivity && (
               <ul className="mt-1.5 space-y-0.5">
@@ -112,7 +117,7 @@ export function DayList({
             )}
 
             <div className="mt-2 grid grid-cols-2 gap-2">
-              {templates.map((template) => {
+              {!shut && templates.map((template) => {
                 if (!template.weekdays.includes(weekdayOf(dateKey))) return null;
                 const shift = shifts.find((item) => item.templateId === template.id);
                 if (!shift) return null;

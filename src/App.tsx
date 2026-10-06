@@ -28,6 +28,7 @@ import { toReadableError } from './utils/errors';
 import { t } from './i18n/dictionary';
 import { Footer } from './components/layout/Footer';
 import { PrivacyPage } from './pages/PrivacyPage';
+import { TermsPage } from './pages/TermsPage';
 import { applyTheme, storedTheme } from './utils/theme';
 import type { Theme } from './utils/theme';
 
@@ -302,6 +303,7 @@ export function Shell() {
         {/* ⚠️ הרשימה המפורשת, ואינה מפנה לשום מקום. */}
         <Route path="/salons" element={<SalonsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
         <Route path="/s/:branchId" element={<BranchScope />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

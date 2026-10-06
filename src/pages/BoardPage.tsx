@@ -21,12 +21,14 @@ import { MonthBoard } from '../components/board/MonthBoard';
 import { DayList } from '../components/board/DayList';
 import { AccessCodePanel } from '../components/board/AccessCodePanel';
 import { Legend } from '../components/board/Legend';
+import { DayEditor } from '../components/board/DayEditor';
 import { MembersPanel } from '../components/admin/MembersPanel';
 import { PageHeader } from '../components/layout/PageHeader';
 import { StatusLine } from '../components/layout/StatusLine';
 import type { StatusItem } from '../components/layout/StatusLine';
 import { t } from '../i18n/dictionary';
 import { datesInMonth, monthNameOf } from '../utils/dates';
+import { namedDaysOfMonth } from '../utils/hebrew';
 import { codeVisibilityFor } from '../utils/eligibility';
 import {
   cancelHandoverRequest,
@@ -63,6 +65,8 @@ export function BoardPage({ branchId }: { branchId: string }) {
   const { pending } = useMemo(() => splitMembers(members), [members]);
 
   const [generating, setGenerating] = useState(false);
+  /** היום שהמנהלת פתחה לעריכה. ⚠️ null פירושו שהעורך סגור. */
+  const [pickedDay, setPickedDay] = useState<string | null>(null);
 
   const canAct = member?.status === 'active';
   const isManager = member?.role === 'manager';
@@ -73,16 +77,16 @@ export function BoardPage({ branchId }: { branchId: string }) {
     [shifts, codes, member?.id],
   );
 
-  // ימי השבוע שיש להם תבנית פעילה. בחיפה זה אינו ראשון עד חמישי.
-  const activeDates = useMemo(() => {
-    if (!branch) return [];
-    const weekdays = new Set<number>();
-    for (const template of branch.shiftTemplates) {
-      if (!template.isActive) continue;
-      for (const day of template.weekdays) weekdays.add(day);
-    }
-    return datesInMonth(monthKey, [...weekdays]);
-  }, [branch, monthKey]);
+  /*
+    ⚠️ כל ימי החודש, ולא רק הימים שיש להם משמרת.
+    קודם הלוח צייר ראשון עד חמישי בלבד, ולכן שישי ושבת לא היו קיימים בו בכלל.
+    ובהכרעת בעל המוצר 06/10 הם כן קיימים: הסלון פתוח בהם לחברי האופן ספייס
+    וסגור למי שאינו חבר, וזה מידע שחבר צריך.
+  */
+  const allDates = useMemo(() => datesInMonth(monthKey, [0, 1, 2, 3, 4, 5, 6]), [monthKey]);
+
+  /** שמות החגים של החודש. ⚠️ מידע ולא מדיניות, רשומה 14. */
+  const namedDays = useMemo(() => namedDaysOfMonth(monthKey), [monthKey]);
 
   async function guarded(run: () => Promise<void>) {
     try {
@@ -204,7 +208,8 @@ export function BoardPage({ branchId }: { branchId: string }) {
             <div className="md:hidden">
               <DayList
                 branch={branch}
-                dates={activeDates}
+                dates={allDates}
+                namedDays={namedDays}
                 shiftsByDate={shiftsByDate}
                 activityByDate={activityByDate}
                 memberId={member?.id ?? null}
@@ -219,6 +224,8 @@ export function BoardPage({ branchId }: { branchId: string }) {
               <MonthBoard
                 branch={branch}
                 monthKey={monthKey}
+                namedDays={namedDays}
+                onPickDay={isManager ? setPickedDay : undefined}
                 shiftsByDate={shiftsByDate}
                 activityByDate={activityByDate}
                 memberId={member?.id ?? null}
@@ -230,6 +237,17 @@ export function BoardPage({ branchId }: { branchId: string }) {
               />
             </div>
           </div>
+        )}
+
+        {/* ⚠️ מתחת ללוח ולא בתוך התא, ורק למנהלת שבחרה יום. */}
+        {isManager && pickedDay && (
+          <DayEditor
+            branchId={branchId}
+            dateKey={pickedDay}
+            day={activityByDate.get(pickedDay)}
+            name={namedDays.get(pickedDay)}
+            onClose={() => setPickedDay(null)}
+          />
         )}
 
         {hasShifts && !isMonthLoading && <Legend />}

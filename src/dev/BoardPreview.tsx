@@ -111,6 +111,7 @@ export function BoardPreview() {
           <DayList
             branch={branch}
             dates={dates}
+            namedDays={new Map()}
             shiftsByDate={shiftsByDate}
             activityByDate={activityByDate}
             memberId={ME}
@@ -125,6 +126,7 @@ export function BoardPreview() {
         <MonthBoard
           branch={branch}
           monthKey={MONTH}
+        namedDays={new Map()}
           shiftsByDate={shiftsByDate}
           activityByDate={activityByDate}
           memberId={ME}

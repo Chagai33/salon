@@ -21,10 +21,16 @@ import {
 } from '../../utils/dates';
 import { ShiftCell, shiftViewState } from './ShiftCell';
 import { StatusPill } from '../common/StatusPill';
+import { DayNote, DayStatus } from './DayStatus';
+import { dayAccessOf } from '../../utils/hebrew';
 
 interface Props {
   branch: Branch;
   monthKey: string;
+  /** שם החג לכל תאריך. ⚠️ מידע ולא מדיניות. */
+  namedDays: Map<string, string>;
+  /** ⚠️ למנהלת בלבד. מספר היום הופך לכפתור שפותח את עורך היום. */
+  onPickDay?: (dateKey: string) => void;
   shiftsByDate: Map<string, Shift[]>;
   activityByDate: Map<string, ActivityDay>;
   memberId: string | null;
@@ -38,6 +44,8 @@ interface Props {
 export function MonthBoard({
   branch,
   monthKey,
+  namedDays,
+  onPickDay,
   shiftsByDate,
   activityByDate,
   memberId,
@@ -48,6 +56,13 @@ export function MonthBoard({
   onCancelHandover,
 }: Props) {
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  /*
+    ⚠️ שבעה ימים ולא חמישה.
+    קודם הלוח צייר רק ימים שיש להם תבנית משמרת, ולכן שישי ושבת לא הופיעו בו
+    כלל. הם כן קיימים בסלון, והם סגורים למי שאינו חבר אופן ספייס.
+  */
+  const WEEK = useMemo(() => [0, 1, 2, 3, 4, 5, 6], []);
 
   // ימי השבוע שיש להם תבנית פעילה. בחיפה זה אינו ראשון עד חמישי.
   const activeWeekdays = useMemo(() => {
@@ -65,7 +80,7 @@ export function MonthBoard({
   );
 
   const weeks = useMemo(
-    () => weeksOfMonth(monthKey, activeWeekdays),
+    () => weeksOfMonth(monthKey, WEEK),
     [monthKey, activeWeekdays],
   );
 
@@ -88,7 +103,7 @@ export function MonthBoard({
         <caption className="sr-only">{t.a11y.monthTable}</caption>
         <thead>
           <tr>
-            {activeWeekdays.map((weekday) => (
+            {WEEK.map((weekday) => (
               <th
                 key={weekday}
                 scope="col"
@@ -113,6 +128,9 @@ export function MonthBoard({
                 const day = activityByDate.get(dateKey);
                 // ⚠️ נגזר. אין שדה "יש פעילות".
                 const hasActivity = (day?.events?.length ?? 0) > 0;
+                // ⚠️ סדר עדיפות אחד: מה שהמנהלת כתבה, אחר כך סוף שבוע, אחר כך פתוח.
+                const access = dayAccessOf(dateKey, day, namedDays.get(dateKey));
+                const shut = access.memberAccess === 'closed';
                 const shifts = shiftsByDate.get(dateKey) ?? [];
                 const past = isPast(dateKey);
                 const today = isToday(dateKey);
@@ -128,9 +146,13 @@ export function MonthBoard({
                       className={`flex h-full flex-col gap-1.5 rounded-lg p-1.5 ${
                         today
                           ? 'bg-cell ring-2 ring-brand'
-                          : shifts.length > 0
-                            ? 'bg-cell'
-                            : ''
+                          : shut
+                            ? 'bg-closed'
+                            : access.publicAccess === 'closed'
+                              ? 'bg-members-only'
+                              : shifts.length > 0
+                                ? 'bg-cell'
+                                : ''
                       }`}
                     >
                       <div className="flex flex-wrap items-center gap-1.5 px-1 pt-0.5">
@@ -139,16 +161,28 @@ export function MonthBoard({
                           סימנה אותו בטבעת דקה ובתגית קטנה, ובעל המוצר דיווח
                           שהוא בדגש חלש עד בלתי נראה. המספר עצמו הוא הסימן.
                         */}
-                        <span
-                          className={`num font-semibold ${
+                        {(() => {
+                          const look = `num font-semibold ${
                             today
                               ? 'grid size-7 place-items-center rounded-full bg-brand text-sm text-brand-ink'
                               : `text-base ${past ? 'text-ink-faint' : 'text-ink'}`
-                          }`}
-                          aria-current={today ? 'date' : undefined}
-                        >
-                          {dayNumber(dateKey)}
-                        </span>
+                          }`;
+                          return onPickDay ? (
+                            <button
+                              type="button"
+                              onClick={() => onPickDay(dateKey)}
+                              aria-current={today ? 'date' : undefined}
+                              aria-label={`${t.day.editDay} ${shortDateLabel(dateKey)}`}
+                              className={`${look} underline-offset-4 hover:underline`}
+                            >
+                              {dayNumber(dateKey)}
+                            </button>
+                          ) : (
+                            <span className={look} aria-current={today ? 'date' : undefined}>
+                              {dayNumber(dateKey)}
+                            </span>
+                          );
+                        })()}
 
                         {today && (
                           <span className="text-xs font-medium text-brand">{t.board.today}</span>
@@ -158,20 +192,10 @@ export function MonthBoard({
                           <StatusPill tone="activity">{t.day.activity}</StatusPill>
                         )}
 
-                        {day?.memberAccess === 'closed' && (
-                          <StatusPill tone="closed">{t.day.closed}</StatusPill>
-                        )}
-
-                        {day?.publicAccess === 'closed' && day?.memberAccess === 'open' && (
-                          <StatusPill tone="membersOnly">{t.day.membersOnly}</StatusPill>
-                        )}
-
-                        {day?.publicAccess === 'closesEarly' && day.closesAt && (
-                          <StatusPill tone="closed">
-                            {t.day.closesEarly(day.closesAt)}
-                          </StatusPill>
-                        )}
+                        <DayStatus access={access} />
                       </div>
+
+                      <DayNote note={access.note} />
 
                       {hasActivity && (
                         <ul className="space-y-0.5 px-1">
@@ -189,7 +213,7 @@ export function MonthBoard({
                         </ul>
                       )}
 
-                      {templates.map((template) => {
+                      {!shut && templates.map((template) => {
                         if (!template.weekdays.includes(new Date(dateKey).getDay())) return null;
                         const shift = shifts.find((item) => item.templateId === template.id);
                         if (!shift) return null;

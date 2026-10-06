@@ -43,6 +43,10 @@ export function PrivacyPage() {
         <Section title={t.privacy.whoTitle} lines={[t.privacy.whoSees, t.privacy.managersSee]} />
         <Section title={t.privacy.notTitle} lines={[t.privacy.notStored, t.privacy.calendar]} />
         <Section title={t.privacy.rightsTitle} lines={[t.privacy.rights]} />
+        <Section
+          title={t.privacy.managerTitle}
+          lines={[t.privacy.managerSees, t.privacy.managerDoes, t.privacy.managerDuty]}
+        />
 
         <Link to="/" className="text-sm text-brand underline-offset-4 hover:underline">
           {t.privacy.back}
