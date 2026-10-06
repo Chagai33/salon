@@ -192,8 +192,8 @@ export function BoardPage({ branchId }: { branchId: string }) {
         memberName={member?.displayName ?? ''}
         pendingCount={canManageMembers ? pending.length : 0}
         onOpenMembers={canManageMembers ? () => setMembersOpen(true) : undefined}
-        /* ⚠️ אין כפתור תפריט כשאין בו דבר. לחבר הכל כבר בכותרת. */
-        onOpenMenu={isManager ? () => setMenuOpen(true) : null}
+        onOpenMenu={() => setMenuOpen(true)}
+        menuForManager={isManager}
         onMonthChange={setMonthKey}
         onPickSalon={(id) => navigate(`/s/${id}`)}
         onSignOut={() => void signOutOfSalon()}
@@ -313,26 +313,50 @@ export function BoardPage({ branchId }: { branchId: string }) {
         ⚠️⚠️ ובלי הקוד עצמו: בהכרעת בעל המוצר 06/10 "אין טעם להציג את הקוד
         אלא רק כפתור החלפת הקוד". הוא כבר בכותרת. DOCS/PLANING/26
       */}
-      {menuOpen && isManager && (
+      {menuOpen && (
         <SideMenu onClose={() => setMenuOpen(false)}>
-          <AccessCodePanel
-            visibility={visibility}
-            formOnly
-            onSetCode={(code) => setAccessCode(branchId, code, member!.id)}
-          />
+          {/*
+            ⚠️ השם והיציאה, בטלפון בלבד.
+            במסך רחב הם בכותרת, ובטלפון אין להם שם מקום. בהכרעת בעל המוצר
+            06/10. DOCS/PLANING/26
+          */}
+          <section className="flex flex-col gap-2 border-b border-line pb-3 sm:hidden">
+            <p className="px-1 text-sm font-medium text-ink">
+              <bdi>{member?.displayName ?? ''}</bdi>
+            </p>
+            <Button
+              tone="secondary"
+              block
+              className="justify-start"
+              onClick={() => void signOutOfSalon()}
+            >
+              {t.auth.signOut}
+            </Button>
+          </section>
 
-          {/* ⚠️ שורה ברשימה, ולא כפתור בודד שמרחף בחלל ריק. */}
-          <Button
-            tone="secondary"
-            block
-            className="min-h-12 justify-start"
-            onClick={() => {
-              setMenuOpen(false);
-              setImportOpen(true);
-            }}
-          >
-            {t.importImage.title}
-          </Button>
+          {/* ⚠️ ומה שמעבר לזה הוא של המנהלת בלבד, בכל רוחב. */}
+          {isManager && (
+            <>
+              <AccessCodePanel
+                visibility={visibility}
+                formOnly
+                onSetCode={(code) => setAccessCode(branchId, code, member!.id)}
+              />
+
+              {/* ⚠️ שורה ברשימה, ולא כפתור בודד שמרחף בחלל ריק. */}
+              <Button
+                tone="secondary"
+                block
+                className="min-h-12 justify-start"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setImportOpen(true);
+                }}
+              >
+                {t.importImage.title}
+              </Button>
+            </>
+          )}
         </SideMenu>
       )}
 

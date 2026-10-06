@@ -37,8 +37,15 @@ interface Props {
   memberName: string;
   /** ⚠️ למנהלת בלבד: אייקון החברים, ועיגול כשיש מי שמחכה לאישור. */
   pendingCount?: number;
-  /** ⚠️ null כשאין מה לפתוח. לחבר אין תפריט בכלל. */
-  onOpenMenu: (() => void) | null;
+  /**
+   * ⚠️⚠️ התפריט קיים תמיד בטלפון, גם לחבר.
+   * בהכרעת בעל המוצר 06/10: "בתצוגה בנייד אין את השם, שיופיע בתפריט
+   * המבורגר, ואת הכפתור יציאה גם לשים שם". ⚠️ ובלי זה לחבר בטלפון לא הייתה
+   * דרך לצאת בכלל. DOCS/PLANING/26
+   */
+  onOpenMenu: () => void;
+  /** ⚠️ למנהלת יש בו גם תוכן, ולכן הוא מוצג בכל רוחב. */
+  menuForManager: boolean;
   onOpenMembers?: () => void;
   onMonthChange: (monthKey: string) => void;
   onPickSalon: (branchId: string) => void;
@@ -54,6 +61,7 @@ export function PageHeader({
   memberName,
   pendingCount = 0,
   onOpenMenu,
+  menuForManager,
   onOpenMembers,
   onMonthChange,
   onPickSalon,
@@ -203,6 +211,7 @@ export function PageHeader({
               </button>
             )}
 
+            {/* ⚠️ השם והיציאה יורדים לתפריט בטלפון, ברוחב קטן מ-sm. */}
             <span className="hidden text-sm text-ink-soft sm:inline">
               <bdi>{firstName(memberName)}</bdi>
             </span>
@@ -212,25 +221,24 @@ export function PageHeader({
               onClick={onSignOut}
               aria-label={t.auth.signOut}
               title={t.auth.signOut}
-              className={icon}
+              className={`${icon} hidden sm:grid`}
             >
               <SignOut />
             </button>
 
             <ThemeToggle />
 
-            {onOpenMenu && (
-              <button
-                type="button"
-                onClick={onOpenMenu}
-                aria-haspopup="dialog"
-                aria-label={t.menu.open}
-                title={t.menu.open}
-                className={icon}
-              >
-                <Hamburger />
-              </button>
-            )}
+            {/* ⚠️ בטלפון לכולם, ובמסך רחב למנהלת בלבד, שיש לה בו תוכן. */}
+            <button
+              type="button"
+              onClick={onOpenMenu}
+              aria-haspopup="dialog"
+              aria-label={t.menu.open}
+              title={t.menu.open}
+              className={`${icon} ${menuForManager ? '' : 'sm:hidden'}`}
+            >
+              <Hamburger />
+            </button>
           </div>
         </div>
 
