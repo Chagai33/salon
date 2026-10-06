@@ -12,3 +12,12 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+/**
+ * מודול וירטואלי שנבנה ב-vite.config.ts.
+ * ⚠️ ולא `define`: נמדד שהוא לא הוחלף במצב פיתוח. DOCS/PLANING/26
+ */
+declare module 'virtual:app-version' {
+  export const version: string
+  export const buildDate: string
+}
