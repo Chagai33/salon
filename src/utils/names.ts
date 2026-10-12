@@ -39,21 +39,38 @@ export function displayName(raw: string): string {
  * ⚠️ ולמנהלת מותר לראות את המייל, רשומה 22. זה אינו נכון לחבר, ולכן זה אינו
  * משמש בשום מסך שחבר רואה.
  */
+export interface ManagerLabel {
+  name: string;
+  /** ⚠️ רק כששני אנשים נושאים אותו שם. אחרת null. */
+  email: string | null;
+}
+
+/*
+  ⚠️⚠️ השם והמייל בנפרד, ולא במחרוזת אחת.
+  "שם (מייל)" במחרוזת אחת גלש מעמודת השם בטלפון: מייל הוא מילה אחת ארוכה,
+  והוא נדחס לעמודה של 30%. בצילום של בעל המוצר, 12/10. רשומה 34.
+*/
 export function managerLabels(
   members: { id: string; displayName: string; email?: string }[],
-): Map<string, string> {
+): Map<string, ManagerLabel> {
   const count = new Map<string, number>();
   for (const member of members) {
     const key = fullName(member.displayName).toLocaleLowerCase();
     count.set(key, (count.get(key) ?? 0) + 1);
   }
-  const out = new Map<string, string>();
+  const out = new Map<string, ManagerLabel>();
   for (const member of members) {
     const name = fullName(member.displayName);
     const shared = (count.get(name.toLocaleLowerCase()) ?? 0) > 1;
-    out.set(member.id, shared && member.email ? `${name} (${member.email})` : name);
+    out.set(member.id, { name, email: shared && member.email ? member.email : null });
   }
   return out;
+}
+
+/** ⚠️ לשורה אחת בלבד, כמו אפשרות ברשימה נפתחת. בטבלה המייל בשורה משלו. */
+export function labelText(label: ManagerLabel | undefined): string {
+  if (!label) return '';
+  return label.email ? `${label.name} (${label.email})` : label.name;
 }
 
 /** השם הפרטי בלבד, לפנייה. `שלום, דנה`. */

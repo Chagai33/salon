@@ -26,7 +26,7 @@ import {
 import { BoardPage } from './pages/BoardPage';
 import { ShiftPage } from './pages/ShiftPage';
 import { SalonsPage } from './pages/SalonsPage';
-import { joinBranch } from './services/salonService';
+import { isClosed, joinBranch } from './services/salonService';
 import { toReadableError } from './utils/errors';
 import { t } from './i18n/dictionary';
 import { Footer } from './components/layout/Footer';
@@ -251,6 +251,25 @@ function BranchScope() {
   }
 
   if (!branch) return <main className="p-6 text-ink-soft">{t.board.loading}</main>;
+
+  /*
+    ⚠️ סלון סגור הוא משפט, ולא לוח. בהכרעת בעל המוצר 12/10, סעיף 2 א.
+    ⚠️ ומפעיל המערכת נכנס בכל זאת, כי הוא זה שיפתח אותו מחדש.
+    ⚠️⚠️ ומה שזה אינו: חסימה במסד. החוקים עדיין מתירים לחבר לקרוא את הסלון,
+    וסגירה היא הסתרה ולא הרשאה. DOCS/PLANING/35
+  */
+  if (isClosed(branch) && !canOpenBranch) {
+    return (
+      <main className="mx-auto flex max-w-md flex-col gap-3 p-6">
+        <h1 className="text-xl font-semibold text-ink">{t.salons.closedTitle}</h1>
+        <p className="text-ink-soft">{t.salons.closedBody}</p>
+        <Link to="/salons" className="text-brand underline-offset-2 hover:underline">
+          {t.salons.backToList}
+        </Link>
+      </main>
+    );
+  }
+
   if (!member) return <JoinBranch branchId={branchId} />;
   // ⚠️ ומנהל העל אינו ממתין לאישור. בסלון שנוצר לפני שהוא תבע את המערכת אין
   // מנהלת שתאשר אותו, ולכן מסך ההמתנה היה מסך ללא יציאה.

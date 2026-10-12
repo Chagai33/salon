@@ -13,9 +13,12 @@
 // DOCS/PLANING/23-the-import-moved-to-firebase.md
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import { logger } from 'firebase-functions';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { firestore } from './admin-app.mjs';
+import { ACTIONS, BRANCH_ID, deleteAfterFrom, isDue, planAction } from './branch-deletion.mjs';
 import {
   ALLOWED_TYPES,
   MAX_IMAGE_BYTES,
@@ -195,3 +198,185 @@ async function handle(request) {
   // CLAUDE.md, אזור ליבה 4.
   return { model: MODEL, days };
 }
+
+// ---------- סגירה ומחיקה של סלון ----------
+//
+// ⚠️⚠️ DOCS/PLANING/35-there-is-no-way-to-delete-a-salon.md
+//
+// בהכרעת בעל המוצר 12/10: סגירה הפיכה, ומחיקה "שתתבצע בפועל אחרי 30 יום".
+//
+// ⚠️ ולמה כאן ולא בדפדפן, ושלוש סיבות:
+//
+//   1. ⚠️⚠️ התאריך. "בעוד 30 יום" שנכתב מהדפדפן הוא תאריך שאפשר לכתוב
+//      אחורה, ואז המחיקה היא עכשיו. כאן השעון הוא של השרת.
+//   2. ⚠️⚠️ בקשת המחיקה יושבת ב-`deletionRequests`, ואין לו חוק משלו. כלומר
+//      הוא נופל לחוק הסוגר של `firestore.rules`, `allow read, write: if false`,
+//      ושום דפדפן אינו יכול לכתוב אליו, גם לא מנהלת. ⚠️ ולכן גם לא נדרש שינוי
+//      בחוקים: מה שמכריע אם סלון יימחק נכתב רק מכאן.
+//   3. מחיקה של סלון היא מחיקה של אוספי משנה, ודפדפן אינו יכול לעשות אותה.
+//      `recursiveDelete` של ה-SDK כן.
+
+/**
+ * ⚠️ מפעיל המערכת בלבד. מנהלת סלון אינה סוגרת ואינה מוחקת אותו.
+ * אותו מבנה כמו `assertManager`, ומאותן סיבות.
+ */
+async function assertPlatformAdmin(uid) {
+  let snapshot;
+  try {
+    snapshot = await firestore().doc(`platformAdmins/${uid}`).get();
+  } catch (error) {
+    logger.error('platform admin lookup failed', {
+      uid,
+      code: error?.code ?? error?.name ?? 'unknown',
+      cause: String(error?.message ?? error),
+    });
+    throw new HttpsError('internal', 'adminLookupFailed');
+  }
+  if (!snapshot.exists) {
+    logger.warn('not a platform admin', { uid });
+    throw new HttpsError('permission-denied', 'notPlatformAdmin');
+  }
+}
+
+export const manageBranch = onCall(
+  { maxInstances: 2, region: 'us-central1' },
+  async (request) => {
+    try {
+      return await handleManage(request);
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      logger.error('unexpected', {
+        code: error?.code ?? error?.name ?? 'unknown',
+        cause: String(error?.message ?? error),
+        stack: error?.stack,
+      });
+      throw new HttpsError('internal', 'unexpected');
+    }
+  },
+);
+
+async function handleManage(request) {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'noAuth');
+
+  const { branchId, action } = request.data ?? {};
+  // ⚠️ מזהה ולא נתיב. `x/members/y` היה מכוון את הכתיבה למסמך אחר.
+  if (typeof branchId !== 'string' || !BRANCH_ID.test(branchId)) {
+    throw new HttpsError('invalid-argument', 'badBranch');
+  }
+  if (!ACTIONS.includes(action)) throw new HttpsError('invalid-argument', 'badAction');
+
+  await assertPlatformAdmin(uid);
+
+  const db = firestore();
+  const branchRef = db.doc(`branches/${branchId}`);
+  const requestRef = db.doc(`deletionRequests/${branchId}`);
+
+  // ⚠️ בטרנזקציה: שתי לחיצות באותו רגע אינן יוצרות שתי בקשות.
+  await db.runTransaction(async (tx) => {
+    const [branch, pending] = await Promise.all([tx.get(branchRef), tx.get(requestRef)]);
+    if (!branch.exists) throw new HttpsError('not-found', 'noBranch');
+
+    const plan = planAction(action, { hasRequest: pending.exists });
+    if (plan.error) throw new HttpsError('failed-precondition', plan.error);
+
+    const now = Date.now();
+    const update = {};
+
+    if (plan.isActive === false) {
+      update.isActive = false;
+      // ⚠️ סלון שכבר סגור שומר את מועד הסגירה הראשון.
+      if (branch.get('isActive') !== false) {
+        update.closedAt = now;
+        update.closedBy = uid;
+      }
+    }
+    if (plan.isActive === true) {
+      update.isActive = true;
+      update.closedAt = FieldValue.delete();
+      update.closedBy = FieldValue.delete();
+    }
+
+    if (plan.request === 'create') {
+      const deleteAfter = Timestamp.fromMillis(deleteAfterFrom(now));
+      tx.set(requestRef, {
+        branchId,
+        requestedBy: uid,
+        requestedAt: FieldValue.serverTimestamp(),
+        deleteAfter,
+      });
+      /*
+        ⚠️ העתק לתצוגה בלבד, כדי שהרשימה תאמר מתי. מנהלת יכולה לכתוב על
+        מסמך הסלון ולשנות אותו, ⚠️ ואין לזה שום השפעה: המחיקה קוראת את
+        `deletionRequests`, ולא את השדה הזה.
+      */
+      update.deletionScheduledFor = deleteAfter;
+    }
+    if (plan.request === 'delete') {
+      tx.delete(requestRef);
+      update.deletionScheduledFor = FieldValue.delete();
+    }
+
+    if (Object.keys(update).length > 0) tx.update(branchRef, update);
+  });
+
+  logger.info('branch managed', { branchId, action, uid });
+  return { ok: true };
+}
+
+/**
+ * ⚠️⚠️ המחיקה עצמה. פעם ביום, בשלוש לפנות בוקר בשעון ישראל.
+ *
+ * ⚠️ ובלתי הפיכה: הסלון, החברים עם המיילים שלהם, המשמרות, הקודים, ימי
+ * הפעילות, והשורות שהמוצר מבטיח שאינן נמחקות. **אין גיבוי במוצר.**
+ */
+export const deleteDueBranches = onSchedule(
+  {
+    schedule: 'every day 03:00',
+    timeZone: 'Asia/Jerusalem',
+    region: 'us-central1',
+    timeoutSeconds: 540,
+    memory: '512MiB',
+    maxInstances: 1,
+  },
+  async () => {
+    const db = firestore();
+    const due = await db
+      .collection('deletionRequests')
+      .where('deleteAfter', '<=', Timestamp.now())
+      .get();
+
+    for (const candidate of due.docs) {
+      const branchId = candidate.id;
+      try {
+        /*
+          ⚠️⚠️ ונקראת שוב רגע לפני המחיקה. בין השאילתה לבין המחיקה מישהו יכול
+          היה לבטל, ומחיקה של סלון שהמחיקה שלו בוטלה היא בדיוק הטעות שאין
+          ממנה דרך חזרה.
+        */
+        const fresh = await candidate.ref.get();
+        if (!fresh.exists || !isDue(fresh.get('deleteAfter')?.toMillis?.(), Date.now())) {
+          logger.info('branch deletion skipped', { branchId });
+          continue;
+        }
+        // ⚠️ ובמזהה שעבר את אותה בדיקה כמו בבקשה. מסמך בקשה עם מזהה אחר אינו
+        // מכוון את המחיקה לנתיב אחר.
+        if (!BRANCH_ID.test(branchId)) {
+          logger.error('branch deletion bad id', { branchId });
+          continue;
+        }
+
+        await db.recursiveDelete(db.doc(`branches/${branchId}`));
+        await candidate.ref.delete();
+        logger.info('branch deleted', { branchId, requestedBy: fresh.get('requestedBy') });
+      } catch (error) {
+        // ⚠️ סלון אחד שנכשל אינו עוצר את השאר, וינוסה שוב מחר.
+        logger.error('branch deletion failed', {
+          branchId,
+          code: error?.code ?? error?.name ?? 'unknown',
+          cause: String(error?.message ?? error),
+        });
+      }
+    }
+  },
+);

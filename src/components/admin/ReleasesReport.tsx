@@ -4,11 +4,11 @@
 // DOCS/PLANING/33-the-manager-screens-are-lists-and-the-question-is-about-people.md
 //
 // ⚠️⚠️ חודש, ארבעה מספרים, ושורה לכל אדם. בהכרעת בעל המוצר 12/10, סעיף 1:
-// "אני רוצה לראות נתונים ולא רשימות ארוכות". השאלה היא על אדם בתוך חודש,
-// והשחרורים עצמם נפתחים בלחיצה על השם.
+// "אני רוצה לראות נתונים ולא רשימות ארוכות". השחרורים עצמם נפתחים בלחיצה.
 //
-// ⚠️ וחמש עמודות ולא שבע, כדי שהטבלה תיכנס בגיליון בלי גלילה לצדדים. בצילום
-// של בעל המוצר העמודה השביעית לא נראתה מעולם.
+// ⚠️⚠️ ושתי תצוגות לאותו מידע, בהכרעה 1 א ברשומה 34: טבלה במסך רחב, ושורה
+// מקופלת לכל אדם בטלפון. חמש עמודות ב-313 פיקסלים שברו כל כותרת לשלוש שורות,
+// והמייל גלש מעמודת השם. ⚠️ וזה אותו כלל שהוכרע ללוח ב-06/10, BoardPage.tsx.
 //
 // ⚠️ וההיגיון ב-src/utils/releases.ts, ולא כאן, כדי שייבדק בלי מסך.
 
@@ -20,10 +20,13 @@ import type { PersonRow, ReleaseRow } from '../../utils/releases';
 import type { ActivityDay, SalonEvent, Shift } from '../../types';
 import { t } from '../../i18n/dictionary';
 import { addMonths, monthLabel, shortDateLabel, toMonthKey } from '../../utils/dates';
-import { displayName, managerLabels } from '../../utils/names';
+import { displayName, labelText, managerLabels } from '../../utils/names';
+import type { ManagerLabel } from '../../utils/names';
 import { toReadableError } from '../../utils/errors';
 import { Button } from '../common/Button';
 import { Stamp, TimeRange } from '../common/Stamp';
+
+type LabelOf = (id: string) => ManagerLabel | undefined;
 
 /** ⚠️ ימים כשיש ימים, שעות כשיש שעות, ושלילי הוא אחרי שהמשמרת התחילה. */
 function noticeLabel(hours: number | null): string {
@@ -34,11 +37,10 @@ function noticeLabel(hours: number | null): string {
   return t.releases.noticeDays(Math.floor(hours / 24));
 }
 
-function afterLabel(row: ReleaseRow, nameOf: (id: string) => string): string {
+function afterLabel(row: ReleaseRow, labelOf: LabelOf): string {
   if (row.after === 'taken') {
-    // ⚠️ אותו שם כמו בטבלה, ומייל כששניים נושאים אותו שם. רשומה 32.
-    const name = row.afterMemberId ? nameOf(row.afterMemberId) : displayName(row.afterName ?? '');
-    return t.releases.afterTaken(name);
+    const label = row.afterMemberId ? labelOf(row.afterMemberId) : undefined;
+    return t.releases.afterTaken(label ? labelText(label) : displayName(row.afterName ?? ''));
   }
   if (row.after === 'open') return t.releases.afterOpen;
   return t.releases.afterUnknown;
@@ -50,7 +52,13 @@ function monthVerdict(person: PersonRow): string {
   return t.releases.otherOpen;
 }
 
-/** מספר אחד. ⚠️ מילה לצד המספר, ולא צבע לבד. CLAUDE.md, עיצוב. */
+/**
+ * מספר אחד.
+ *
+ * ⚠️ ארבעה בשורה בכל רוחב. שתיים על שתיים תפסו בטלפון כשני שלישים מהגיליון,
+ * והטבלה התחילה בתחתית. ⚠️ ושורת ההסבר במסך רחב בלבד. רשומה 34.
+ * ⚠️ ואפס שקט: "0" גדול נראה כמו מספר שחשוב.
+ */
 function Tile({
   label,
   value,
@@ -62,25 +70,63 @@ function Tile({
   hint: string;
   alert?: boolean;
 }) {
+  const tone = value === 0 ? 'text-ink-faint' : alert ? 'text-danger' : 'text-ink';
   return (
-    <div className="rounded-card bg-surface-sunken p-3">
-      <div className="text-xs text-ink-soft">{label}</div>
-      <div className={`num text-2xl font-semibold ${alert && value > 0 ? 'text-danger' : 'text-ink'}`}>
-        {value}
-      </div>
-      <div className="text-xs text-ink-faint">{hint}</div>
+    <div className="min-w-0 rounded-card bg-surface-sunken p-2 sm:p-3">
+      <div className="text-xs leading-tight text-ink-soft">{label}</div>
+      <div className={`num text-xl font-semibold sm:text-2xl ${tone}`}>{value}</div>
+      <div className="hidden text-xs text-ink-faint sm:block">{hint}</div>
     </div>
   );
 }
 
-/** מספר בתא. ⚠️ אפס שקט, ומה שאינו אפס בולט, כי זה מה שהמנהלת מחפשת. */
+/** מספר בתא. ⚠️ אפס שקט, ומה שאינו אפס בולט. */
 function Count({ value, alert = false }: { value: number; alert?: boolean }) {
   const tone = value === 0 ? 'text-ink-faint' : alert ? 'font-medium text-danger' : 'text-ink';
   return <span className={`num ${tone}`}>{value}</span>;
 }
 
-/** השחרורים של אדם אחד, שורה לכל שחרור. ⚠️ זה מה שהיה הדוח כולו. */
-function Details({ person, nameOf }: { person: PersonRow; nameOf: (id: string) => string }) {
+/**
+ * השם, והמייל בשורה משלו.
+ *
+ * ⚠️ ולא "שם (מייל)" במחרוזת אחת: מייל הוא מילה אחת ארוכה, והוא גלש מעמודת
+ * השם. ⚠️ והוא משמאל לימין, ונשבר בכל מקום, כי אין בו רווח. רשומה 34.
+ */
+function PersonName({
+  label,
+  open,
+  onToggle,
+}: {
+  label: ManagerLabel | undefined;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const name = label?.name ?? t.log.unknownMember;
+  return (
+    <div className="min-w-0">
+      {/* ⚠️ כפתור ולא טקסט שאפשר ללחוץ עליו: מקלדת וקורא מסך. */}
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-label={t.releases.showDetails(name)}
+        onClick={onToggle}
+        className="text-start font-medium text-brand underline-offset-4 hover:underline"
+      >
+        <bdi>{name}</bdi>
+      </button>
+      {/* ⚠️ הבלוק נשאר מימין לשמאל, כדי שהמייל ייושר מתחת לשם, ורק המייל
+          עצמו משמאל לימין. בלוק שכולו ltr יישר אותו לקצה השני. */}
+      {label?.email && (
+        <span className="block break-all text-xs text-ink-faint">
+          <bdi dir="ltr">{label.email}</bdi>
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** השחרורים של אדם אחד, שורה לכל שחרור. */
+function Details({ person, labelOf }: { person: PersonRow; labelOf: LabelOf }) {
   return (
     <ul className="flex flex-col gap-2 py-1">
       {person.rows.map((row) => (
@@ -99,7 +145,7 @@ function Details({ person, nameOf }: { person: PersonRow; nameOf: (id: string) =
             {' · '}
             <span className={row.late ? 'text-danger' : ''}>{noticeLabel(row.noticeHours)}</span>
             {' · '}
-            <bdi>{afterLabel(row, nameOf)}</bdi>
+            <bdi>{afterLabel(row, labelOf)}</bdi>
             {/* ⚠️ והסימן הזה הוא הכרעה: החבר לא החליט על זה. */}
             {row.byManager && ` · ${t.releases.byManager}`}
             {/* ⚠️ `assumed` אינו "הגיע", ולכן הוא אינו נאמר. רק מה שמנהלת סימנה. */}
@@ -108,6 +154,27 @@ function Details({ person, nameOf }: { person: PersonRow; nameOf: (id: string) =
         </li>
       ))}
     </ul>
+  );
+}
+
+/** ⚠️ ארבע העובדות במילים, לטלפון. אותו סדר כמו עמודות הטבלה. */
+function Facts({ person }: { person: PersonRow }) {
+  return (
+    <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-soft">
+      <span>
+        {t.releases.colReleases} <Count value={person.releases} />
+        {person.byManager > 0 && ` (${t.releases.byManagerCount(person.byManager)})`}
+      </span>
+      <span>
+        {t.releases.colLate} <Count value={person.late} alert />
+      </span>
+      <span>
+        {t.releases.colUncovered} <Count value={person.uncovered} alert />
+      </span>
+      <span className={person.month === 'none' ? 'font-medium text-danger' : ''}>
+        {t.releases.colOther}: {monthVerdict(person)}
+      </span>
+    </p>
   );
 }
 
@@ -124,10 +191,8 @@ export function ReleasesReport({ branchId }: { branchId: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    /*
-      ⚠️ כל השורות ולא רק השחרורים: כדי לדעת אם אדם חזר למשמרת שהוא שחרר
-      צריך לראות גם את הלקיחות. רשומה 32.
-    */
+    // ⚠️ כל השורות ולא רק השחרורים: כדי לדעת אם אדם חזר למשמרת שהוא שחרר
+    // צריך לראות גם את הלקיחות. רשומה 32.
     void Promise.all([loadEvents(branchId), allShifts(branchId)])
       .then(([rows, all]) => {
         if (cancelled) return;
@@ -167,37 +232,28 @@ export function ReleasesReport({ branchId }: { branchId: string }) {
 
   if (!report) return <p className="text-sm text-ink-soft">{t.releases.loading}</p>;
 
-  const nameOf = (id: string) => labels.get(id) ?? t.log.unknownMember;
+  const labelOf: LabelOf = (id) => labels.get(id);
+  const toggle = (id: string) => setOpenId((current) => (current === id ? null : id));
+  const moveMonth = (delta: number) => {
+    setMonthKey((key) => addMonths(key, delta));
+    setOpenId(null);
+  };
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-base font-semibold text-ink">{monthLabel(monthKey)}</h3>
         <div className="flex gap-2">
-          <Button
-            tone="secondary"
-            size="sm"
-            onClick={() => {
-              setMonthKey((key) => addMonths(key, -1));
-              setOpenId(null);
-            }}
-          >
+          <Button tone="secondary" size="sm" onClick={() => moveMonth(-1)}>
             {t.releases.prevMonth}
           </Button>
-          <Button
-            tone="secondary"
-            size="sm"
-            onClick={() => {
-              setMonthKey((key) => addMonths(key, 1));
-              setOpenId(null);
-            }}
-          >
+          <Button tone="secondary" size="sm" onClick={() => moveMonth(1)}>
             {t.releases.nextMonth}
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-4 gap-2">
         <Tile
           label={t.releases.tileAssigned}
           value={report.assigned}
@@ -220,82 +276,98 @@ export function ReleasesReport({ branchId }: { branchId: string }) {
       {report.rows.length === 0 ? (
         <p className="text-sm text-ink-faint">{t.releases.empty}</p>
       ) : (
-        /*
-          ⚠️ טבלה ולא רשת כרטיסים, CLAUDE.md, עיצוב. ⚠️ ו-`table-fixed` עם
-          רוחב לכל עמודה, כדי שהיא תיכנס בגיליון ולא תגלול לצדדים.
-        */
-        <table className="w-full table-fixed text-sm">
-          <thead>
-            <tr className="border-b border-line text-xs text-ink-soft">
-              <th scope="col" className="w-[30%] py-2 pe-2 text-start font-medium">
-                {t.releases.who}
-              </th>
-              <th scope="col" className="py-2 pe-2 text-start font-medium">
-                {t.releases.colReleases}
-              </th>
-              <th scope="col" className="py-2 pe-2 text-start font-medium">
-                {t.releases.colLate}
-              </th>
-              <th scope="col" className="py-2 pe-2 text-start font-medium">
-                {t.releases.colUncovered}
-              </th>
-              <th scope="col" className="w-[24%] py-2 text-start font-medium">
-                {t.releases.colOther}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+        <>
+          {/* ⚠️ בטלפון: שורה מקופלת לכל אדם. ⚠️ ואינה רשת כרטיסים: אותן
+              עובדות, אותו סדר, שורה מתחת לשורה. */}
+          <ul className="flex flex-col divide-y divide-line sm:hidden">
             {report.rows.map((person) => {
-              const name = nameOf(person.memberId);
               const open = openId === person.memberId;
-              // ⚠️ Fragment עם מפתח ולא מערך: שתי שורות לאדם, השנייה רק כשהוא פתוח.
               return (
-                <Fragment key={person.memberId}>
-                <tr className="border-t border-line align-top">
-                  <td className="py-2 pe-2">
-                    {/* ⚠️ כפתור ולא טקסט שאפשר ללחוץ עליו: מקלדת וקורא מסך. */}
-                    <button
-                      type="button"
-                      aria-expanded={open}
-                      aria-label={t.releases.showDetails(name)}
-                      onClick={() => setOpenId(open ? null : person.memberId)}
-                      className="text-start font-medium text-brand underline-offset-4 hover:underline"
-                    >
-                      <bdi className="break-words">{name}</bdi>
-                    </button>
-                  </td>
-                  <td className="py-2 pe-2">
-                    <Count value={person.releases} />
-                    {person.byManager > 0 && (
-                      <span className="block text-xs text-ink-faint">
-                        {t.releases.byManagerCount(person.byManager)}
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2 pe-2">
-                    <Count value={person.late} alert />
-                  </td>
-                  <td className="py-2 pe-2">
-                    <Count value={person.uncovered} alert />
-                  </td>
-                  <td
-                    className={`py-2 ${person.month === 'none' ? 'font-medium text-danger' : 'text-ink-soft'}`}
-                  >
-                    {monthVerdict(person)}
-                  </td>
-                </tr>
-                {open && (
-                  <tr>
-                    <td colSpan={5} className="bg-surface-sunken px-3 pb-2">
-                      <Details person={person} nameOf={nameOf} />
-                    </td>
-                  </tr>
-                )}
-                </Fragment>
+                <li key={person.memberId} className="flex flex-col gap-1 py-2">
+                  <PersonName
+                    label={labelOf(person.memberId)}
+                    open={open}
+                    onToggle={() => toggle(person.memberId)}
+                  />
+                  <Facts person={person} />
+                  {open && (
+                    <div className="mt-1 rounded-card bg-surface-sunken px-3">
+                      <Details person={person} labelOf={labelOf} />
+                    </div>
+                  )}
+                </li>
               );
             })}
-          </tbody>
-        </table>
+          </ul>
+
+          {/* ⚠️ במסך רחב: טבלה. CLAUDE.md, עיצוב. */}
+          <table className="hidden w-full table-fixed text-sm sm:table">
+            <thead>
+              <tr className="border-b border-line text-xs text-ink-soft">
+                <th scope="col" className="w-[32%] py-2 pe-2 text-start font-medium">
+                  {t.releases.who}
+                </th>
+                <th scope="col" className="py-2 pe-2 text-start font-medium">
+                  {t.releases.colReleases}
+                </th>
+                <th scope="col" className="py-2 pe-2 text-start font-medium">
+                  {t.releases.colLate}
+                </th>
+                <th scope="col" className="py-2 pe-2 text-start font-medium">
+                  {t.releases.colUncovered}
+                </th>
+                <th scope="col" className="w-[22%] py-2 text-start font-medium">
+                  {t.releases.colOther}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.rows.map((person) => {
+                const open = openId === person.memberId;
+                // ⚠️ Fragment עם מפתח: שתי שורות לאדם, השנייה רק כשהוא פתוח.
+                return (
+                  <Fragment key={person.memberId}>
+                    <tr className="border-t border-line align-top">
+                      <td className="py-2 pe-2">
+                        <PersonName
+                          label={labelOf(person.memberId)}
+                          open={open}
+                          onToggle={() => toggle(person.memberId)}
+                        />
+                      </td>
+                      <td className="py-2 pe-2">
+                        <Count value={person.releases} />
+                        {person.byManager > 0 && (
+                          <span className="block text-xs text-ink-faint">
+                            {t.releases.byManagerCount(person.byManager)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2 pe-2">
+                        <Count value={person.late} alert />
+                      </td>
+                      <td className="py-2 pe-2">
+                        <Count value={person.uncovered} alert />
+                      </td>
+                      <td
+                        className={`py-2 ${person.month === 'none' ? 'font-medium text-danger' : 'text-ink-soft'}`}
+                      >
+                        {monthVerdict(person)}
+                      </td>
+                    </tr>
+                    {open && (
+                      <tr>
+                        <td colSpan={5} className="bg-surface-sunken px-3 pb-2">
+                          <Details person={person} labelOf={labelOf} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </>
       )}
     </div>
   );

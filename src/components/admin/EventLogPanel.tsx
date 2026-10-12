@@ -17,7 +17,7 @@ import { useStore } from '../../store/useStore';
 import { loadEvents } from '../../services/salonService';
 import { t } from '../../i18n/dictionary';
 import { shortDateLabel } from '../../utils/dates';
-import { managerLabels } from '../../utils/names';
+import { labelText, managerLabels } from '../../utils/names';
 import { toReadableError } from '../../utils/errors';
 import { Button } from '../common/Button';
 import { Stamp } from '../common/Stamp';
@@ -151,11 +151,15 @@ export function EventLogPanel({ branchId }: { branchId: string }) {
   // ⚠️ ב-useMemo ולא בבורר: כל אחת מהגזירות האלה בונה מבנה חדש. CLAUDE.md
   const labels = useMemo(() => managerLabels(members), [members]);
   const nameOf = useMemo(
-    () => (id: string | undefined) => (id ? (labels.get(id) ?? t.log.unknownMember) : ''),
+    () => (id: string | undefined) =>
+      id ? (labels.has(id) ? labelText(labels.get(id)) : t.log.unknownMember) : '',
     [labels],
   );
   const people = useMemo(
-    () => [...labels.entries()].sort((a, b) => a[1].localeCompare(b[1], 'he')),
+    () =>
+      [...labels.entries()]
+        .map(([id, label]) => [id, labelText(label)] as const)
+        .sort((a, b) => a[1].localeCompare(b[1], 'he')),
     [labels],
   );
 

@@ -85,7 +85,8 @@ export function BoardPage({ branchId }: { branchId: string }) {
   const salons = useMemo(
     () =>
       branches
-        .filter((candidate) => memberships[candidate.id])
+        // ⚠️ סלון סגור אינו בחירה. DOCS/PLANING/35
+        .filter((candidate) => memberships[candidate.id] && candidate.isActive !== false)
         .map((candidate) => ({ id: candidate.id, name: candidate.name })),
     [branches, memberships],
   );
@@ -363,6 +364,26 @@ export function BoardPage({ branchId }: { branchId: string }) {
               {t.auth.signOut}
             </Button>
           </section>
+
+          {/*
+            ⚠️⚠️ עמוד הסלונים, למנהלת ולמפעיל המערכת.
+            בלי השורה הזו אין אליו דרך מהלוח למי שחבר בסלון אחד: בורר הסלונים
+            בכותרת מוצג רק כשיש יותר מאחד, ו-`/` מעביר סלון יחיד ישר לתוכו.
+            נמדד ב-PageHeader.tsx ו-App.tsx. DOCS/PLANING/36
+          */}
+          {(isManager || canOpenBranch) && (
+            <Button
+              tone="secondary"
+              block
+              className="min-h-12 justify-start"
+              onClick={() => {
+                setMenuOpen(false);
+                navigate('/salons');
+              }}
+            >
+              {t.menu.allSalons}
+            </Button>
+          )}
 
           {/* ⚠️ ומה שמעבר לזה הוא של המנהלת בלבד, בכל רוחב. */}
           {isManager && (

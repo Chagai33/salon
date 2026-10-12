@@ -86,7 +86,19 @@ export interface Branch {
    * ⚠️ והוא על הסניף ולא על החודש: אירוע חוזר חוזר בכל חודש.
    */
   importIgnore?: string[];
+  /**
+   * ⚠️ `false` הוא סלון סגור: אינו ברשימה, ואי אפשר להיכנס אליו. המידע נשאר.
+   * ⚠️ ו-undefined הוא פתוח, כי סלונים ישנים נוצרו בלי השדה.
+   * נכתב רק מפונקציית הענן `manageBranch`. DOCS/PLANING/35
+   */
   isActive: boolean;
+  closedAt?: number;
+  closedBy?: string;
+  /**
+   * ⚠️⚠️ העתק לתצוגה בלבד. המחיקה עצמה קוראת את `deletionRequests`, שדפדפן
+   * אינו יכול לכתוב אליו, ולכן שינוי השדה הזה אינו מקדים ואינו מבטל מחיקה.
+   */
+  deletionScheduledFor?: Timestamp;
   icsToken: string;
 }
 

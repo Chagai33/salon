@@ -22,7 +22,8 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import type { Unsubscribe } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '../lib/firebase';
 import type {
   AccessCode,
   ActivityDay,
@@ -286,6 +287,24 @@ export async function isPlatformAdmin(uid: string): Promise<boolean> {
     // תשובה ולא תקלה. הכפתור פשוט אינו מוצג.
     return false;
   }
+}
+
+export type BranchAction = 'close' | 'reopen' | 'scheduleDeletion' | 'cancelDeletion';
+
+/**
+ * סגירה, פתיחה מחדש, ומחיקה בעוד 30 יום. ⚠️ למפעיל המערכת בלבד.
+ *
+ * ⚠️⚠️ דרך פונקציית ענן ולא כתיבה מהדפדפן, בכוונה: התאריך שבו הסלון יימחק
+ * נקבע בשעון של השרת, ובקשת המחיקה נכתבת לאוסף שדפדפן אינו יכול לכתוב
+ * אליו. DOCS/PLANING/35, functions/index.mjs
+ */
+export async function manageBranch(branchId: string, action: BranchAction): Promise<void> {
+  await httpsCallable(functions, 'manageBranch')({ branchId, action });
+}
+
+/** ⚠️ סלון סגור. undefined הוא פתוח, כי סלונים ישנים נוצרו בלי השדה. */
+export function isClosed(branch: Pick<Branch, 'isActive'>): boolean {
+  return branch.isActive === false;
 }
 
 /** רשימת הסלונים. כל מי שמחובר קורא אותה, וזה מה שמאפשר מסך בחירה. */

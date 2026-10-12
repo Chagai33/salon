@@ -10,21 +10,138 @@ import { Button } from '../components/common/Button';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
-import { claimSystem, joinBranch, openBranch } from '../services/salonService';
+import {
+  claimSystem,
+  isClosed,
+  joinBranch,
+  manageBranch,
+  openBranch,
+} from '../services/salonService';
+import type { BranchAction } from '../services/salonService';
 import { t } from '../i18n/dictionary';
 import { StatusPill } from '../components/common/StatusPill';
+import { Confirm } from '../components/common/Confirm';
 import { toReadableError } from '../utils/errors';
+import { shortDateLabel, toDateKey } from '../utils/dates';
 import type { Branch, Member } from '../types';
 
-/** ⚠️ בונה מערכים, ולכן נקראת מתוך useMemo ולא כבורר. */
+/**
+ * ⚠️ בונה מערכים, ולכן נקראת מתוך useMemo ולא כבורר.
+ *
+ * ⚠️ וסלון סגור אינו ברשימה, חוץ מאשר למפעיל המערכת, שהוא זה שיפתח אותו
+ * מחדש או ימחק אותו. DOCS/PLANING/35
+ */
 export function splitBranches(
   branches: Branch[],
   memberships: Record<string, Member>,
+  showClosed = false,
 ): { mine: Branch[]; others: Branch[] } {
+  const visible = showClosed ? branches : branches.filter((branch) => !isClosed(branch));
   return {
-    mine: branches.filter((branch) => memberships[branch.id]),
-    others: branches.filter((branch) => !memberships[branch.id]),
+    mine: visible.filter((branch) => memberships[branch.id]),
+    others: visible.filter((branch) => !memberships[branch.id]),
   };
+}
+
+const DAY_MS = 86_400_000;
+
+function dateOf(date: Date): string {
+  return shortDateLabel(toDateKey(date));
+}
+
+/**
+ * ⚠️ הודעות של פונקציית הענן. היא מחזירה קוד ב-`message`, ו-`code` הוא
+ * `functions/...`, ולכן `toReadableError` לבדה הייתה אומרת "המסד עוד לא
+ * פתוח", וזה לא נכון כאן.
+ */
+function manageErrorText(error: unknown): string {
+  const { code, message } = (error ?? {}) as { code?: string; message?: string };
+  const known: Record<string, string> = {
+    notPlatformAdmin: t.salons.notPlatformAdmin,
+    deletionScheduled: t.salons.deletionScheduled,
+    alreadyScheduled: t.salons.alreadyScheduled,
+    notScheduled: t.salons.notScheduled,
+  };
+  if (message && known[message]) return known[message];
+  // ⚠️ לא נמדד: איזה קוד מחזיר SDK על פונקציה שעוד לא נפרסה.
+  if (code === 'functions/not-found') return t.salons.functionMissing;
+  return toReadableError(error, t.errors.saveFailed);
+}
+
+/**
+ * ⚠️⚠️ סגירה ומחיקה, למפעיל המערכת בלבד. DOCS/PLANING/35
+ *
+ * בהכרעת בעל המוצר 12/10: סגירה הפיכה, ומחיקה "שתתבצע בפועל אחרי 30 יום".
+ * ⚠️ ושתי הפעולות שאין מהן דרך חזרה מהירה, סגירה ומחיקה, נושאות חלון אישור
+ * של האפליקציה. פתיחה מחדש וביטול המחיקה אינם צריכים: הם מחזירים מצב.
+ */
+function BranchAdmin({ branch }: { branch: Branch }) {
+  const setError = useStore((state) => state.setError);
+  const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState<'close' | 'delete' | null>(null);
+
+  const closed = isClosed(branch);
+  const scheduled = Boolean(branch.deletionScheduledFor);
+
+  async function run(action: BranchAction) {
+    setBusy(true);
+    setError(null);
+    try {
+      // ⚠️ ואין עדכון של ה-Store ביד: המאזין לרשימת הסלונים יראה את השינוי.
+      await manageBranch(branch.id, action);
+    } catch (error) {
+      setError(manageErrorText(error));
+    } finally {
+      setBusy(false);
+      setConfirming(null);
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2 border-t border-line pt-3">
+      {!closed && (
+        <Button tone="quiet" size="sm" disabled={busy} onClick={() => setConfirming('close')}>
+          {t.salons.close}
+        </Button>
+      )}
+      {closed && !scheduled && (
+        <Button tone="secondary" size="sm" disabled={busy} onClick={() => void run('reopen')}>
+          {busy ? t.salons.working : t.salons.reopen}
+        </Button>
+      )}
+      {scheduled ? (
+        <Button tone="secondary" size="sm" disabled={busy} onClick={() => void run('cancelDeletion')}>
+          {busy ? t.salons.working : t.salons.cancelDeletion}
+        </Button>
+      ) : (
+        <Button tone="danger" size="sm" disabled={busy} onClick={() => setConfirming('delete')}>
+          {t.salons.scheduleDeletion}
+        </Button>
+      )}
+
+      {confirming === 'close' && (
+        <Confirm
+          title={t.salons.closeTitle}
+          body={t.salons.closeBody(branch.name)}
+          confirmLabel={t.salons.close}
+          busy={busy}
+          onConfirm={() => void run('close')}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
+      {confirming === 'delete' && (
+        <Confirm
+          title={t.salons.deleteTitle}
+          /* ⚠️ התאריך כאן מחושב בדפדפן לתצוגה בלבד. המועד עצמו נקבע בשרת. */
+          body={t.salons.deleteBody(branch.name, dateOf(new Date(Date.now() + 30 * DAY_MS)))}
+          confirmLabel={t.salons.scheduleDeletion}
+          busy={busy}
+          onConfirm={() => void run('scheduleDeletion')}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
+    </div>
+  );
 }
 
 function BranchRow({ branch, membership }: { branch: Branch; membership?: Member }) {
@@ -32,9 +149,11 @@ function BranchRow({ branch, membership }: { branch: Branch; membership?: Member
   const setError = useStore((state) => state.setError);
   const setMyMemberships = useStore((state) => state.setMyMemberships);
   const memberships = useStore((state) => state.myMemberships);
+  const canManage = useStore((state) => state.canOpenBranch);
   const [busy, setBusy] = useState(false);
 
   const isPending = membership?.status === 'pending';
+  const deletesOn = branch.deletionScheduledFor?.toDate();
 
   async function join() {
     if (!user) return;
@@ -65,6 +184,12 @@ function BranchRow({ branch, membership }: { branch: Branch; membership?: Member
           <StatusPill tone="mine">{t.salons.managerHere}</StatusPill>
         )}
         {isPending && <StatusPill tone="open">{t.salons.waiting}</StatusPill>}
+        {/* ⚠️ מילה ולא צבע לבד. ⚠️ ונראה רק למפעיל המערכת, כי רק הוא רואה
+            סלון סגור ברשימה. */}
+        {isClosed(branch) && <StatusPill tone="taken">{t.salons.closed}</StatusPill>}
+        {deletesOn && (
+          <StatusPill tone="handover">{t.salons.deletesOn(dateOf(deletesOn))}</StatusPill>
+        )}
       </div>
 
       {branch.city && <p className="text-sm text-ink-soft">{branch.city}</p>}
@@ -85,6 +210,8 @@ function BranchRow({ branch, membership }: { branch: Branch; membership?: Member
           </Button>
         )}
       </div>
+
+      {canManage && <BranchAdmin branch={branch} />}
     </li>
   );
 }
@@ -232,8 +359,8 @@ export function SalonsPage() {
   const [opening, setOpening] = useState(false);
 
   const { mine, others } = useMemo(
-    () => splitBranches(branches, memberships),
-    [branches, memberships],
+    () => splitBranches(branches, memberships, canOpen),
+    [branches, memberships, canOpen],
   );
 
   if (loading) return <p className="p-6 text-ink-soft">{t.salons.loading}</p>;
