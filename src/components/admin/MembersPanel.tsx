@@ -104,7 +104,9 @@ export function MembersPanel({ branchId }: { branchId: string }) {
         <button
           type="button"
           disabled={busy}
-          onClick={() => void run(member.id, () => setMemberRole(branchId, member.id, 'manager'))}
+          onClick={() =>
+            void run(member.id, () => setMemberRole(branchId, member.id, 'manager', me!.id))
+          }
           className="inline-flex min-h-9 items-center rounded-lg bg-brand px-3 text-sm font-semibold text-brand-ink disabled:opacity-50"
         >
           {busy ? t.manager.working : t.manager.promoteMe}
@@ -122,7 +124,7 @@ export function MembersPanel({ branchId }: { branchId: string }) {
         type="button"
         disabled={busy}
         onClick={() =>
-          void run(member.id, () => setMemberRole(branchId, member.id, nextRole))
+          void run(member.id, () => setMemberRole(branchId, member.id, nextRole, me!.id))
         }
         className="rounded-md border border-line-strong px-3 py-1.5 text-sm hover:bg-brand-soft disabled:opacity-50"
       >

@@ -3,6 +3,10 @@
 // המודל כפי שהוכרע ב-DOCS/PLANING/02-the-data-model.md.
 // כל שדה כאן נושא הכרעה של בעל המוצר, ולא נוחות.
 
+// ⚠️ ייבוא טיפוס בלבד, ואין לו עלות בזמן ריצה. השדה `expiresAt` חייב להיות
+// חותמת זמן של Firestore, כי מדיניות התפוגה מוחקת לפי טיפוס. DOCS/PLANING/29
+import type { Timestamp } from 'firebase/firestore';
+
 /** זהות. בלי תפקידים: התפקיד שייך לסניף. */
 export interface User {
   uid: string;
@@ -174,4 +178,73 @@ export interface EligibilityResult {
   reason: 'assigned' | 'handedOver' | 'none';
   periodMonth: string;
   shiftDates: string[];
+}
+
+/**
+ * ⚠️ אזור ליבה. הרשומה שנכתבת ואינה נמחקת, שאומרת מי עשה מה ומתי.
+ * DOCS/PLANING/29-nothing-records-that-someone-cancelled.md
+ *
+ * ⚠️ ואין לה שם במוצר, כי אין לה שורה ב-DOCS/GLOSSARY.md. בהכרעת בעל המוצר
+ * 12/10 היא נבנית בלי שם, והמסך אומר "מי עשה מה ומתי".
+ *
+ * ⚠️⚠️ ואין בה שדה טקסט חופשי. זה הכלל היחיד שמונע ממנה להיות מצבור מידע
+ * אישי: "ביטל ב-14/10 בשעה 09:00" ולא "לא אמין". הסכמה סגורה גם בחוקי המסד,
+ * ולא רק כאן, כי כתיבה ישירה למסד עוקפת את הקוד הזה.
+ */
+export type EventAction =
+  // משמרות. ⚠️ `shiftReleased` הוא האירוע שהמוצר זרק עד כה.
+  | 'shiftAssigned'
+  | 'shiftReleased'
+  | 'handoverRequested'
+  | 'handoverCancelled'
+  | 'handoverTaken'
+  | 'attendanceSet'
+  // חברות והרשאות. ⚠️ כולן פעולה של מנהלת על אדם אחר, ואין בהן התחברות.
+  | 'memberApproved'
+  | 'memberRejected'
+  | 'memberDeactivated'
+  | 'memberReactivated'
+  | 'roleChanged'
+  // הגדרות הסלון והקוד.
+  | 'accessCodeSet'
+  | 'settingsChanged'
+  | 'monthCreated'
+  | 'importRan';
+
+/** איזה חלק בהגדרות השתנה. ⚠️ שמות השדות על הסניף, ולא תיאור חופשי. */
+export type SettingsPart = 'name' | 'openingHours' | 'shiftTemplates' | 'spaces' | 'importIgnore';
+
+/** ⚠️ enum ולא מחרוזת. ארבעה מצבי נוכחות, שני תפקידים, וחמשת חלקי ההגדרות. */
+export type EventDetail = Attendance | MemberRole | SettingsPart;
+
+export interface SalonEvent {
+  id: string;
+  /** מתי נכתב. */
+  at: number;
+  /**
+   * ⚠️⚠️ חותמת זמן ולא מספר, ובכוונה.
+   *
+   * תפוגת 12 החודשים היא מדיניות `TTL` של Firestore, והיא מוחקת לפי שדה
+   * מטיפוס חותמת זמן בלבד. מדיניות על שדה מספרי אינה מוחקת דבר, ולכן `at`
+   * לבדו היה משאיר את הרשומה לנצח. `at` נשאר לדוח ולמיון, והמדיניות יושבת
+   * על השדה הזה. DOCS/PLANING/29
+   */
+  expiresAt?: Timestamp;
+  /** מי עשה, ונעוץ למי שמחובר. חוקי המסד דורשים שיהיה הכותב עצמו. */
+  actorMemberId: string;
+  action: EventAction;
+  shiftId?: string;
+  /** כדי שהדוח לא יצטרך לקרוא את המשמרת כדי לדעת על איזה תאריך מדובר. */
+  shiftDate?: string;
+  /**
+   * על מי, כשזה אדם אחר.
+   *
+   * ⚠️ ובשחרור הוא מי שאיבד את המשמרת, ולא מי שלחץ. בהכרעת בעל המוצר 12/10:
+   * מנהלת שמשחררת משמרת של חבר אינה החבר שביטל, ושורה שמטילה את זה עליו
+   * שולחת את המנהלת לדבר עם האדם הלא נכון.
+   */
+  subjectMemberId?: string;
+  detail?: EventDetail;
+  /** ⚠️ מספר ולא טקסט: בכמה ימים נגע הייבוא, וכמה משמרות נולדו. */
+  count?: number;
 }

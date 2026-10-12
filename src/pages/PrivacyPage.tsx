@@ -41,6 +41,23 @@ export function PrivacyPage() {
 
         <Section title={t.privacy.storedTitle} lines={[t.privacy.stored]} />
         <Section title={t.privacy.whoTitle} lines={[t.privacy.whoSees, t.privacy.managersSee]} />
+        {/*
+          ⚠️⚠️ והאזור הזה אינו תוספת, הוא חובה.
+
+          המוצר שומר שורה על כל פעולה, והיא אינה נמחקת. אזור "מה שמור" שאינו
+          אומר את זה הוא בדיוק הכשל שרשומה 22 תיקנה, והפעם בידיעה.
+          DOCS/PLANING/29
+        */}
+        <Section
+          title={t.privacy.logTitle}
+          lines={[
+            t.privacy.log,
+            t.privacy.logKeeps,
+            t.privacy.logNoText,
+            t.privacy.logWhoSees,
+          ]}
+        />
+
         <Section title={t.privacy.notTitle} lines={[t.privacy.notStored, t.privacy.calendar]} />
         <Section title={t.privacy.rightsTitle} lines={[t.privacy.rights]} />
         <Section

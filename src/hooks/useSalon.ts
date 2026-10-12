@@ -19,6 +19,8 @@ import {
   watchBranches,
   watchMember,
   watchMembers,
+  watchRecentEvents,
+  watchShift,
   watchShiftsForMonth,
 } from '../services/salonService';
 
@@ -140,6 +142,38 @@ export function useMonthBinding(branchId: string | null) {
     ];
     return () => stops.forEach((stop) => stop());
   }, [branchId, member, monthKey, setShifts, setActivityDays, setAccessCodes]);
+}
+
+/**
+ * המשמרת שהלינק מצביע עליה.
+ *
+ * ⚠️ מאזין משלה ולא חיפוש ב-Store: הלינק לבקשת מחליף יכול להצביע על חודש
+ * שהלוח אינו מציג. DOCS/PLANING/28
+ *
+ * ⚠️ ותלוי ב-member ולא ב-user: קריאת משמרת דורשת חברות בסלון, ומאזין שנפתח
+ * לפני שהרשומה קיימת נדחה. DOCS/PLANING/17
+ */
+export function useShiftBinding(branchId: string | null, shiftId: string | null) {
+  const member = useStore((state) => state.member);
+  const setLinkedShift = useStore((state) => state.setLinkedShift);
+
+  useEffect(() => {
+    if (!branchId || !shiftId || !member) return;
+    return watchShift(branchId, shiftId, setLinkedShift);
+  }, [branchId, shiftId, member, setLinkedShift]);
+}
+
+/** מה שנרשם ואינו נמחק. ⚠️ למנהלת בלבד, וכך גם חוק המסד. DOCS/PLANING/29 */
+export function useEventsBinding(branchId: string | null, open: boolean) {
+  const member = useStore((state) => state.member);
+  const setEvents = useStore((state) => state.setEvents);
+
+  useEffect(() => {
+    // ⚠️ ורק כשהמסך פתוח. אין סיבה להחזיק בדפדפן את כל מה שנרשם על כולם
+    // כשאף אחד אינו מסתכל.
+    if (!open || !branchId || !member || member.role !== 'manager') return;
+    return watchRecentEvents(branchId, setEvents);
+  }, [open, branchId, member, setEvents]);
 }
 
 export async function signInWithGoogle(): Promise<void> {

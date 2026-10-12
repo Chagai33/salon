@@ -8,6 +8,7 @@ import {
   BrowserRouter,
   Link,
   Navigate,
+  Outlet,
   Route,
   Routes,
   useLocation,
@@ -23,6 +24,7 @@ import {
   signOutOfSalon,
 } from './hooks/useSalon';
 import { BoardPage } from './pages/BoardPage';
+import { ShiftPage } from './pages/ShiftPage';
 import { SalonsPage } from './pages/SalonsPage';
 import { joinBranch } from './services/salonService';
 import { toReadableError } from './utils/errors';
@@ -193,7 +195,15 @@ export function TopBar() {
 function BoardAwareTopBar() {
   const { pathname } = useLocation();
   const member = useStore((state) => state.member);
-  const onBoard = pathname.startsWith('/s/') && member?.status === 'active';
+  /*
+    ⚠️⚠️ הלוח בלבד, ולא כל מה שמתחת ל-`/s/`.
+
+    עד כאן התנאי היה `startsWith('/s/')`, וזה היה נכון כשזה היה הנתיב היחיד.
+    ⚠️ ומסך המשמרת הבודדת נוסף מתחתיו ואין לו כותרת משלו, ולכן התנאי הקודם
+    היה משאיר את מי שמגיע מלינק בלי שם, בלי יציאה ובלי מצב כהה.
+    DOCS/PLANING/28
+  */
+  const onBoard = /^\/s\/[^/]+\/?$/.test(pathname) && member?.status === 'active';
   if (onBoard) return null;
   return <TopBar />;
 }
@@ -226,7 +236,6 @@ function BranchScope() {
   }, [branchId, setBranchId]);
 
   useCurrentBranchBinding(branchId);
-  useMonthBinding(branchId);
 
   const exists = branches.some((candidate) => candidate.id === branchId);
 
@@ -246,6 +255,28 @@ function BranchScope() {
   // ⚠️ ומנהל העל אינו ממתין לאישור. בסלון שנוצר לפני שהוא תבע את המערכת אין
   // מנהלת שתאשר אותו, ולכן מסך ההמתנה היה מסך ללא יציאה.
   if (member.status === 'pending' && !canOpenBranch) return <Pending />;
+
+  /*
+    ⚠️⚠️ ומכאן והלאה המסך נקבע בנתיב, ולא כאן.
+
+    הלוח ומסך המשמרת הבודדת יושבים מאחורי אותו שער בדיוק: סלון שאינו קיים,
+    זר שאינו חבר, ומי שממתין לאישור נעצרים למעלה. ⚠️ וזה מה שפוטר את הלינק
+    של בקשת המחליף מטוקן: הוא אינו פותח דבר שלא היה פתוח ממילא לחבר.
+    DOCS/PLANING/28
+  */
+  return <Outlet />;
+}
+
+/**
+ * הלוח.
+ *
+ * ⚠️ ומאזיני החודש כאן ולא ב-BranchScope, בכוונה: מי שלוחץ על לינק לבקשת
+ * מחליף אינו צריך שייקרא עבורו כל החודש שהלוח מציג, והמשמרת שהלינק מצביע
+ * עליה אינה בהכרח באותו חודש בכלל. DOCS/PLANING/28
+ */
+function BoardRoute() {
+  const { branchId = '' } = useParams();
+  useMonthBinding(branchId);
   return <BoardPage branchId={branchId} />;
 }
 
@@ -288,7 +319,15 @@ export function Shell() {
         <Route path="/salons" element={<SalonsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />
-        <Route path="/s/:branchId" element={<BranchScope />} />
+        <Route path="/s/:branchId" element={<BranchScope />}>
+          <Route index element={<BoardRoute />} />
+          {/* ⚠️ משמרת אחת, והמזהה שלה כבר נושא את התאריך ואת התבנית.
+              `netlify.toml` מגיש כל נתיב כ-index.html, ולכן כתובת עמוקה
+              עובדת באתר החי. DOCS/PLANING/28 */}
+          <Route path="shift/:shiftId" element={<ShiftPage />} />
+        </Route>
+        {/* ⚠️ ומה שאינו נתיב מוכר חוזר הביתה. לינק לבקשה שנסגרה אינו נופל
+            לכאן: הוא נתיב מוכר, ומסך המשמרת אומר מה קרה לה. */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <div className="mt-auto">

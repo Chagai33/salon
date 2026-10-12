@@ -60,6 +60,9 @@ interface Props {
 
 export function DayEditor({ branchId, dateKey, day, name, bare = false, onClose }: Props) {
   const branch = useStore((state) => state.branch);
+  /** ⚠️ מי עורך. כל שינוי בהגדרות הסלון כותב שורה שאינה נמחקת.
+   *  DOCS/PLANING/29 */
+  const me = useStore((state) => state.member);
   const [exception, setException] = useState<Exception>(() => exceptionOf(day));
   const [closesAt, setClosesAt] = useState(day?.closesAt ?? '');
   const [note, setNote] = useState(day?.note ?? '');
@@ -114,7 +117,7 @@ export function DayEditor({ branchId, dateKey, day, name, bare = false, onClose 
         ...(branch.spaces ?? []),
         { id, name: label, isActive: true, order: (branch.spaces ?? []).length },
       ],
-    })
+    }, me?.id ?? '')
       .then(() => setNewSpace(null))
       .catch((error: unknown) => setProblem(toReadableError(error, t.errors.saveFailed)))
       .finally(() => setSavingSpace(false));

@@ -10,13 +10,14 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
   runTransaction,
   serverTimestamp,
   setDoc,
-  updateDoc,
+  Timestamp,
   where,
   writeBatch,
 } from 'firebase/firestore';
@@ -26,8 +27,12 @@ import type {
   AccessCode,
   ActivityDay,
   Branch,
+  EventAction,
+  EventDetail,
   Member,
   MemberRole,
+  SalonEvent,
+  SettingsPart,
   Shift,
   ShiftTemplate,
   User,
@@ -47,6 +52,99 @@ const membersRef = (branchId: string) => collection(db, 'branches', branchId, 'm
 const shiftsRef = (branchId: string) => collection(db, 'branches', branchId, 'shifts');
 const activityRef = (branchId: string) => collection(db, 'branches', branchId, 'activityDays');
 const codesRef = (branchId: string) => collection(db, 'branches', branchId, 'accessCodes');
+const eventsRef = (branchId: string) => collection(db, 'branches', branchId, 'events');
+
+// ---------- הרשומה שנכתבת ואינה נמחקת ----------
+//
+// ⚠️ אזור ליבה. DOCS/PLANING/29-nothing-records-that-someone-cancelled.md
+//
+// ⚠️⚠️ וכל שורה כאן נכתבת באותה אצווה או אותה טרנזקציה של הפעולה עצמה.
+// זה אינו קוסמטי: פעולה שהשורה שלה נדחתה אינה נכתבת בכלל, ולכן אין מצב שבו
+// משמרת שוחררה והשחרור אינו מתועד. ⚠️ ומה שזה אינו מבטיח: כתיבה ישירה למסד
+// מחוץ לאפליקציה. החוקים מונעים זיוף ומחיקה, ואינם מונעים שתיקה. רשומה 15.
+
+/** ⚠️ 12 חודשים, בהכרעת בעל המוצר 12/10. */
+const EVENT_MONTHS = 12;
+
+/**
+ * ⚠️⚠️ חותמת זמן, והשדה שמדיניות התפוגה של Firestore מוחקת לפיו.
+ *
+ * מדיניות `TTL` מוחקת מסמך שהשדה שלה בו הוא חותמת זמן שעברה. שדה מספרי אינו
+ * נמחק כלל, ולכן `at` לבדו היה משאיר את השורה לנצח. DOCS/PLANING/29
+ */
+function expiryOf(at: number): Timestamp {
+  const date = new Date(at);
+  date.setMonth(date.getMonth() + EVENT_MONTHS);
+  return Timestamp.fromDate(date);
+}
+
+interface EventInput {
+  actorMemberId: string;
+  action: EventAction;
+  shiftId?: string;
+  shiftDate?: string;
+  subjectMemberId?: string;
+  detail?: EventDetail;
+  count?: number;
+}
+
+/**
+ * ⚠️ שדה `undefined` מפיל את הכתיבה כולה, ולכן שדה שאין לו ערך אינו נשלח.
+ * אותה מלכודת כבר הפילה שמירת יום. DOCS/PLANING/26
+ */
+function eventFields(input: EventInput, at: number = Date.now()): Record<string, unknown> {
+  const record: Record<string, unknown> = {
+    at,
+    expiresAt: expiryOf(at),
+    actorMemberId: input.actorMemberId,
+    action: input.action,
+  };
+  for (const key of ['shiftId', 'shiftDate', 'subjectMemberId', 'detail', 'count'] as const) {
+    const value = input[key];
+    if (value !== undefined && value !== null) record[key] = value;
+  }
+  return record;
+}
+
+/**
+ * כותבת שורה אחת.
+ *
+ * ⚠️ ואינה בשימוש כללי: כל פעולה אחרת כותבת את השורה שלה באצווה של עצמה.
+ * היחיד שקורא לכאן הוא הייבוא, שאינו כתיבה אחת אלא עשרות, ולכן הוא מסכם
+ * אותן בשורה אחת אחרי שהן עברו.
+ */
+export async function logEvent(branchId: string, input: EventInput): Promise<void> {
+  await setDoc(doc(eventsRef(branchId)), eventFields(input));
+}
+
+/** האחרונות, למסך "מי עשה מה ומתי". ⚠️ למנהלת בלבד, וכך גם החוק. */
+export function watchRecentEvents(
+  branchId: string,
+  onChange: (events: SalonEvent[]) => void,
+  max = 60,
+): Unsubscribe {
+  return onSnapshot(query(eventsRef(branchId), orderBy('at', 'desc'), limit(max)), (snapshot) => {
+    onChange(snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as SalonEvent));
+  });
+}
+
+/**
+ * כל השחרורים, לדוח.
+ *
+ * ⚠️ דורש אינדקס מורכב, `action` ואחריו `at` יורד. בלעדיו Firestore מחזיר
+ * `failed-precondition`, ו-`firestore.indexes.json` נפרס בנפרד מהאפליקציה.
+ */
+export async function releaseEvents(branchId: string, max = 200): Promise<SalonEvent[]> {
+  const snapshot = await getDocs(
+    query(
+      eventsRef(branchId),
+      where('action', '==', 'shiftReleased'),
+      orderBy('at', 'desc'),
+      limit(max),
+    ),
+  );
+  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as SalonEvent);
+}
 
 // ---------- זהות וחברות ----------
 
@@ -100,11 +198,21 @@ export async function approveMember(
   memberId: string,
   approvedBy: string,
 ): Promise<void> {
-  await updateDoc(doc(membersRef(branchId), memberId), {
+  /*
+    ⚠️ `approvedBy` ו-`approvedAt` הם האישור האחרון ולא היסטוריה: חבר שאושר,
+    הושבת ואושר שוב מחזיק שורה אחת במסמך ושלוש שורות ברשומה. DOCS/PLANING/29
+  */
+  const batch = writeBatch(db);
+  batch.update(doc(membersRef(branchId), memberId), {
     status: 'active',
     approvedBy,
     approvedAt: Date.now(),
   });
+  batch.set(
+    doc(eventsRef(branchId)),
+    eventFields({ actorMemberId: approvedBy, action: 'memberApproved', subjectMemberId: memberId }),
+  );
+  await batch.commit();
 }
 
 /**
@@ -119,8 +227,22 @@ export async function setMemberRole(
   branchId: string,
   memberId: string,
   role: MemberRole,
+  actorMemberId: string,
 ): Promise<void> {
-  await updateDoc(doc(membersRef(branchId), memberId), { role });
+  const batch = writeBatch(db);
+  batch.update(doc(membersRef(branchId), memberId), { role });
+  // ⚠️ `detail` נושא את התפקיד החדש ולא את הקודם: מה שהשורה אומרת הוא מה
+  // שהמצב הפך להיות. DOCS/PLANING/29
+  batch.set(
+    doc(eventsRef(branchId)),
+    eventFields({
+      actorMemberId,
+      action: 'roleChanged',
+      subjectMemberId: memberId,
+      detail: role,
+    }),
+  );
+  await batch.commit();
 }
 
 // ---------- הסניף ----------
@@ -262,8 +384,19 @@ export async function saveBranchSettings(
   changes: Partial<
     Pick<Branch, 'name' | 'openingHours' | 'shiftTemplates' | 'spaces' | 'importIgnore'>
   >,
+  actorMemberId: string,
 ): Promise<void> {
-  await updateDoc(branchRef(branchId), changes);
+  const batch = writeBatch(db);
+  batch.update(branchRef(branchId), changes);
+  // ⚠️ שורה לכל חלק שהשתנה, כי `detail` נושא חלק אחד. שמירה שנגעה בשעות
+  // ובחללים היא שני דברים, ולא "ההגדרות".
+  for (const part of Object.keys(changes) as SettingsPart[]) {
+    batch.set(
+      doc(eventsRef(branchId)),
+      eventFields({ actorMemberId, action: 'settingsChanged', detail: part }),
+    );
+  }
+  await batch.commit();
 }
 
 // ---------- משמרות ----------
@@ -283,6 +416,34 @@ export function watchShiftsForMonth(
   return onSnapshot(q, (snapshot) => {
     onChange(snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as Shift));
   });
+}
+
+/**
+ * משמרת אחת, לפי מזהה.
+ *
+ * ⚠️ נדרשת ללינק של בקשת המחליף: הלינק מצביע על משמרת שאינה בהכרח בחודש
+ * שהלוח מציג, ולכן אי אפשר למצוא אותה ב-Store. DOCS/PLANING/28
+ */
+export function watchShift(
+  branchId: string,
+  shiftId: string,
+  onChange: (shift: Shift | null) => void,
+): Unsubscribe {
+  return onSnapshot(doc(shiftsRef(branchId), shiftId), (snapshot) => {
+    onChange(snapshot.exists() ? ({ id: snapshot.id, ...snapshot.data() } as Shift) : null);
+  });
+}
+
+/**
+ * כל משמרות הסניף, לדוח.
+ *
+ * ⚠️ קריאה אחת ולא שאילתה לכל חבר. הדוח צריך לדעת מה קרה לכל משמרת ששוחררה,
+ * ואם למי ששחרר הייתה משמרת אחרת באותו חודש, ושתי השאלות נוגעות בכל האוסף.
+ * ⚠️ והסדר גודל נמדד: 432 משמרות אפשריות בשנה. DOCS/PLANING/09
+ */
+export async function allShifts(branchId: string): Promise<Shift[]> {
+  const snapshot = await getDocs(query(shiftsRef(branchId), orderBy('date')));
+  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as Shift);
 }
 
 /** כל המשמרות של חבר. לדוחות ולזכאות שחוצה חודשים. */
@@ -311,7 +472,11 @@ export function shiftId(date: string, templateId: string): string {
  * ⚠️ ואינו דורס משמרת שכבר קיימת. `writeBatch` עם `merge` היה דורס שיבוץ,
  * ולכן נכתבות רק המשמרות שחסרות.
  */
-export async function generateMonth(branchId: string, monthKey: string): Promise<number> {
+export async function generateMonth(
+  branchId: string,
+  monthKey: string,
+  actorMemberId: string,
+): Promise<number> {
   const branch = await getDoc(branchRef(branchId));
   if (!branch.exists()) throw new Error('הסניף אינו קיים');
   const templates = (branch.data() as Branch).shiftTemplates.filter((t) => t.isActive);
@@ -348,7 +513,15 @@ export async function generateMonth(branchId: string, monthKey: string): Promise
     }
   }
 
-  if (created > 0) await batch.commit();
+  // ⚠️ `count` ולא טקסט: כמה משמרות נולדו. חודש שלא נולדו בו משמרות אינו
+  // כותב שורה, כי לא קרה דבר.
+  if (created > 0) {
+    batch.set(
+      doc(eventsRef(branchId)),
+      eventFields({ actorMemberId, action: 'monthCreated', count: created }),
+    );
+    await batch.commit();
+  }
   return created;
 }
 
@@ -373,6 +546,13 @@ export async function claimShift(
 
     // משמרת שמבוקש לה מחליף: הלוקח נכנס, והמוסר נשמר לזכאותו.
     if (shift.handoverState === 'requested' && shift.assigneeMemberId) {
+      /*
+        ⚠️ ולא המבקש עצמו. הלינק שהוא משתף בקבוצה מגיע גם אליו, ולקיחה של
+        עצמו הייתה כותבת אותו גם כמוסר וגם כלוקח, ומסיימת בקשה שאיש לא ענה
+        לה. הממשק אינו מציג לו את הכפתור, וזו החגורה. DOCS/PLANING/28
+      */
+      if (shift.assigneeMemberId === memberId) throw new Error('המשמרת כבר שלך');
+
       transaction.update(ref, {
         assigneeMemberId: memberId,
         assigneeName: memberName,
@@ -382,6 +562,18 @@ export async function claimShift(
         handoverFromMemberId: shift.assigneeMemberId,
         handoverFromName: shift.assigneeName ?? null,
       });
+      // ⚠️ ושני הצדדים נרשמים: הלוקח הוא מי שעשה, והמוסר הוא מי שזה נעשה
+      // עליו. DOCS/PLANING/29
+      transaction.set(
+        doc(eventsRef(branchId)),
+        eventFields({
+          actorMemberId: memberId,
+          action: 'handoverTaken',
+          shiftId: id,
+          shiftDate: shift.date,
+          subjectMemberId: shift.assigneeMemberId,
+        }),
+      );
       return;
     }
 
@@ -395,19 +587,65 @@ export async function claimShift(
       assignedAt: Date.now(),
       assignedBy: memberId,
     });
+    transaction.set(
+      doc(eventsRef(branchId)),
+      eventFields({
+        actorMemberId: memberId,
+        action: 'shiftAssigned',
+        shiftId: id,
+        shiftDate: shift.date,
+      }),
+    );
   });
 }
 
-/** חבר משחרר משמרת שלו, לפני שהוא ביקש מחליף. */
-export async function releaseShift(branchId: string, id: string): Promise<void> {
-  await updateDoc(doc(shiftsRef(branchId), id), {
-    assigneeMemberId: null,
-    assigneeName: null,
-    assignedAt: null,
-    assignedBy: null,
-    handoverState: 'none',
-    handoverRequestedAt: null,
-    handoverReason: null,
+/**
+ * חבר משחרר משמרת שלו, או מנהלת משחררת משמרת של חבר.
+ *
+ * ⚠️⚠️ ובטרנזקציה ולא בכתיבה ישירה, מאז שהשחרור נרשם.
+ *
+ * שבעת השדות שנכתבים `null` כאן הם כל מה שידע מי שובץ ומתי, ואחרי הכתיבה
+ * המשמרת נראית כמו משמרת שאיש לא נרשם אליה מעולם. ⚠️ ולכן מי שאיבד את
+ * המשמרת נקרא מהמסמך לפני המחיקה, ולא מהמסך של מי שלחץ: המסך יכול להיות
+ * מיושן, והשורה הזו היא הראיה היחידה שיישאר ממנה. DOCS/PLANING/29
+ */
+export async function releaseShift(
+  branchId: string,
+  id: string,
+  actorMemberId: string,
+): Promise<void> {
+  const ref = doc(shiftsRef(branchId), id);
+
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    if (!snapshot.exists()) throw new Error('המשמרת אינה קיימת');
+    const shift = snapshot.data() as Shift;
+
+    transaction.update(ref, {
+      assigneeMemberId: null,
+      assigneeName: null,
+      assignedAt: null,
+      assignedBy: null,
+      handoverState: 'none',
+      handoverRequestedAt: null,
+      handoverReason: null,
+    });
+
+    /*
+      ⚠️ `subjectMemberId` הוא מי שאיבד את המשמרת, ו-`actorMemberId` הוא מי
+      שלחץ. בהכרעת בעל המוצר 12/10 הדוח מצביע על מי שאיבד אותה, ומסמן
+      כשהמנהלת היא שעשתה זאת. שני השדות נדרשים כדי שיהיה אפשר להבחין.
+    */
+    transaction.set(
+      doc(eventsRef(branchId)),
+      eventFields({
+        actorMemberId,
+        action: 'shiftReleased',
+        shiftId: id,
+        shiftDate: shift.date,
+        subjectMemberId: shift.assigneeMemberId,
+      }),
+    );
   });
 }
 
@@ -419,36 +657,86 @@ export async function releaseShift(branchId: string, id: string): Promise<void> 
  */
 export async function requestHandover(
   branchId: string,
-  id: string,
+  shift: Shift,
+  actorMemberId: string,
   reason?: string,
 ): Promise<void> {
-  await updateDoc(doc(shiftsRef(branchId), id), {
+  const batch = writeBatch(db);
+  batch.update(doc(shiftsRef(branchId), shift.id), {
     handoverState: 'requested',
     handoverRequestedAt: Date.now(),
     handoverReason: reason ?? null,
   });
+  /*
+    ⚠️ והסיבה אינה נכתבת לשורה, גם כשהיא נכתבה למשמרת. היא טקסט חופשי,
+    והשורה הזו נשמרת 12 חודשים וקריאה לכל מנהלת שתבוא. DOCS/PLANING/29
+  */
+  batch.set(
+    doc(eventsRef(branchId)),
+    eventFields({
+      actorMemberId,
+      action: 'handoverRequested',
+      shiftId: shift.id,
+      shiftDate: shift.date,
+    }),
+  );
+  await batch.commit();
 }
 
-export async function cancelHandoverRequest(branchId: string, id: string): Promise<void> {
-  await updateDoc(doc(shiftsRef(branchId), id), {
+export async function cancelHandoverRequest(
+  branchId: string,
+  shift: Shift,
+  actorMemberId: string,
+): Promise<void> {
+  const batch = writeBatch(db);
+  batch.update(doc(shiftsRef(branchId), shift.id), {
     handoverState: 'none',
     handoverRequestedAt: null,
     handoverReason: null,
   });
+  batch.set(
+    doc(eventsRef(branchId)),
+    eventFields({
+      actorMemberId,
+      action: 'handoverCancelled',
+      shiftId: shift.id,
+      shiftDate: shift.date,
+    }),
+  );
+  await batch.commit();
 }
 
-/** המנהלת מסמנת חריג. ברירת המחדל היא שהמשמרת התקיימה. */
+/**
+ * המנהלת מסמנת חריג. ברירת המחדל היא שהמשמרת התקיימה.
+ *
+ * ⚠️ `attendanceSetBy` ו-`attendanceSetAt` על המשמרת הם מי סימן אחרון, ולכן
+ * סימון שהוחלף מוחק את הקודם. השורה כאן שומרת כל סימון בנפרד, ו-`detail`
+ * נושא את הערך שנקבע. DOCS/PLANING/29
+ */
 export async function setAttendance(
   branchId: string,
-  id: string,
+  shift: Shift,
   attendance: Shift['attendance'],
   setBy: string,
 ): Promise<void> {
-  await updateDoc(doc(shiftsRef(branchId), id), {
+  const batch = writeBatch(db);
+  batch.update(doc(shiftsRef(branchId), shift.id), {
     attendance,
     attendanceSetBy: setBy,
     attendanceSetAt: Date.now(),
   });
+  batch.set(
+    doc(eventsRef(branchId)),
+    eventFields({
+      actorMemberId: setBy,
+      action: 'attendanceSet',
+      shiftId: shift.id,
+      shiftDate: shift.date,
+      subjectMemberId: shift.assigneeMemberId,
+      detail: attendance,
+    }),
+  );
+  await batch.commit();
 }
 
 // ---------- ימי פעילות ----------
@@ -567,7 +855,19 @@ export async function setAccessCode(
     setBy,
     setAt: Date.now(),
   };
-  await setDoc(doc(codesRef(branchId), id), record);
+
+  const batch = writeBatch(db);
+  batch.set(doc(codesRef(branchId), id), record);
+  /*
+    ⚠️⚠️ והקוד עצמו אינו נכתב לשורה. זה הדבר שהמוצר כולו קיים בשבילו, והשורה
+    נשמרת 12 חודשים: היא אומרת שהקוד הוחלף ומי החליף אותו, ולא מה הוא.
+    DOCS/PLANING/29
+  */
+  batch.set(
+    doc(eventsRef(branchId)),
+    eventFields({ actorMemberId: setBy, action: 'accessCodeSet' }),
+  );
+  await batch.commit();
 }
 
 // ---------- הזרעה ----------

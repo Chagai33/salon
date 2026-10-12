@@ -23,7 +23,7 @@ import { useMemo, useState } from 'react';
 import { t } from '../../i18n/dictionary';
 import { shortDateLabel } from '../../utils/dates';
 import { monthNameOf } from '../../utils/dates';
-import { mergeActivityDay } from '../../services/salonService';
+import { logEvent, mergeActivityDay } from '../../services/salonService';
 import { readBoardImage } from '../../services/importService';
 import type { ImportedDay, ImportedEvent, ImportStage } from '../../services/importService';
 import { toReadableError } from '../../utils/errors';
@@ -139,6 +139,9 @@ export function ImportBoardImage({
   const [stage, setStage] = useState<ImportStage | null>(null);
 
   const branch = useStore((state) => state.branch);
+  /** ⚠️ מי מייבא. הייבוא כותב מידע על ימים אמיתיים, ולכן הוא נרשם.
+   *  DOCS/PLANING/29 */
+  const me = useStore((state) => state.member);
   const spaces = useMemo(
     () => (branch?.spaces ?? []).filter((space) => space.isActive),
     [branch?.spaces],
@@ -262,7 +265,22 @@ export function ImportBoardImage({
 
     setSaving(true);
     setProblem(null);
-    void Promise.all(picked.map((plan) => mergeActivityDay(branchId, plan.fields)))
+    /*
+      ⚠️ שורה אחת לייבוא, ולא שורה לכל יום. ייבוא הוא פעולה אחת של אדם אחד,
+      ו-`count` אומר בכמה ימים היא נגעה. DOCS/PLANING/29
+
+      ⚠️⚠️ ובתוך אותה רשימת כתיבות, ולא בשלב שאחריה.
+      שלב נפרד היה אומר "לא נשמר, שום דבר לא אבד" על ייבוא שכן נכתב, כי
+      הימים נכתבו קודם והשורה נפלה אחריהם.
+    */
+    void Promise.all([
+      ...picked.map((plan) => mergeActivityDay(branchId, plan.fields)),
+      logEvent(branchId, {
+        actorMemberId: me?.id ?? '',
+        action: 'importRan',
+        count: picked.length,
+      }),
+    ])
       .then(() => {
         /*
           ⚠️ נסגר, ולא נשאר פתוח עם הודעת הצלחה.
@@ -336,9 +354,11 @@ export function ImportBoardImage({
   function skipAlways(title: string) {
     if (!branch) return;
     const key = normalizeTitle(title);
-    void saveBranchSettings(branchId, {
-      importIgnore: [...(branch.importIgnore ?? []), title.trim()],
-    }).catch((error: unknown) => setProblem(toReadableError(error, t.errors.saveFailed)));
+    void saveBranchSettings(
+      branchId,
+      { importIgnore: [...(branch.importIgnore ?? []), title.trim()] },
+      me?.id ?? '',
+    ).catch((error: unknown) => setProblem(toReadableError(error, t.errors.saveFailed)));
 
     let removed = 0;
     setDays(

@@ -18,6 +18,7 @@ import { Sheet } from '../common/Sheet';
 import { Confirm } from '../common/Confirm';
 import { displayName } from '../../utils/names';
 import { ShiftCell, shiftViewState } from './ShiftCell';
+import { HandoverShare } from './HandoverShare';
 import { DayStatus } from './DayStatus';
 import { DayEvents, eventsWorthShowing } from './DayEvents';
 import { DayEditor } from './DayEditor';
@@ -109,6 +110,17 @@ export function DaySheet({
                   onRequestHandover={() => onRequestHandover(shift)}
                   onCancelHandover={() => onCancelHandover(shift)}
                 />
+
+                {/*
+                  ⚠️⚠️ הלינק להעתקה, וליד הבקשה עצמה.
+
+                  רק למי שביקש, ורק כל עוד הבקשה פתוחה. בלשון בעל המוצר:
+                  "נייצר לינק כשמישהו מבקש מחליף ואת הלינק הוא משתף בקבוצת
+                  הווצאפ של הסלון". DOCS/PLANING/28
+                */}
+                {shift.handoverState === 'requested' &&
+                  shift.assigneeMemberId === memberId &&
+                  !past && <HandoverShare branchId={branchId} shift={shift} />}
 
                 {/*
                   ⚠️ שחרור של חבר אחר, למנהלת בלבד, ובכפתור נפרד.

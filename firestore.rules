@@ -5,7 +5,9 @@ rules_version = '2';
 // חוק הרשאות אינו מאומת בקריאה שלו. הוא מאומת בניסיון כתיבה שאמור להיכשל,
 // ובראייה שהוא נכשל. DOCS/PLANING/VERIFICATION-BUDGET.md
 //
-// ✅ נבדק מול אמולטור Firestore, 41 בדיקות, כולן עוברות.
+// ✅ נבדק מול אמולטור Firestore, 68 בדיקות, כולן עוברות.
+// ⚠️ ו-24 מהן על אוסף `events`, שהוא אזור ליבה: מי כותב, על שמו, סכמה סגורה,
+//    ושאין עדכון ואין מחיקה. test/rules/events.test.mjs
 // ⚠️ שונה אחרי הפריסה של 05/10: פתיחת סלון כטננט, ותביעת המערכת, וסריקת
 //    החברים שצומצמה למנהלות. צריך להדביק שוב.
 //
@@ -186,6 +188,84 @@ service cloud.firestore {
       match /activityDays/{dayId} {
         allow read: if isMember(branchId);
         allow write: if isManager(branchId);
+      }
+
+      /**
+       * ⚠️⚠️ אזור ליבה. הרשומה שנכתבת ואינה נמחקת, שאומרת מי עשה מה ומתי.
+       *
+       * DOCS/PLANING/29-nothing-records-that-someone-cancelled.md
+       *
+       * ⚠️ ואין לדבר הזה שם במוצר, כי אין לו שורה ב-DOCS/GLOSSARY.md.
+       *
+       * ארבעה דברים נאכפים כאן, וכל אחד מהם הוא הגנה אחרת:
+       *
+       *   1. מי כותב. חבר פעיל בסניף, או מנהל המערכת. ⚠️ ומנהל המערכת ולא
+       *      רק חבר פעיל, כי הוא מאציל תפקידים בסלון שאינו חבר פעיל בו, וזו
+       *      בדיוק פעולה שחייבת להיכתב. בלי התוספת הזו ההאצלה שלו נדחית
+       *      כולה, כי השורה נכתבת באותה אצווה.
+       *
+       *   2. על שמו. `actorMemberId` חייב להיות הכותב, ולכן אי אפשר לכתוב
+       *      שורה בשם אדם אחר.
+       *
+       *   3. ⚠️⚠️ סכמה סגורה. `hasOnly` מגדיר את תשעת השדות, ו-`action`
+       *      ו-`detail` מוגבלים לרשימות. בלי זה `action` הוא מחרוזת חופשית,
+       *      וכל אחד יכול לכתוב משפט על אדם אחר לתוך שורה שנשמרת 12 חודשים.
+       *      ⚠️ וזה הכלל שאינו ניתן לאכיפה בקוד האפליקציה, כי כתיבה ישירה
+       *      למסד עוקפת אותו. כאן הוא נאכף.
+       *
+       *   4. ⚠️⚠️ אין עדכון ואין מחיקה, גם למנהלת. שורה שמי שנמצא בה יכול
+       *      למחוק ממנה אינה ראיה, והמנהלת היא בדיוק מי שהשורה מתעדת
+       *      כשהיא מחליפה קוד או משנה הרשאות.
+       *
+       * ⚠️ והמחיקה היחידה היא תפוגה, ואינה חוק: מדיניות `TTL` על `expiresAt`,
+       * 12 חודשים, ב-`firestore.indexes.json`. ⚠️ ולכן `expiresAt` חייב להיות
+       * חותמת זמן, ונאכף כאן: מדיניות תפוגה על שדה מספרי אינה מוחקת דבר.
+       */
+      match /events/{eventId} {
+        allow create: if (isActive(branchId) || isPlatformAdmin())
+          && request.resource.data.actorMemberId == request.auth.uid
+          && request.resource.data.keys().hasOnly([
+               'at', 'expiresAt', 'actorMemberId', 'action',
+               'shiftId', 'shiftDate', 'subjectMemberId', 'detail', 'count'
+             ])
+          && request.resource.data.keys().hasAll([
+               'at', 'expiresAt', 'actorMemberId', 'action'
+             ])
+          && request.resource.data.at is number
+          && request.resource.data.expiresAt is timestamp
+          && request.resource.data.action in [
+               'shiftAssigned', 'shiftReleased', 'handoverRequested',
+               'handoverCancelled', 'handoverTaken', 'attendanceSet',
+               'memberApproved', 'memberRejected', 'memberDeactivated',
+               'memberReactivated', 'roleChanged',
+               'accessCodeSet', 'settingsChanged', 'monthCreated', 'importRan'
+             ]
+          && (
+            !request.resource.data.keys().hasAny(['detail'])
+            || request.resource.data.detail in [
+                 'assumed', 'confirmed', 'noShow', 'cancelled',
+                 'member', 'manager',
+                 'name', 'openingHours', 'shiftTemplates', 'spaces', 'importIgnore'
+               ]
+          )
+          && (
+            !request.resource.data.keys().hasAny(['count'])
+            || request.resource.data.count is number
+          );
+
+        allow update, delete: if false;
+
+        /*
+          ⚠️⚠️ וכאן הפער שנשאר פתוח בהכרעת בעל המוצר 12/10, סעיף 1.
+          `list` למנהלת בלבד, וחוקי Firestore אינם בודקים את תנאי השאילתה,
+          ולכן גם שאילתה שחבר מסנן לעצמו נדחית. כלומר חבר אינו יכול לראות
+          את מה שנרשם עליו, וזה סותר את כלל הפרטיות השלישי באותה רשומה.
+          ⚠️ וההבטחה נאמרת במילים במסך הפרטיות במקום להישאר שבורה בשקט.
+          DOCS/PLANING/30-a-member-cannot-read-their-own-record.md
+        */
+        allow get: if isManager(branchId)
+          || (signedIn() && resource.data.actorMemberId == request.auth.uid);
+        allow list: if isManager(branchId);
       }
 
       // ⚠️⚠️ כאן יושב החור היחיד שידוע מראש, והוא הפיצ'ר המרכזי.

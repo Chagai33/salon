@@ -4,7 +4,15 @@
 // אל תתקן אותו ביד כדי ש"המסך ייראה נכון": קרא לשירות, והמאזין יעדכן.
 
 import { create } from 'zustand';
-import type { AccessCode, ActivityDay, Branch, Member, Shift, User } from '../types';
+import type {
+  AccessCode,
+  ActivityDay,
+  Branch,
+  Member,
+  SalonEvent,
+  Shift,
+  User,
+} from '../types';
 import { toMonthKey } from '../utils/dates';
 
 interface AppState {
@@ -26,8 +34,18 @@ interface AppState {
   isSystemClaimed: boolean | null;
   monthKey: string;
   shifts: Shift[];
+  /**
+   * המשמרת שהלינק מצביע עליה.
+   *
+   * ⚠️ ואינה נלקחת מתוך `shifts`: הלינק מצביע על משמרת שאינה בהכרח בחודש
+   * שהלוח מציג, ולכן היא נקראת במאזין משלה. DOCS/PLANING/28
+   */
+  linkedShift: Shift | null;
+  isLinkedShiftLoading: boolean;
   activityDays: ActivityDay[];
   accessCodes: AccessCode[];
+  /** ⚠️ מה שנרשם ואינו נמחק, ונקרא למנהלת בלבד. DOCS/PLANING/29 */
+  events: SalonEvent[];
   isAuthResolved: boolean;
   isMonthLoading: boolean;
   error: string | null;
@@ -43,8 +61,10 @@ interface AppState {
   setSystemClaimed: (claimed: boolean) => void;
   setMonthKey: (monthKey: string) => void;
   setShifts: (shifts: Shift[]) => void;
+  setLinkedShift: (shift: Shift | null) => void;
   setActivityDays: (days: ActivityDay[]) => void;
   setAccessCodes: (codes: AccessCode[]) => void;
+  setEvents: (events: SalonEvent[]) => void;
   setAuthResolved: (resolved: boolean) => void;
   setMonthLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -64,8 +84,11 @@ const blank = {
   canOpenBranch: false,
   isSystemClaimed: null,
   shifts: [],
+  linkedShift: null,
+  isLinkedShiftLoading: true,
   activityDays: [],
   accessCodes: [],
+  events: [],
 };
 
 export const useStore = create<AppState>((set) => ({
@@ -86,15 +109,28 @@ export const useStore = create<AppState>((set) => ({
     set((state) =>
       state.branchId === branchId
         ? state
-        : { branchId, branch: null, member: null, members: [], shifts: [], activityDays: [], accessCodes: [] },
+        : {
+            branchId,
+            branch: null,
+            member: null,
+            members: [],
+            shifts: [],
+            linkedShift: null,
+            isLinkedShiftLoading: true,
+            activityDays: [],
+            accessCodes: [],
+            events: [],
+          },
     ),
   setMyMemberships: (myMemberships) => set({ myMemberships, areMembershipsLoading: false }),
   setCanOpenBranch: (canOpenBranch) => set({ canOpenBranch }),
   setSystemClaimed: (isSystemClaimed) => set({ isSystemClaimed }),
   setMonthKey: (monthKey) => set({ monthKey, isMonthLoading: true }),
   setShifts: (shifts) => set({ shifts, isMonthLoading: false }),
+  setLinkedShift: (linkedShift) => set({ linkedShift, isLinkedShiftLoading: false }),
   setActivityDays: (activityDays) => set({ activityDays }),
   setAccessCodes: (accessCodes) => set({ accessCodes }),
+  setEvents: (events) => set({ events }),
   setAuthResolved: (isAuthResolved) => set({ isAuthResolved }),
   setMonthLoading: (isMonthLoading) => set({ isMonthLoading }),
   setError: (error) => set({ error }),

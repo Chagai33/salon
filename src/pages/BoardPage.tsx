@@ -27,6 +27,8 @@ import { Legend } from '../components/board/Legend';
 import { DaySheet } from '../components/board/DaySheet';
 import { ImportBoardImage } from '../components/admin/ImportBoardImage';
 import { MembersPanel } from '../components/admin/MembersPanel';
+import { EventLogPanel } from '../components/admin/EventLogPanel';
+import { ReleasesReport } from '../components/admin/ReleasesReport';
 import { PageHeader } from '../components/layout/PageHeader';
 import { SideMenu } from '../components/layout/SideMenu';
 import { Sheet } from '../components/common/Sheet';
@@ -94,6 +96,9 @@ export function BoardPage({ branchId }: { branchId: string }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  /** ⚠️ שני המסכים של המנהלת, ונטענים רק כשהם נפתחים. DOCS/PLANING/29 */
+  const [logOpen, setLogOpen] = useState(false);
+  const [releasesOpen, setReleasesOpen] = useState(false);
   const navigate = useNavigate();
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -134,12 +139,20 @@ export function BoardPage({ branchId }: { branchId: string }) {
     }
   }
 
+  /*
+    ⚠️ ומי לחץ נמסר לכל פעולה, ולא רק מה נעשה.
+
+    כל אחת מהן כותבת שורה שאינה נמחקת, והשורה חייבת לדעת מי עשה אותה. בשחרור
+    זה גם מה שמבדיל בין חבר ששחרר את שלו לבין מנהלת ששחררה של מישהו.
+    DOCS/PLANING/29
+  */
   const onClaim = (shift: Shift) =>
     guarded(() => claimShift(branchId, shift.id, member!.id, member!.displayName));
-  const onRelease = (shift: Shift) => guarded(() => releaseShift(branchId, shift.id));
-  const onRequestHandover = (shift: Shift) => guarded(() => requestHandover(branchId, shift.id));
+  const onRelease = (shift: Shift) => guarded(() => releaseShift(branchId, shift.id, member!.id));
+  const onRequestHandover = (shift: Shift) =>
+    guarded(() => requestHandover(branchId, shift, member!.id));
   const onCancelHandover = (shift: Shift) =>
-    guarded(() => cancelHandoverRequest(branchId, shift.id));
+    guarded(() => cancelHandoverRequest(branchId, shift, member!.id));
 
   if (!branch) {
     return <p className="p-6 text-ink-soft">{t.errors.noBranch}</p>;
@@ -230,7 +243,7 @@ export function BoardPage({ branchId }: { branchId: string }) {
                 disabled={generating}
                 onClick={() => {
                   setGenerating(true);
-                  void generateMonth(branchId, monthKey)
+                  void generateMonth(branchId, monthKey, member!.id)
                     .catch((error: unknown) => setError(toReadableError(error, t.errors.saveFailed)))
                     .finally(() => setGenerating(false));
                 }}
@@ -301,6 +314,23 @@ export function BoardPage({ branchId }: { branchId: string }) {
         />
       )}
 
+      {/*
+        ⚠️ שני מסכים של המנהלת, וכל אחד בגיליון משלו.
+        ⚠️⚠️ ולמסך הראשון אין שם במוצר: אין לדבר שורה ב-DOCS/GLOSSARY.md,
+        ולכן הכותרת היא משפט שאומר מה הוא. DOCS/PLANING/29
+      */}
+      {logOpen && isManager && (
+        <Sheet title={t.log.title} onClose={() => setLogOpen(false)}>
+          <EventLogPanel branchId={branchId} />
+        </Sheet>
+      )}
+
+      {releasesOpen && isManager && (
+        <Sheet title={t.releases.title} onClose={() => setReleasesOpen(false)}>
+          <ReleasesReport branchId={branchId} />
+        </Sheet>
+      )}
+
       {/* ⚠️ החברים בגיליון משלהם, מאייקון בכותרת. */}
       {membersOpen && canManageMembers && (
         <Sheet title={t.manager.membersTitle} onClose={() => setMembersOpen(false)}>
@@ -354,6 +384,30 @@ export function BoardPage({ branchId }: { branchId: string }) {
                 }}
               >
                 {t.importImage.title}
+              </Button>
+
+              <Button
+                tone="secondary"
+                block
+                className="min-h-12 justify-start"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setReleasesOpen(true);
+                }}
+              >
+                {t.releases.open}
+              </Button>
+
+              <Button
+                tone="secondary"
+                block
+                className="min-h-12 justify-start"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setLogOpen(true);
+                }}
+              >
+                {t.log.open}
               </Button>
             </>
           )}

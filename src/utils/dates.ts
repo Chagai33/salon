@@ -83,6 +83,19 @@ export function shortDateLabel(dateKey: string): string {
   return `${date.getDate()} ב${MONTH_NAMES[date.getMonth()]}`;
 }
 
+/**
+ * `14 באוקטובר, 09:12`.
+ *
+ * ⚠️ לשורה שנכתבת ואינה נמחקת, ולדוח. DOCS/PLANING/29
+ * ⚠️ ושעון 24 שעות, כמו בכל המוצר ובגיליון.
+ */
+export function stampLabel(at: number): string {
+  const date = new Date(at);
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  return `${shortDateLabel(toDateKey(date))}, ${hour}:${minute}`;
+}
+
 export function addMonths(monthKey: string, delta: number): string {
   const [year, month] = monthKey.split('-').map(Number);
   const date = new Date(year, month - 1 + delta, 1);
