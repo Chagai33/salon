@@ -19,7 +19,6 @@ import {
   watchBranches,
   watchMember,
   watchMembers,
-  watchRecentEvents,
   watchShift,
   watchShiftsForMonth,
 } from '../services/salonService';
@@ -161,19 +160,6 @@ export function useShiftBinding(branchId: string | null, shiftId: string | null)
     if (!branchId || !shiftId || !member) return;
     return watchShift(branchId, shiftId, setLinkedShift);
   }, [branchId, shiftId, member, setLinkedShift]);
-}
-
-/** מה שנרשם ואינו נמחק. ⚠️ למנהלת בלבד, וכך גם חוק המסד. DOCS/PLANING/29 */
-export function useEventsBinding(branchId: string | null, open: boolean) {
-  const member = useStore((state) => state.member);
-  const setEvents = useStore((state) => state.setEvents);
-
-  useEffect(() => {
-    // ⚠️ ורק כשהמסך פתוח. אין סיבה להחזיק בדפדפן את כל מה שנרשם על כולם
-    // כשאף אחד אינו מסתכל.
-    if (!open || !branchId || !member || member.role !== 'manager') return;
-    return watchRecentEvents(branchId, setEvents);
-  }, [open, branchId, member, setEvents]);
 }
 
 export async function signInWithGoogle(): Promise<void> {

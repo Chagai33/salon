@@ -9,7 +9,6 @@ import type {
   ActivityDay,
   Branch,
   Member,
-  SalonEvent,
   Shift,
   User,
 } from '../types';
@@ -44,8 +43,6 @@ interface AppState {
   isLinkedShiftLoading: boolean;
   activityDays: ActivityDay[];
   accessCodes: AccessCode[];
-  /** ⚠️ מה שנרשם ואינו נמחק, ונקרא למנהלת בלבד. DOCS/PLANING/29 */
-  events: SalonEvent[];
   isAuthResolved: boolean;
   isMonthLoading: boolean;
   error: string | null;
@@ -64,7 +61,6 @@ interface AppState {
   setLinkedShift: (shift: Shift | null) => void;
   setActivityDays: (days: ActivityDay[]) => void;
   setAccessCodes: (codes: AccessCode[]) => void;
-  setEvents: (events: SalonEvent[]) => void;
   setAuthResolved: (resolved: boolean) => void;
   setMonthLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -88,7 +84,6 @@ const blank = {
   isLinkedShiftLoading: true,
   activityDays: [],
   accessCodes: [],
-  events: [],
 };
 
 export const useStore = create<AppState>((set) => ({
@@ -119,7 +114,6 @@ export const useStore = create<AppState>((set) => ({
             isLinkedShiftLoading: true,
             activityDays: [],
             accessCodes: [],
-            events: [],
           },
     ),
   setMyMemberships: (myMemberships) => set({ myMemberships, areMembershipsLoading: false }),
@@ -130,7 +124,6 @@ export const useStore = create<AppState>((set) => ({
   setLinkedShift: (linkedShift) => set({ linkedShift, isLinkedShiftLoading: false }),
   setActivityDays: (activityDays) => set({ activityDays }),
   setAccessCodes: (accessCodes) => set({ accessCodes }),
-  setEvents: (events) => set({ events }),
   setAuthResolved: (isAuthResolved) => set({ isAuthResolved }),
   setMonthLoading: (isMonthLoading) => set({ isMonthLoading }),
   setError: (error) => set({ error }),

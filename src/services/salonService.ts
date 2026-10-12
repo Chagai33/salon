@@ -117,32 +117,22 @@ export async function logEvent(branchId: string, input: EventInput): Promise<voi
   await setDoc(doc(eventsRef(branchId)), eventFields(input));
 }
 
-/** האחרונות, למסך "מי עשה מה ומתי". ⚠️ למנהלת בלבד, וכך גם החוק. */
-export function watchRecentEvents(
-  branchId: string,
-  onChange: (events: SalonEvent[]) => void,
-  max = 60,
-): Unsubscribe {
-  return onSnapshot(query(eventsRef(branchId), orderBy('at', 'desc'), limit(max)), (snapshot) => {
-    onChange(snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as SalonEvent));
-  });
-}
-
 /**
- * כל השחרורים, לדוח.
+ * כל השורות של הסניף, האחרונה ראשונה. ⚠️ למנהלת בלבד, וכך גם החוק.
  *
- * ⚠️ דורש אינדקס מורכב, `action` ואחריו `at` יורד. בלעדיו Firestore מחזיר
- * `failed-precondition`, ו-`firestore.indexes.json` נפרס בנפרד מהאפליקציה.
+ * ⚠️⚠️ קריאה אחת לשני המסכים, והסינון בדפדפן, בכוונה.
+ *
+ * הדוח צריך לראות גם לקיחות ולא רק שחרורים, כדי לדעת מי חזר למשמרת שהוא
+ * שחרר, רשומה 32. ומסך "מי עשה מה ומתי" מסנן לפי סוג ולפי אדם, בהכרעת בעל
+ * המוצר 12/10, סעיף 4. ⚠️ סינון במסד היה דורש אינדקס לכל צירוף, וכל אינדקס
+ * הוא עריכה של קובץ יסוד ופריסה נפרדת.
+ *
+ * ⚠️ והסדר גודל אינו נמדד: הערכה של 250 עד 400 שורות בשנה מתוך 214 השיבוצים
+ * של 2026, רשומה 33. התפוגה היא 12 חודשים, ולכן 2000 הן כמה שנים של מרווח.
+ * ⚠️ ו-`orderBy('at')` לבדו אינו דורש אינדקס מורכב.
  */
-export async function releaseEvents(branchId: string, max = 200): Promise<SalonEvent[]> {
-  const snapshot = await getDocs(
-    query(
-      eventsRef(branchId),
-      where('action', '==', 'shiftReleased'),
-      orderBy('at', 'desc'),
-      limit(max),
-    ),
-  );
+export async function loadEvents(branchId: string, max = 2000): Promise<SalonEvent[]> {
+  const snapshot = await getDocs(query(eventsRef(branchId), orderBy('at', 'desc'), limit(max)));
   return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as SalonEvent);
 }
 
@@ -755,6 +745,27 @@ export function watchActivityDaysForMonth(
   return onSnapshot(q, (snapshot) => {
     onChange(snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as ActivityDay));
   });
+}
+
+/**
+ * ימי הפעילות של חודש, בקריאה אחת.
+ *
+ * ⚠️ לדוח החודשי, שצריך לדעת אילו ימים המנהלת סגרה לחברים: אין בהם משמרת,
+ * ולכן הם אינם נספרים, בדיוק כמו בלוח. אותה שאילתה כמו המאזין שלמעלה.
+ */
+export async function activityDaysOfMonth(
+  branchId: string,
+  monthKey: string,
+): Promise<ActivityDay[]> {
+  const snapshot = await getDocs(
+    query(
+      activityRef(branchId),
+      where('date', '>=', `${monthKey}-01`),
+      where('date', '<=', `${monthKey}-31`),
+      orderBy('date'),
+    ),
+  );
+  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as ActivityDay);
 }
 
 export async function saveActivityDay(

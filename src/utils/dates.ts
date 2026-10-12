@@ -84,16 +84,18 @@ export function shortDateLabel(dateKey: string): string {
 }
 
 /**
- * `14 באוקטובר, 09:12`.
+ * `09:12`, השעה של רגע בזמן. ⚠️ שעון 24 שעות, כמו בכל המוצר ובגיליון.
  *
- * ⚠️ לשורה שנכתבת ואינה נמחקת, ולדוח. DOCS/PLANING/29
- * ⚠️ ושעון 24 שעות, כמו בכל המוצר ובגיליון.
+ * ⚠️⚠️ והשעה לבדה ולא "14 באוקטובר, 09:12" במחרוזת אחת.
+ * מחרוזת אחת עטופה ב-`num` שמה שם חודש בעברית בתוך בלוק משמאל לימין, והתאריך
+ * נקרא הפוך, `באוקטובר, 09:12 14`. זה קרה, רשומה 31. ⚠️ ולכן התאריך נכתב
+ * ב-`shortDateLabel` בזרם העברי, ורק השעה ב-`num`. ראו `Stamp`.
  */
-export function stampLabel(at: number): string {
+export function timeOf(at: number): string {
   const date = new Date(at);
   const hour = String(date.getHours()).padStart(2, '0');
   const minute = String(date.getMinutes()).padStart(2, '0');
-  return `${shortDateLabel(toDateKey(date))}, ${hour}:${minute}`;
+  return `${hour}:${minute}`;
 }
 
 export function addMonths(monthKey: string, delta: number): string {

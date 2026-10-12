@@ -29,6 +29,33 @@ export function displayName(raw: string): string {
   return `${first} ${second[0]}.`;
 }
 
+/**
+ * שם לכל חבר במסכי המנהלת, ⚠️ ומייל כששני אנשים נושאים אותו שם.
+ *
+ * בצילום של בעל המוצר, 12/10, `chagai yechiel` ו-`Chagai yechiel` היו שני
+ * חשבונות Google, ולא היה אפשר להבחין ביניהם. רשומה 32. ⚠️ וההשוואה בלי
+ * אותיות גדולות, כי זה בדיוק ההבדל שהיה שם.
+ *
+ * ⚠️ ולמנהלת מותר לראות את המייל, רשומה 22. זה אינו נכון לחבר, ולכן זה אינו
+ * משמש בשום מסך שחבר רואה.
+ */
+export function managerLabels(
+  members: { id: string; displayName: string; email?: string }[],
+): Map<string, string> {
+  const count = new Map<string, number>();
+  for (const member of members) {
+    const key = fullName(member.displayName).toLocaleLowerCase();
+    count.set(key, (count.get(key) ?? 0) + 1);
+  }
+  const out = new Map<string, string>();
+  for (const member of members) {
+    const name = fullName(member.displayName);
+    const shared = (count.get(name.toLocaleLowerCase()) ?? 0) > 1;
+    out.set(member.id, shared && member.email ? `${name} (${member.email})` : name);
+  }
+  return out;
+}
+
 /** השם הפרטי בלבד, לפנייה. `שלום, דנה`. */
 export function firstName(raw: string): string {
   const [first] = fullName(raw).split(/\s+/u);

@@ -6,30 +6,53 @@
 // ⚠️ ולמסך הזה אין שם במוצר, ובכוונה. אין לדבר שורה ב-DOCS/GLOSSARY.md, ולפי
 // CLAUDE.md דבר בלי שורה אינו מקבל שם אלא משפט שמסביר. הכותרת היא המשפט.
 //
-// ⚠️⚠️ ומה שאין כאן: התחברויות, ואף הרשמה.
-// בלשון בעל המוצר, 12/10: "רק אישור משתמש / הענקת הרשאות ולא סתם כניסות."
-// 42 חברים שנכנסים לראות את הקוד פעם בחודש מייצרים רשימה שבה הפעילות
-// האמיתית נקברת, ו"מי נכנס מתי" הוא מעקב ולא ביקורת.
+// ⚠️⚠️ הכל, עם שני מסננים, בהכרעת בעל המוצר 12/10, סעיף 4: "מי עשה מה ומתי
+// זה סוג של לוג". DOCS/PLANING/33
+//
+// ⚠️ ומה שאין כאן: התחברויות, ואף הרשמה. בלשון בעל המוצר: "רק אישור משתמש /
+// הענקת הרשאות ולא סתם כניסות."
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../../store/useStore';
-import { useEventsBinding } from '../../hooks/useSalon';
+import { loadEvents } from '../../services/salonService';
 import { t } from '../../i18n/dictionary';
-import { shortDateLabel, stampLabel } from '../../utils/dates';
-import { fullName } from '../../utils/names';
-import type { Attendance, EventDetail, MemberRole, SalonEvent, SettingsPart } from '../../types';
+import { shortDateLabel } from '../../utils/dates';
+import { managerLabels } from '../../utils/names';
+import { toReadableError } from '../../utils/errors';
+import { Button } from '../common/Button';
+import { Stamp } from '../common/Stamp';
+import type {
+  Attendance,
+  EventAction,
+  EventDetail,
+  MemberRole,
+  SalonEvent,
+  SettingsPart,
+} from '../../types';
 
-/** ⚠️ שם מלא ולא מקוצר: זה מסך שבו מזהים אדם, כמו מסך החברים. */
-function nameLookup(members: { id: string; displayName: string }[]) {
-  const byId = new Map(members.map((member) => [member.id, member.displayName]));
-  return (id: string | undefined): string => {
-    if (!id) return '';
-    const found = byId.get(id);
-    // ⚠️ מי שאינו ברשימה אינו נעלם מהשורה. חבר יכול להיות מחוץ לרשימה
-    // שהמאזין מחזיק, והשורה עליו נשמרת 12 חודשים בלי קשר.
-    return found ? fullName(found) : t.log.unknownMember;
-  };
-}
+/** שלוש המשפחות של רשומה 29. */
+type Family = 'all' | 'shifts' | 'members' | 'settings';
+
+const FAMILY: Record<EventAction, Exclude<Family, 'all'>> = {
+  shiftAssigned: 'shifts',
+  shiftReleased: 'shifts',
+  handoverRequested: 'shifts',
+  handoverCancelled: 'shifts',
+  handoverTaken: 'shifts',
+  attendanceSet: 'shifts',
+  memberApproved: 'members',
+  memberRejected: 'members',
+  memberDeactivated: 'members',
+  memberReactivated: 'members',
+  roleChanged: 'members',
+  accessCodeSet: 'settings',
+  settingsChanged: 'settings',
+  monthCreated: 'settings',
+  importRan: 'settings',
+};
+
+/** ⚠️ כמה שורות בכל פעם. עשרות אנשים בשנה הם מאות שורות, ולא כולן במסך. */
+const PAGE = 100;
 
 function attendanceLabel(detail: EventDetail | undefined): string {
   if (detail && detail in t.log.attendance) return t.log.attendance[detail as Attendance];
@@ -96,14 +119,61 @@ export function lineOf(event: SalonEvent, nameOf: (id: string | undefined) => st
   }
 }
 
-export function EventLogPanel({ branchId }: { branchId: string }) {
-  useEventsBinding(branchId, true);
+const field =
+  'min-h-11 w-full rounded-lg border border-line-strong bg-surface px-3 text-sm text-ink';
 
-  const events = useStore((state) => state.events);
+export function EventLogPanel({ branchId }: { branchId: string }) {
   const members = useStore((state) => state.members);
-  // ⚠️ ב-useMemo ולא בגוף הרכיב: `nameLookup` בונה `Map` חדש, וזה בדיוק
-  // הדפוס שהפיל את המסך פעם אחת. CLAUDE.md, זרימת נתונים.
-  const nameOf = useMemo(() => nameLookup(members), [members]);
+  const setError = useStore((state) => state.setError);
+
+  /** ⚠️ null פירושו שעוד לא נקרא, ולא שאין שורות. */
+  const [events, setEvents] = useState<SalonEvent[] | null>(null);
+  const [family, setFamily] = useState<Family>('all');
+  const [person, setPerson] = useState('');
+  const [shown, setShown] = useState(PAGE);
+
+  useEffect(() => {
+    let cancelled = false;
+    // ⚠️ קריאה אחת כשהמסך נפתח, ולא מאזין. שורה שתיכתב בזמן שהוא פתוח אינה
+    // שווה מאזין על כל האוסף.
+    void loadEvents(branchId)
+      .then((rows) => {
+        if (!cancelled) setEvents(rows);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setError(toReadableError(error, t.errors.loadMonth));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [branchId, setError]);
+
+  // ⚠️ ב-useMemo ולא בבורר: כל אחת מהגזירות האלה בונה מבנה חדש. CLAUDE.md
+  const labels = useMemo(() => managerLabels(members), [members]);
+  const nameOf = useMemo(
+    () => (id: string | undefined) => (id ? (labels.get(id) ?? t.log.unknownMember) : ''),
+    [labels],
+  );
+  const people = useMemo(
+    () => [...labels.entries()].sort((a, b) => a[1].localeCompare(b[1], 'he')),
+    [labels],
+  );
+
+  const filtered = useMemo(
+    () =>
+      (events ?? []).filter(
+        (event) =>
+          (family === 'all' || FAMILY[event.action] === family) &&
+          // ⚠️ "אדם" הוא גם מי שעשה וגם מי שזה נעשה עליו. מנהלת שמחפשת
+          // חבר צריכה לראות גם את השחרור שמנהלת עשתה לו.
+          (!person || event.actorMemberId === person || event.subjectMemberId === person),
+      ),
+    [events, family, person],
+  );
+
+  if (!events) return <p className="text-sm text-ink-soft">{t.log.loading}</p>;
+
+  const visible = filtered.slice(0, shown);
 
   return (
     <div className="flex flex-col gap-3">
@@ -113,20 +183,71 @@ export function EventLogPanel({ branchId }: { branchId: string }) {
       {events.length === 0 ? (
         <p className="text-sm text-ink-faint">{t.log.empty}</p>
       ) : (
-        <ul className="flex flex-col divide-y divide-line">
-          {events.map((event) => (
-            <li key={event.id} className="flex flex-col gap-0.5 py-2">
-              <span className="text-sm text-ink">{lineOf(event, nameOf)}</span>
-              <span className="text-xs text-ink-faint">
-                {/* ⚠️ מי עשה, ואחריו מתי. ⚠️ ושעה בתוך עברית נושאת כיוון
-                    משלה, ולכן התאריך והשעה יושבים ב-num. */}
-                <bdi>{nameOf(event.actorMemberId)}</bdi>
-                {' · '}
-                <span className="num">{stampLabel(event.at)}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
+        <>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-xs text-ink-soft">
+              {t.log.filterType}
+              <select
+                className={field}
+                value={family}
+                onChange={(event) => {
+                  setFamily(event.target.value as Family);
+                  setShown(PAGE);
+                }}
+              >
+                <option value="all">{t.log.typeAll}</option>
+                <option value="shifts">{t.log.typeShifts}</option>
+                <option value="members">{t.log.typeMembers}</option>
+                <option value="settings">{t.log.typeSettings}</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-ink-soft">
+              {t.log.filterPerson}
+              <select
+                className={field}
+                value={person}
+                onChange={(event) => {
+                  setPerson(event.target.value);
+                  setShown(PAGE);
+                }}
+              >
+                <option value="">{t.log.personAll}</option>
+                {people.map(([id, label]) => (
+                  <option key={id} value={id}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <p className="text-xs text-ink-faint">{t.log.count(visible.length, filtered.length)}</p>
+
+          {filtered.length === 0 ? (
+            <p className="text-sm text-ink-faint">{t.log.noMatch}</p>
+          ) : (
+            <ul className="flex flex-col divide-y divide-line">
+              {visible.map((event) => (
+                <li key={event.id} className="flex flex-col gap-0.5 py-2">
+                  <span className="text-sm text-ink">{lineOf(event, nameOf)}</span>
+                  <span className="text-xs text-ink-faint">
+                    <bdi>{nameOf(event.actorMemberId)}</bdi>
+                    {' · '}
+                    <Stamp at={event.at} />
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {filtered.length > shown && (
+            <div>
+              <Button tone="secondary" size="sm" onClick={() => setShown((count) => count + PAGE)}>
+                {t.log.more}
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
