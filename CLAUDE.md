@@ -129,6 +129,15 @@ firebase deploy --only firestore:rules,firestore:indexes --project hasalon-dev
 המורכב שבאותו קובץ אינו בשימוש עוד**, רשומה
 [33](DOCS/PLANING/33-the-manager-screens-are-lists-and-the-question-is-about-people.md).
 
+⚠️⚠️ **ופונקציות הענן נפרסות בנפרד גם הן, ואינן עולות עם Netlify.** שלוש,
+נמדד ב-`functions:list` 12/10: `readBoardImage` לייבוא מתמונה, `manageBranch`
+לסגירה ולמחיקה של סלון, ו-`deleteDueBranches`, המחיקה עצמה, כל יום ב-03:00.
+רשומה [35](DOCS/PLANING/35-there-is-no-way-to-delete-a-salon.md).
+
+```bash
+npx -y firebase-tools@14 deploy --only functions --project hasalon-dev
+```
+
 **אין דחיפה, מיזוג או פריסה בלי הוראה מפורשת של בעל המוצר.**
 
 
