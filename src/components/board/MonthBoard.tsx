@@ -214,27 +214,44 @@ export function MonthBoard({
                       <DayName name={access.name} />
                       <DayStatus access={access} weekend={weekend} />
 
-                      {/* ⚠️ נקודה ולא טקסט. ההערה המלאה בגיליון היום, והיא מה
-                          ששבר את גובה השורה. */}
-                      {/* ⚠️ ובשישי ושבת גם הנקודה אינה מופיעה: ההערה שם אומרת
-                          את מה שהקו האלכסוני כבר אומר. */}
-                      {access.note && !weekend && (
-                        <span
-                          aria-hidden="true"
-                          title={access.note}
-                          className="ms-auto size-1.5 shrink-0 rounded-full bg-ink-faint"
-                        />
-                      )}
                     </div>
 
-                    {/* שורה 2: פעילות. ⚠️ שורה אחת, והיתר נספרות. */}
+                    {/*
+                      שורה 2: יש הערה. ⚠️ המילה ולא ההערה עצמה: ההערה המלאה
+                      בגיליון היום, והיא מה ששבר את גובה השורה.
+
+                      ⚠️⚠️ ומילה ולא נקודה. בעל המוצר, 12/10: "לא ברור שיש שם
+                      הערה". הנקודה הייתה בקוטר 6 פיקסלים, `aria-hidden`,
+                      ונחשפה רק בריחוף עכבר. סימן אינו נושא משמעות בצורה
+                      לבד, DOCS/PLANING/03.
+
+                      ⚠️⚠️ ושורה משלה ולא השורה העליונה. נמדד ברוחב תא אמיתי,
+                      148 פיקסלים: ביום שהמנהלת כתבה בו גם מצב, התגית נחתכה
+                      ל"הער". בשורה משלה התא המלא ביותר, מצב והערה ואירוע
+                      ושתי משמרות, נמדד בגלישה אפס.
+
+                      ⚠️ ובשישי ושבת היא אינה מופיעה: ההערה שם אומרת את מה
+                      שהעמודה השקטה כבר אומרת.
+                    */}
+                    {access.note && !weekend && (
+                      <div className="shrink-0">
+                        <span
+                          title={access.note}
+                          className="inline-flex rounded-full bg-surface px-1.5 py-0.5 text-[11px] font-medium text-ink-soft ring-1 ring-inset ring-line"
+                        >
+                          {t.day.noteMark}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* שורה 3: פעילות. ⚠️ שורה אחת, והיתר נספרות. */}
                     {events.length > 0 && (
                       <div className="shrink-0">
                         <DayEvents events={events} limit={1} />
                       </div>
                     )}
 
-                    {/* שורה 3: המשמרות. ⚠️ וזה הדבר היחיד בתא שנושא צבע. */}
+                    {/* שורה 4: המשמרות. ⚠️ וזה הדבר היחיד בתא שנושא צבע. */}
                     {!noShifts && (
                       <div className="flex min-h-0 flex-col gap-1">
                         {/* ⚠️ לפי השעון ולא לפי סדר התבניות. DOCS/PLANING/26 */}

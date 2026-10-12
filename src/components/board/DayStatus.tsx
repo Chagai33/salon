@@ -49,8 +49,26 @@ export function DayName({ name }: { name?: string }) {
   return <span className="truncate text-xs font-medium text-activity">{name}</span>;
 }
 
-/** ההערה שהמנהלת כתבה ליום. ⚠️ ואינה תופסת מקום כשאין. */
+/*
+  ההערה שהמנהלת כתבה ליום. ⚠️ ואינה תופסת מקום כשאין.
+
+  ⚠️⚠️ ומסגרת ולא שורת טקסט. בעל המוצר, 12/10: "גם במובייל ההערה נבלעת".
+  נמדד: בלי מסגרת ובלי רקע, בגודל ובצבע של כל טקסט משני אחר בעמודה, ואין
+  בה דבר שאומר שזה מה שהמנהלת כתבה. המסגרת והמילה "הערה" הן מה שהופך אותה
+  לאובייקט נפרד.
+
+  ⚠️ והגוון שקט ולא אדום. אדום הוא `danger`, הצבע של מחיקה, ושכנו
+  `shift-handover` הוא "מבוקש מחליף". הערה אינה אזהרה.
+
+  ⚠️ ובלי חיתוך: הטקסט נשבר לשורות במלואו. היום בתצוגת השבוע נפתח לגובה
+  התוכן, ולכן אין כאן את המגבלה של תא הלוח.
+*/
 export function DayNote({ note }: { note?: string }) {
   if (!note) return null;
-  return <p className="px-1 text-xs leading-snug text-ink-soft">{note}</p>;
+  return (
+    <div className="flex items-start gap-1.5 rounded-lg bg-surface px-2 py-1.5 ring-1 ring-inset ring-line">
+      <span className="shrink-0 text-xs font-medium text-ink-soft">{t.day.noteMark}</span>
+      <p className="min-w-0 text-xs leading-snug text-ink">{note}</p>
+    </div>
+  );
 }

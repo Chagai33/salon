@@ -337,7 +337,13 @@ export function WeekAccordion({
                           <span className="sr-only">{shortDateLabel(dateKey)}</span>
                         </button>
 
-                        <DayNote note={access.note} />
+                        {/* ⚠️ מרווח כמו לאירועים: ההערה היא מסגרת משלה ולא
+                            שורת המשך לכותרת היום. */}
+                        {access.note && (
+                          <div className="mt-1.5">
+                            <DayNote note={access.note} />
+                          </div>
+                        )}
 
                         {events.length > 0 && (
                           <div className="mt-1.5">
