@@ -692,8 +692,13 @@ export const he = {
     DOCS/PLANING/29
   */
   releases: {
-    title: 'מי שחרר משמרת',
-    open: 'מי שחרר משמרת',
+    /*
+      ⚠️⚠️ "דוחות משמרות" ולא "מי שחרר משמרת", בהכרעת בעל המוצר 12/10: "זה
+      נשמע שיפוטי מידיי". אירועים ולא שיפוטים, רשומה 29. ושורה במילון,
+      DOCS/GLOSSARY.md. DOCS/PLANING/37
+    */
+    title: 'דוחות משמרות',
+    open: 'דוחות משמרות',
     loading: 'טוען',
     /*
       ⚠️⚠️ חודש, ארבעה מספרים, ושורה לכל אדם, בהכרעת בעל המוצר 12/10, סעיף
@@ -709,14 +714,15 @@ export const he = {
     tileAssignedOf: (count: number) => (count === 1 ? 'מתוך משמרת אחת' : `מתוך ${count} משמרות`),
     tileReleases: 'שחרורים',
     tileReleasesOf: (people: number) => (people === 1 ? 'של אדם אחד' : `של ${people} אנשים`),
-    tileLate: 'ברגע האחרון',
+    // ⚠️ העובדה ולא התיאור שלה. "ברגע האחרון" ירד, בהכרעה 2 א ברשומה 37.
+    tileLate: 'פחות מ-24 שעות לפני',
     // ⚠️ 24 שעות, בהכרעת בעל המוצר 12/10, סעיף 3.
-    tileLateHint: 'פחות מ-24 שעות לפני',
+    tileLateHint: 'מהשחרור ועד תחילת המשמרת',
     tileUncovered: 'נשארו בלי אחראי',
     tileUncoveredHint: 'אחרי השחרור, עד עכשיו',
 
     colReleases: 'שחרורים',
-    colLate: 'ברגע האחרון',
+    colLate: 'פחות מ-24 שעות לפני',
     colUncovered: 'נשארה בלי אחראי',
     colOther: 'משמרת אחרת בחודש',
     byManagerCount: (count: number) =>
