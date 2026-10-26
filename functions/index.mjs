@@ -23,8 +23,10 @@ import { codeAnswerFor, monthBounds, monthKeyNow } from './eligibility.mjs';
 import {
   ALLOWED_TYPES,
   MAX_IMAGE_BYTES,
+  MAX_TEXT_CHARS,
   MODEL,
   requestBodyFor,
+  requestBodyForText,
   sanitiseDays,
 } from './board-image.mjs';
 
@@ -118,7 +120,7 @@ async function handle(request) {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'noAuth');
 
-  const { branchId, monthKey, mimeType, imageBase64 } = request.data ?? {};
+  const { branchId, monthKey, mimeType, imageBase64, text: source } = request.data ?? {};
 
   if (typeof branchId !== 'string' || !branchId) {
     throw new HttpsError('invalid-argument', 'badBranch');
@@ -126,20 +128,40 @@ async function handle(request) {
   if (!/^\d{4}-\d{2}$/.test(String(monthKey ?? ''))) {
     throw new HttpsError('invalid-argument', 'badMonth');
   }
-  if (!ALLOWED_TYPES.includes(mimeType) || typeof imageBase64 !== 'string' || !imageBase64) {
-    throw new HttpsError('invalid-argument', 'badImage');
-  }
-  // ⚠️ אורך base64 הוא בקירוב שליש יותר מהבתים, ולכן החישוב ולא האורך.
-  if (Math.floor((imageBase64.length * 3) / 4) > MAX_IMAGE_BYTES) {
-    throw new HttpsError('invalid-argument', 'tooLarge');
+
+  /*
+    ⚠️⚠️ שני מקורות, בבקשת בעל המוצר 26/10: "לאפשר ייבוא אירועים מכל תמונה או
+    טקסט". DOCS/PLANING/39
+
+    ⚠️ ואותה פונקציה ואותה בדיקת מנהלת, כי מה שהיא מגנה עליו זהה: הקריאה עולה
+    כסף, והתשובה נוגעת בימים אמיתיים.
+  */
+  const asText = typeof source === 'string' && source.trim().length > 0;
+
+  if (asText) {
+    if (source.length > MAX_TEXT_CHARS) {
+      throw new HttpsError('invalid-argument', 'tooLarge');
+    }
+  } else {
+    if (!ALLOWED_TYPES.includes(mimeType) || typeof imageBase64 !== 'string' || !imageBase64) {
+      throw new HttpsError('invalid-argument', 'badImage');
+    }
+    // ⚠️ אורך base64 הוא בקירוב שליש יותר מהבתים, ולכן החישוב ולא האורך.
+    if (Math.floor((imageBase64.length * 3) / 4) > MAX_IMAGE_BYTES) {
+      throw new HttpsError('invalid-argument', 'tooLarge');
+    }
   }
 
   await assertManager(uid, branchId);
 
+  const requestBody = asText
+    ? requestBodyForText(monthKey, source.trim())
+    : requestBodyFor(monthKey, mimeType, imageBase64);
+
   const response = await fetch(`${ENDPOINT}?key=${encodeURIComponent(GEMINI_API_KEY.value())}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(requestBodyFor(monthKey, mimeType, imageBase64)),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {
@@ -193,7 +215,13 @@ async function handle(request) {
   }
 
   const days = sanitiseDays(parsed, monthKey);
-  logger.info('board image read', { branchId, monthKey, days: days.length });
+  // ⚠️ ומאיזה מקור. בלעדיו אין דרך לדעת איזה מהשניים נכשל בלוג.
+  logger.info('board read', {
+    branchId,
+    monthKey,
+    source: asText ? 'text' : 'image',
+    days: days.length,
+  });
 
   // ⚠️ ומחזירה ואינה כותבת. המנהלת רואה, מסמנת, ורק אז נכתב.
   // CLAUDE.md, אזור ליבה 4.

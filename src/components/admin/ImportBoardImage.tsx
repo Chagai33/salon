@@ -24,7 +24,7 @@ import { t } from '../../i18n/dictionary';
 import { shortDateLabel } from '../../utils/dates';
 import { monthNameOf, weekdayOf } from '../../utils/dates';
 import { logEvent, mergeActivityDay } from '../../services/salonService';
-import { readBoardImage } from '../../services/importService';
+import { MAX_TEXT_CHARS, readBoardImage, readBoardText } from '../../services/importService';
 import type { ImportedDay, ImportedEvent, ImportStage } from '../../services/importService';
 import { toReadableError } from '../../utils/errors';
 import { StatusPill } from '../common/StatusPill';
@@ -84,6 +84,9 @@ function messageFor(error: unknown): string {
     badToken: t.importImage.noToken,
     missingKey: t.importImage.missingKey,
     notManager: t.importImage.notManager,
+    // ⚠️ שתי שגיאות של מסלול הטקסט, ושתיהן נזרקות בדפדפן. DOCS/PLANING/39
+    emptyText: t.importImage.emptyText,
+    tooLongText: t.importImage.tooLongText,
     noAuth: t.importImage.noToken,
     emptyAnswer: t.importImage.emptyAnswer,
     quotaExhausted: t.importImage.quotaExhausted,
@@ -148,6 +151,8 @@ export function ImportBoardImage({
   const [skippedNow, setSkippedNow] = useState<Set<string>>(new Set());
   /** ⚠️ null כשאין קריאה רצה. */
   const [stage, setStage] = useState<ImportStage | null>(null);
+  /** הטקסט שהמנהלת הדביקה, כמקור חלופי לתמונה. DOCS/PLANING/39 */
+  const [pasted, setPasted] = useState('');
 
   const branch = useStore((state) => state.branch);
   /** ⚠️ מי מייבא. הייבוא כותב מידע על ימים אמיתיים, ולכן הוא נרשם.
@@ -242,7 +247,30 @@ export function ImportBoardImage({
     reset();
     setReading(true);
     setStage('preparing');
-    void readBoardImage(file, branchId, monthKey, setStage)
+    absorb(readBoardImage(file, branchId, monthKey, setStage));
+  }
+
+  /*
+    ⚠️⚠️ קריאה מטקסט שהודבק, בבקשת בעל המוצר 26/10: "לאפשר ייבוא אירועים מכל
+    תמונה או טקסט". DOCS/PLANING/39
+
+    ⚠️ ואותה פונקציית ענן, אותה הנחיה, ואותה רשימה אחר כך.
+  */
+  function onReadText() {
+    if (!pasted.trim()) return;
+    reset();
+    setReading(true);
+    setStage('sending');
+    absorb(readBoardText(pasted, branchId, monthKey, setStage));
+  }
+
+  /*
+    ⚠️ מה שקורה לכל קריאה, בלי קשר למקור שלה.
+    ⚠️⚠️ ובמקום אחד: שני מסלולים שבונים את הרשימה בנפרד הם שני מקומות שבהם
+    הסימון מראש של רשומה 25 יכול להישבר.
+  */
+  function absorb(request: Promise<ImportedDay[]>) {
+    void request
       .then((raw) => {
         /*
           ⚠️ מה שבמאגר הדילוג אינו נכנס לרשימה בכלל.
@@ -668,6 +696,39 @@ export function ImportBoardImage({
         />
         {reading ? t.importImage.reading : days ? t.importImage.readAgain : t.importImage.pick}
       </label>
+
+      {/*
+        ⚠️⚠️ ומקור טקסט לצד מקור התמונה, בבקשת בעל המוצר 26/10: "לאפשר ייבוא
+        אירועים מכל תמונה או טקסט". DOCS/PLANING/39
+
+        ⚠️ ולא במקום התמונה: אותה מנהלת מצלמת לוח בחודש אחד ומדביקה מייל
+        בחודש אחר.
+      */}
+      <div className="mt-3 rounded-card border border-line p-3">
+        <label className="block">
+          <span className="text-sm text-ink-soft">{t.importImage.textLabel}</span>
+          <textarea
+            dir="auto"
+            rows={4}
+            value={pasted}
+            maxLength={MAX_TEXT_CHARS}
+            disabled={reading || saving}
+            placeholder={t.importImage.textPlaceholder}
+            onChange={(event) => setPasted(event.target.value)}
+            className="mt-1.5 w-full rounded-card border border-line-strong bg-surface px-3 py-2 text-sm text-ink"
+          />
+        </label>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <Button
+            tone="secondary"
+            disabled={reading || saving || !pasted.trim()}
+            onClick={onReadText}
+          >
+            {reading ? t.importImage.reading : t.importImage.readText}
+          </Button>
+          <span className="text-xs text-ink-faint">{t.importImage.textHint}</span>
+        </div>
+      </div>
 
       {/*
         ⚠️⚠️ חיווי התקדמות, ולא מסך שנראה תקוע.

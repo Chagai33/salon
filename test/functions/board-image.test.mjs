@@ -12,6 +12,7 @@ import {
   MODEL,
   promptFor,
   requestBodyFor,
+  requestBodyForText,
   sanitiseDays,
 } from '../../functions/board-image.mjs';
 
@@ -141,6 +142,37 @@ describe('ההנחיה והבקשה', () => {
     assert.ok(prompt.includes('unknown'));
   });
 
+  /*
+    ⚠️⚠️ ההנחיה נכתבה מחדש ב-26/10/2026, בבקשת בעל המוצר "לאפשר ייבוא אירועים
+    מכל תמונה או טקסט". DOCS/PLANING/39
+  */
+  it('⚠️ ואינה מניחה צורה אחת: לוח, טבלה, ורשימה', () => {
+    const prompt = promptFor(MONTH);
+    assert.ok(prompt.includes('לוח חודשי משובץ'));
+    assert.ok(prompt.includes('טבלה'));
+    assert.ok(prompt.includes('רשימה או טקסט חופשי'));
+  });
+
+  it('⚠️⚠️ והכלל שהורה להתעלם מהכותרת שבראש המקור אינו שם עוד', () => {
+    assert.ok(!promptFor(MONTH).includes('התעלם מהכותרת'));
+  });
+
+  it('⚠️ ותאריך בלי שנה נקרא לפי החודש שנשלח', () => {
+    assert.ok(promptFor(MONTH).includes('תאריך בלי שנה'));
+  });
+
+  it('⚠️ ואירוע שחוצה חצות מבוקש במפורש, ואינו מתוקן', () => {
+    const prompt = promptFor(MONTH);
+    assert.ok(prompt.includes('endsNextDay'));
+    assert.ok(prompt.includes('ממשיך למחרת'));
+  });
+
+  it('⚠️⚠️ ושני כללי אזור הליבה שרדו: שמות, ו-access שהוא unknown', () => {
+    const prompt = promptFor(MONTH);
+    assert.ok(prompt.includes('אל תחזיר שמות של אנשים'));
+    assert.ok(prompt.includes('`access` הוא "unknown" כברירת מחדל'));
+  });
+
   it('גוף הבקשה נושא את התמונה ואת הסכימה, ו-temperature אפס', () => {
     const body = requestBodyFor(MONTH, 'image/png', 'AAAA');
     assert.equal(body.contents[0].parts[1].inline_data.mime_type, 'image/png');
@@ -151,5 +183,61 @@ describe('ההנחיה והבקשה', () => {
 
   it('⚠️ והמודל אינו 2.5, שנסגר ב-16/10/2026', () => {
     assert.ok(!MODEL.startsWith('gemini-2'));
+  });
+
+  it('⚠️ וגוף בקשת הטקסט נושא את הטקסט ואינו נושא תמונה', () => {
+    const body = requestBodyForText(MONTH, 'שלישי 3.11, 19:00-22:00, פילוסופיה');
+    assert.equal(body.contents[0].parts[0].text, promptFor(MONTH));
+    assert.ok(body.contents[0].parts[1].text.includes('פילוסופיה'));
+    assert.equal('inline_data' in body.contents[0].parts[1], false);
+  });
+
+  it('⚠️ ואותה סכימה ואותה טמפרטורה אפס בשני המקורות', () => {
+    const image = requestBodyFor(MONTH, 'image/png', 'AAAA');
+    const text = requestBodyForText(MONTH, 'משהו');
+    assert.equal(text.generationConfig.temperature, 0);
+    assert.deepEqual(text.generationConfig.response_schema, image.generationConfig.response_schema);
+  });
+});
+
+/*
+  ⚠️ אירוע שממשיך למחרת, בבקשת בעל המוצר 26/10: "יש אירועים כאלה - נא לאפשר
+  תמיכה". DOCS/PLANING/42
+*/
+describe('⚠️ אירוע שממשיך למחרת', () => {
+  it('הסימון עובר כשהמודל החזיר אותו', () => {
+    const days = sanitiseDays(
+      {
+        days: [
+          {
+            date: `${MONTH}-03`,
+            access: 'unknown',
+            confidence: 1,
+            events: [{ title: 'מסיבה', startTime: '23:00', endTime: '01:00', endsNextDay: true }],
+          },
+        ],
+      },
+      MONTH,
+    );
+    assert.equal(days[0].events[0].endsNextDay, true);
+  });
+
+  it('⚠️⚠️ ו-false אינו נשלח כשדה בכלל', () => {
+    const days = sanitiseDays(
+      {
+        days: [
+          {
+            date: `${MONTH}-03`,
+            access: 'unknown',
+            confidence: 1,
+            events: [
+              { title: 'פילוסופיה', startTime: '19:00', endTime: '22:00', endsNextDay: false },
+            ],
+          },
+        ],
+      },
+      MONTH,
+    );
+    assert.equal('endsNextDay' in days[0].events[0], false);
   });
 });
