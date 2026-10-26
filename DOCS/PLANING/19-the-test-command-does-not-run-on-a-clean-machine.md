@@ -71,3 +71,38 @@ JAVA_HOME="C:/Program Files/Java/jdk-11" npx -y firebase-tools@14 \
 ייסגר.**
 
 ⚠️ **והתיקון האמיתי הוא JDK 21 שעובד**, ולא נעילה על גרסאות ישנות.
+
+---
+
+## ⚠️⚠️ ממצא אגב, 26/10/2026: `JAVA_HOME` לבדו אינו מספיק
+
+**נמדד בסבב של ארבע הבקשות במסך הייבוא.** הפקודה שלמעלה, כפי שהיא כתובה כאן
+וב-`CLAUDE.md`, **נכשלה**:
+
+```
+Firestore Emulator has exited with code: 1
+Caused by: java.net.SocketException: Invalid argument: connect
+  at java.base/sun.nio.ch.UnixDomainSockets.connect0(Native Method)
+```
+
+**הסיבה, נמדדה בשתי פקודות:**
+
+| מה | מה נמדד |
+|---|---|
+| `java` שב-`PATH` | `C:/Program Files/Microsoft/jdk-21.0.12.101-hotspot`, **גרסה 21.0.12.1** |
+| `JAVA_HOME` שהוגדר בפקודה | `C:/Program Files/Java/jdk-11`, **גרסה 11.0.19** |
+
+⚠️ **כלומר האמולטור לקח את ה-JVM מ-`PATH` ולא מ-`JAVA_HOME`**, והריץ בדיוק את
+JDK 21 שהרשומה הזאת מדדה כשבור. **וההגדרה של `JAVA_HOME` לא מנעה את זה.**
+
+**מה שעבד, ונמדד: 110 בדיקות, כולן עוברות.** ⚠️ **ו-`PATH` ולא רק `JAVA_HOME`:**
+
+```bash
+export JAVA_HOME="C:/Program Files/Java/jdk-11"
+export PATH="/c/Program Files/Java/jdk-11/bin:$PATH"
+npx -y firebase-tools@14 emulators:exec --only firestore --project demo-salon \
+  "node --test --test-concurrency=1 test/rules/*.test.mjs"
+```
+
+⚠️ **ולכן השורה ב-`CLAUDE.md` אינה נכונה כפי שהיא כתובה.** `CLAUDE.md` הוא
+קובץ יסוד, **והתיקון שלו הוא עצירה שממתינה לבעל המוצר.**
