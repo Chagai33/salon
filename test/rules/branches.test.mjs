@@ -272,7 +272,9 @@ describe('הגבול בין סלונים', () => {
     await assertSucceeds(getDocs(collection(db, 'branches')));
   });
 
-  it('⚠️ וחבר של סלון אחד אינו קורא את החברים של האחר', async () => {
+  // ⚠️ `tlv-member` נזרע כמנהלת, ולכן השם אומר מנהלת. סריקת החברים מותרת
+  // למנהלת בלבד, וכשם שהיה כתוב קודם הבדיקה הייתה עוברת מהסיבה הלא נכונה.
+  it('⚠️ ומנהלת של סלון אחד אינה קוראת את החברים של האחר', async () => {
     await seed();
     const db = env.authenticatedContext('tlv-member').firestore();
     await assertSucceeds(getDocs(collection(db, 'branches', 'tel-aviv', 'members')));
@@ -285,7 +287,8 @@ describe('הגבול בין סלונים', () => {
     await assertFails(getDocs(collection(db, 'branches', 'jerusalem', 'shifts')));
   });
 
-  it('⚠️⚠️ ואינו קורא את קוד הכניסה של האחר', async () => {
+  // ⚠️ ומנהלת, מאותה סיבה. מאז 26/10 הקוד נקרא למנהלת בלבד, רשומה 15.
+  it('⚠️⚠️ ומנהלת אינה קוראת את קוד הכניסה של האחר', async () => {
     await seed();
     const db = env.authenticatedContext('tlv-member').firestore();
     await assertSucceeds(getDoc(doc(db, 'branches', 'tel-aviv', 'accessCodes', '1')));

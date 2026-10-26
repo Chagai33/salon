@@ -113,7 +113,9 @@ export function codeVisibilityFor(
   return {
     canSee: Boolean(code) && eligibility.isEligible,
     hasCode: Boolean(code),
-    code: code?.code ?? null,
+    // ⚠️ המחרוזת רק כשמותר להציג אותה, בדיוק כמו בצד השרת. אובייקט שנושא
+    // את הקוד ו-`canSee: false` הוא הזמנה לקורא הבא להציג אותו.
+    code: code && eligibility.isEligible ? code.code : null,
     eligibility,
     codeIsStale: Boolean(code) && period < thisMonth,
   };
