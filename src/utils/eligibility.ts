@@ -17,7 +17,10 @@
 // וחבר שביטל משמרת והשדה לא התעדכן הוא חבר שרואה קוד שאינו שלו.
 
 import type { AccessCode, CodeAnswer, EligibilityResult, Shift } from '../types';
-import { monthKeyOfDateKey, toMonthKey } from './dates';
+// ⚠️ עם סיומת, כמו ב-`releases.ts` ומאותה סיבה: בלעדיה
+// `node --test --experimental-strip-types` אינו מוצא את המודול, ואי אפשר
+// לבדוק את הקובץ הזה. test/utils/eligibility.test.ts
+import { monthKeyOfDateKey, toMonthKey } from './dates.ts';
 
 /**
  * האם החבר זכאי לקוד בחודש נתון.
@@ -43,12 +46,23 @@ export function eligibilityFor(
     };
   }
 
-  // החצי השני של הנוסחה: מי שמסר משמרת ומישהו לקח אותה.
-  // ⚠️ רק handoverState שהוא completed. בקשה שלא נענתה אינה מזכה, והאחריות
-  // נשארת על המבקש. DOCS/PLANING/10-shift-handover.md
-  const handedOver = inMonth.filter(
-    (shift) => shift.handoverFromMemberId === memberId && shift.handoverState === 'completed',
-  );
+  /*
+    החצי השני של הנוסחה: מי שמסר משמרת ומישהו לקח אותה.
+
+    ⚠️ ו-`handoverFromMemberId` לבדו, בלי `handoverState`. בקשה שלא נענתה
+    אינה מזכה גם כך, כי השדה הזה נכתב רק ברגע שמישהו לוקח.
+
+    ⚠️⚠️ והתנאי על `handoverState` היה כאן ונמחק, כי הוא ביטל את ההבטחה
+    שהוא בא לקיים. המצב חוזר ל-`none` ברגע שהמקבל משחרר את המשמרת, ול-
+    `requested` ברגע שהוא מבקש לה מחליף בעצמו, ובשני המצבים מי שמסר אותה
+    איבד את הזכאות שלו בשקט, בלי שעשה דבר. בהכרעת בעל המוצר 26/10/2026,
+    בלשונו *"4א"*: זו הפרה של הבטחה כתובה ולא ממצא אגב.
+
+    ⚠️ ואין כאן שדה שמתיישן: `handoverFromMemberId` נכתב בלקיחה בלבד, ואין
+    בכל העץ מסלול שמוחק אותו. חוקי המסד נועלים את זה: הוא אינו ברשימת
+    השדות שחבר רשאי לגעת בהם בשחרור. DOCS/PLANING/10-shift-handover.md
+  */
+  const handedOver = inMonth.filter((shift) => shift.handoverFromMemberId === memberId);
   if (handedOver.length > 0) {
     return {
       isEligible: true,

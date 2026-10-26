@@ -62,9 +62,16 @@ export function eligibilityFor(shifts, memberId, monthKey) {
     };
   }
 
-  const handedOver = inMonth.filter(
-    (shift) => shift.handoverFromMemberId === memberId && shift.handoverState === 'completed',
-  );
+  /*
+    ⚠️⚠️ ו-`handoverFromMemberId` לבדו, בלי `handoverState`. התנאי על המצב
+    היה כאן ונמחק: הוא חוזר ל-`none` כשהמקבל משחרר, ול-`requested` כשהוא
+    מבקש מחליף בעצמו, ובשני המצבים מי שמסר את המשמרת איבד את הזכאות שלו
+    בשקט. בהכרעת בעל המוצר 26/10/2026, בלשונו *"4א"*.
+
+    ⚠️ וזה אותו שינוי בדיוק כמו ב-`src/utils/eligibility.ts`, שורה מול שורה.
+    DOCS/PLANING/10-shift-handover.md
+  */
+  const handedOver = inMonth.filter((shift) => shift.handoverFromMemberId === memberId);
   if (handedOver.length > 0) {
     return {
       isEligible: true,

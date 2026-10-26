@@ -56,25 +56,68 @@ describe('הקוד שנשלח לדפדפן', () => {
   });
 
   it('⚠️ ובקשת מחליף שלא נענתה אינה מזכה', () => {
+    /*
+      ⚠️⚠️ והבדיקה הזו נכתבה מחדש, 26/10/2026. הניסוח הקודם בנה משמרת שבה
+      `handoverFromMemberId` מלא ו-`handoverState` הוא `requested`, כלומר
+      מצב שאינו קיים במוצר: השדה הזה נכתב רק ברגע שמישהו לוקח את המשמרת,
+      ואין בכל העץ מסלול שכותב אותו בבקשה. ⚠️ וזה הניסוח שהחזיק את התנאי
+      על `handoverState`, והתנאי הזה הוא שביטל את הזכאות של מי שמסר.
+      DOCS/PLANING/32, אותו דפוס: בדיקה שמאשרת את הבאג.
+
+      ⚠️ ולכן המצב שנבדק כאן הוא המצב האמיתי: בקשה פתוחה היא משמרת שעוד
+      מוחזקת בידי המבקש, ואין בה שדה מוסר כלל.
+    */
     const shifts = [
       shift('2026-10-07', {
         assigneeMemberId: 'dana',
-        handoverFromMemberId: 'dana',
         handoverState: 'requested',
       }),
     ];
-    // כאן הוא עדיין המשובץ, ולכן הוא זכאי מהסיבה הראשונה.
+    // הוא עדיין המשובץ, ולכן הוא זכאי מהסיבה הראשונה ולא מההחלפה.
     assert.equal(codeAnswerFor(shifts, [CODE_OCT], 'dana', NOW).reason, 'assigned');
 
-    // וכאן הוא כבר אינו המשובץ, וההחלפה לא הושלמה.
+    // וכאן הוא כבר אינו המשובץ, ואיש לא לקח: אין מוסר, ואין זכאות.
     const released = [
       shift('2026-10-07', {
         assigneeMemberId: null,
+        handoverState: 'none',
+      }),
+    ];
+    assert.equal(codeAnswerFor(released, [CODE_OCT], 'dana', NOW).code, null);
+  });
+
+  it('⚠️⚠️ ומי שמסר שומר זכאות גם אחרי שהמקבל שחרר את המשמרת', () => {
+    /*
+      זה המצב שנמדד בקוד ב-26/10/2026: `releaseShift` מחזיר את
+      `handoverState` ל-`none` ואינו נוגע ב-`handoverFromMemberId`, ולכן
+      התנאי הישן על המצב ביטל את הזכאות של מי שמסר בלי שהוא עשה דבר.
+
+      ⚠️ בהכרעת בעל המוצר 26/10/2026, בלשונו *"4א"*: "מי שמצא מחליף שומר
+      זכאות" היא הבטחה כתובה, ו-`CLAUDE.md` נושא אותה.
+    */
+    const afterTakerReleased = [
+      shift('2026-10-07', {
+        assigneeMemberId: null,
+        handoverFromMemberId: 'dana',
+        handoverState: 'none',
+      }),
+    ];
+    const answer = codeAnswerFor(afterTakerReleased, [CODE_OCT], 'dana', NOW);
+    assert.equal(answer.code, '4821');
+    assert.equal(answer.reason, 'handedOver');
+  });
+
+  it('ושומר אותה גם כשהמקבל ביקש מחליף בעצמו', () => {
+    const takerAskedAgain = [
+      shift('2026-10-07', {
+        assigneeMemberId: 'noa',
         handoverFromMemberId: 'dana',
         handoverState: 'requested',
       }),
     ];
-    assert.equal(codeAnswerFor(released, [CODE_OCT], 'dana', NOW).code, null);
+    assert.equal(codeAnswerFor(takerAskedAgain, [CODE_OCT], 'dana', NOW).code, '4821');
+    // ⚠️ והמקבל זכאי מהסיבה הראשונה, כי המשמרת עוד שלו.
+    assert.equal(codeAnswerFor(takerAskedAgain, [CODE_OCT], 'noa', NOW).reason, 'assigned');
   });
 
   it('משמרת בחודש אחר אינה מזכה בקוד של החודש הזה', () => {
