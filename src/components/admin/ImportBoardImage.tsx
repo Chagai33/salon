@@ -134,8 +134,18 @@ export function ImportBoardImage({
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  /** כמה אירועים הושמטו לפי מאגר הדילוג של הסלון. */
+  /** כמה אירועים הושמטו לפי מאגר הדילוג של הסלון, לפני שהרשימה נבנתה. */
   const [skippedCount, setSkippedCount] = useState(0);
+  /*
+    ⚠️⚠️ מה שדולג בחלון הזה, והוא נשאר ברשימה.
+
+    בלשון בעל המוצר, 26/10: "אם היא לחצה על לדלג לתמיד יהיה כפתור ביטול דילוג",
+    **על אותו אירוע.** ⚠️ ולכן הלחיצה אינה מעלימה את השורה: היא מסמנת אותה,
+    ובמקום הכפתור מופיע הביטול. DOCS/PLANING/41
+
+    ⚠️ ואלה הכותרות המנורמלות, כמו במאגר הדילוג עצמו.
+  */
+  const [skippedNow, setSkippedNow] = useState<Set<string>>(new Set());
   /** ⚠️ null כשאין קריאה רצה. */
   const [stage, setStage] = useState<ImportStage | null>(null);
 
@@ -175,12 +185,17 @@ export function ImportBoardImage({
         ...day,
         events: day.events
           .filter((event) => event.title.trim())
+          /*
+            ⚠️⚠️ ואירוע שדולג בחלון הזה אינו נכתב, אף שהוא נראה ברשימה.
+            הוא מסומן כמדולג, והתוכנית היא מה שייכתב למסד. DOCS/PLANING/41
+          */
+          .filter((event) => !skippedNow.has(normalizeTitle(event.title)))
           .map((event) => ({ ...event, title: event.title.trim() })),
       };
       byDate.set(day.date, planFor(clean, activityByDate.get(day.date), fallbackFor(day.date)));
     }
     return byDate;
-  }, [days, activityByDate]);
+  }, [days, activityByDate, skippedNow]);
 
   const conflictCount = useMemo(
     () => (plans ? [...plans.values()].filter((plan) => plan.verdict === 'conflict').length : 0),
@@ -199,6 +214,12 @@ export function ImportBoardImage({
     setDays(null);
     setChosen(new Set());
     setProblem(null);
+    /*
+      ⚠️ וקריאה חדשה מתחילה בלי סימוני דילוג.
+      הכותרות כבר במאגר הדילוג של הסלון, ולכן `onPick` מסנן אותן ממילא ומונה
+      אותן. DOCS/PLANING/41
+    */
+    setSkippedNow(new Set());
   }
 
   function onPick(file: File | undefined) {
@@ -369,29 +390,54 @@ export function ImportBoardImage({
   }
 
   /*
-    ⚠️ מוסיף למאגר הדילוג של הסלון, ומסיר את האירוע מכל הימים ברשימה.
+    ⚠️ מוסיף למאגר הדילוג של הסלון.
     בלשון בעל המוצר, 06/10: "אירועים חוזרים שאינם מתקיימים בסלון או לא
     רלוונטיים אליו". חוזר פירושו שהוא יחזור גם בייבוא הבא. DOCS/PLANING/26
+
+    ⚠️⚠️ ואינו מעלים את השורה, מ-26/10.
+    קודם הוא הסיר את האירוע מכל הימים, ⚠️ ואז לא היה על מה ללחוץ כדי לבטל:
+    לחיצה אחת בטעות מחקה אירוע חוזר מכל ייבוא עתידי, והדרך היחידה לחזור ממנה
+    הייתה מסך ההגדרות, שאינו קיים.
+
+    בלשון בעל המוצר, 26/10: "אם היא לחצה על לדלג לתמיד יהיה כפתור ביטול דילוג",
+    **על אותו אירוע.** DOCS/PLANING/41
   */
   function skipAlways(title: string) {
     if (!branch) return;
-    const key = normalizeTitle(title);
     void saveBranchSettings(
       branchId,
       { importIgnore: [...(branch.importIgnore ?? []), title.trim()] },
       me?.id ?? '',
     ).catch((error: unknown) => setProblem(toReadableError(error, t.errors.saveFailed)));
 
-    let removed = 0;
-    setDays(
-      (current) =>
-        current?.map((day) => {
-          const events = day.events.filter((event) => normalizeTitle(event.title) !== key);
-          removed += day.events.length - events.length;
-          return { ...day, events };
-        }) ?? null,
-    );
-    setSkippedCount((count) => count + removed);
+    setSkippedNow((current) => new Set(current).add(normalizeTitle(title)));
+  }
+
+  /*
+    ⚠️⚠️ הביטול, ובאותו חלון.
+    מסיר את הכותרת ממאגר הדילוג של הסלון ומחזיר את האירוע לרשימה.
+
+    ⚠️ וההשוואה מנורמלת ולא על הטקסט כפי שנשמר: במאגר יושב מה שהמודל קרא אחרי
+    `trim`, וכאן נמחק מה שתואם לו בלי רגישות לרישיות. DOCS/PLANING/41
+  */
+  function undoSkip(title: string) {
+    if (!branch) return;
+    const key = normalizeTitle(title);
+    void saveBranchSettings(
+      branchId,
+      {
+        importIgnore: (branch.importIgnore ?? []).filter(
+          (stored) => normalizeTitle(stored) !== key,
+        ),
+      },
+      me?.id ?? '',
+    ).catch((error: unknown) => setProblem(toReadableError(error, t.errors.saveFailed)));
+
+    setSkippedNow((current) => {
+      const next = new Set(current);
+      next.delete(key);
+      return next;
+    });
   }
 
   function rowFor(date: string) {
@@ -440,7 +486,32 @@ export function ImportBoardImage({
             */}
             {day.events.length > 0 && (
               <ul className="mt-1 flex flex-col gap-1">
-                {day.events.map((event, index) => (
+                {day.events.map((event, index) => {
+                  const skipped = skippedNow.has(normalizeTitle(event.title));
+
+                  /*
+                    ⚠️⚠️ אירוע שדולג נשאר ברשימה, מסומן, ועם ביטול.
+                    בלשון בעל המוצר, 26/10: "אם היא לחצה על לדלג לתמיד יהיה
+                    כפתור ביטול דילוג", על אותו אירוע. DOCS/PLANING/41
+
+                    ⚠️ והשדות נסגרים, כי אירוע שאינו נכתב אין מה לערוך בו.
+                    ⚠️ ומילה ולא צבע לבד. CLAUDE.md, עיצוב.
+                  */
+                  if (skipped) {
+                    return (
+                      <li key={index} className="flex flex-wrap items-center gap-2">
+                        <span dir="auto" className="min-w-0 flex-1 text-sm text-ink-faint line-through">
+                          {event.title}
+                        </span>
+                        <StatusPill tone="taken">{t.importImage.skippedMark}</StatusPill>
+                        <Button tone="quiet" size="xs" className="text-brand" onClick={() => undoSkip(event.title)}>
+                          {t.importImage.undoSkip}
+                        </Button>
+                      </li>
+                    );
+                  }
+
+                  return (
                   /* ⚠️ בטלפון השם בשורה משלו והפקדים מתחתיו: חמישה פקדים
                      ברוחב 390 נדחסים לשורה שאי אפשר להקליד בה. */
                   <li key={index} className="flex flex-wrap items-center gap-2">
@@ -503,7 +574,8 @@ export function ImportBoardImage({
                       {t.importImage.skipAlways}
                     </Button>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
 
