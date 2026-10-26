@@ -5,11 +5,13 @@
 // ⚠️ ושלוש שכבות ולא אחת: מי אני, אילו סלונים יש, ומה יש בסלון שאני בו.
 // כל שכבה ממתינה לקודמת, כי קריאה לתוך סלון דורשת רשומת חבר בו.
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
 import { useStore } from '../store/useStore';
+import type { Shift } from '../types';
 import {
+  fetchAccessCode,
   isPlatformAdmin,
   isSystemClaimed,
   myMemberships,
@@ -130,17 +132,89 @@ export function useMonthBinding(branchId: string | null) {
   const monthKey = useStore((state) => state.monthKey);
   const setShifts = useStore((state) => state.setShifts);
   const setActivityDays = useStore((state) => state.setActivityDays);
-  const setAccessCodes = useStore((state) => state.setAccessCodes);
 
   useEffect(() => {
     if (!branchId || !member) return;
     const stops = [
       watchShiftsForMonth(branchId, monthKey, setShifts),
       watchActivityDaysForMonth(branchId, monthKey, setActivityDays),
-      watchAccessCodes(branchId, setAccessCodes),
     ];
     return () => stops.forEach((stop) => stop());
-  }, [branchId, member, monthKey, setShifts, setActivityDays, setAccessCodes]);
+  }, [branchId, member, monthKey, setShifts, setActivityDays]);
+}
+
+/**
+ * חתימת המשמרות של החבר בחודש שנטען, כמחרוזת אחת.
+ *
+ * ⚠️ שתי הדרכים לזכאות ולא אחת: משמרת שהוא מחזיק, ומשמרת שהוא מסר בהחלפה.
+ * src/utils/eligibility.ts
+ */
+function myShiftSignature(shifts: Shift[], memberId: string): string {
+  if (!memberId) return '';
+  return shifts
+    .filter(
+      (shift) =>
+        shift.assigneeMemberId === memberId || shift.handoverFromMemberId === memberId,
+    )
+    .map((shift) => `${shift.date}:${shift.assigneeMemberId ?? ''}:${shift.handoverState ?? ''}`)
+    .sort()
+    .join('|');
+}
+
+/**
+ * ⚠️⚠️ קוד הכניסה, ושני מסלולים נפרדים לשני אנשים.
+ *
+ * **המנהלת** מאזינה לאוסף, כי היא זו שמגדירה את הקוד והחוק מתיר לה לקרוא.
+ * **החבר** אינו קורא את האוסף כלל: מאז 26/10/2026 החוק דוחה אותו, והוא מקבל
+ * את הקוד מפונקציית הענן, שמחשבת את הזכאות בצד השרת.
+ * DOCS/PLANING/15-the-code-is-not-enforced-yet.md
+ *
+ * ⚠️ ומי שאינו פעיל אינו פותח כלום. קודם המאזין נפתח גם לממתין לאישור,
+ * והחוק דחה אותו ויצר שגיאה במסך.
+ */
+export function useAccessCodeBinding(branchId: string | null) {
+  const member = useStore((state) => state.member);
+  const shifts = useStore((state) => state.shifts);
+  const setAccessCodes = useStore((state) => state.setAccessCodes);
+  const setCodeAnswer = useStore((state) => state.setCodeAnswer);
+
+  const isActive = member?.status === 'active';
+  const isManager = isActive && member?.role === 'manager';
+
+  /*
+    ⚠️ מחרוזת ולא מערך, וזה לא קוסמטי. מה שמחזיר אובייקט חדש בכל קריאה מפעיל
+    את האפקט שוב ושוב, וזו הלולאה שהפילה את המסך. DOCS/PLANING/16
+
+    ⚠️ וזה הטריגר לקריאה חוזרת: חבר שתפס משמרת עכשיו צריך לראות את הקוד בלי
+    לרענן את הדף.
+  */
+  const mine = useMemo(() => myShiftSignature(shifts, member?.id ?? ''), [shifts, member?.id]);
+
+  useEffect(() => {
+    if (!branchId || !isManager) return;
+    return watchAccessCodes(branchId, setAccessCodes);
+  }, [branchId, isManager, setAccessCodes]);
+
+  useEffect(() => {
+    if (!branchId || !isActive || isManager) return;
+
+    // ⚠️ `cancelled` ולא ביטול הבקשה. תשובה שחוזרת אחרי מעבר לסלון אחר היא
+    // הקוד של הסלון הקודם, ואסור שתיכתב ל-Store.
+    let cancelled = false;
+    void fetchAccessCode(branchId)
+      .then((answer) => {
+        if (!cancelled) setCodeAnswer(answer);
+      })
+      .catch(() => {
+        // ⚠️ ושקט במסך, ולא שגיאה אדומה. המסך אומר "הקוד עוד לא עודכן",
+        // וזה מה שידוע בפועל כשהתשובה לא חזרה.
+        if (!cancelled) setCodeAnswer(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [branchId, isActive, isManager, mine, setCodeAnswer]);
 }
 
 /**

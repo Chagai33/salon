@@ -590,6 +590,12 @@ export const he = {
     unmakeManager: 'הסרה מניהול',
     working: 'רגע',
     me: 'אני',
+    /*
+      ⚠️ התווית שמופיעה במקום כפתור החלפת התפקיד, על רשומת מפעיל המערכת.
+      המונח כבר בשימוש במסך הסלונים ובהודעות השגיאה, ואינו חדש.
+      DOCS/PLANING/40-the-system-operator-can-be-demoted.md
+    */
+    systemOperator: 'מפעיל המערכת',
     waitingToApprove: (count: number) =>
       count === 1 ? 'אדם אחד ממתין לאישור' : `${count} אנשים ממתינים לאישור`,
     setCode: 'הגדרת קוד חדש',

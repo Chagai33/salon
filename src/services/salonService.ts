@@ -28,6 +28,7 @@ import type {
   AccessCode,
   ActivityDay,
   Branch,
+  CodeAnswer,
   EventAction,
   EventDetail,
   Member,
@@ -855,6 +856,22 @@ export async function mergeActivityDay(
 
 // ---------- קוד הכניסה ----------
 
+/**
+ * ⚠️⚠️ הקוד של החבר, מפונקציית הענן.
+ *
+ * זהו המסלול היחיד של חבר שאינו מנהלת אל הקוד, מאז 26/10/2026. החוק אינו
+ * מתיר לו לקרוא את האוסף, והפונקציה מריצה את חישוב הזכאות בצד השרת ומחזירה
+ * את הקוד או כלום. functions/index.mjs, רשומה 15.
+ *
+ * ⚠️ וזו קריאה אחת ולא מאזין. קוד שהמנהלת מחליפה באמצע הביקור אינו מגיע עד
+ * הקריאה הבאה, והיא קורית כשהשיבוצים של החבר משתנים או כשהמסך נטען מחדש.
+ */
+export async function fetchAccessCode(branchId: string): Promise<CodeAnswer> {
+  const call = httpsCallable<{ branchId: string }, CodeAnswer>(functions, 'readAccessCode');
+  return (await call({ branchId })).data;
+}
+
+/** ⚠️ למנהלת בלבד, מאז 26/10/2026. לחבר החוק דוחה את המאזין. */
 export function watchAccessCodes(
   branchId: string,
   onChange: (codes: AccessCode[]) => void,

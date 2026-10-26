@@ -138,7 +138,7 @@ export function AccessCodePanel({
   formOnly = false,
   onSetCode,
 }: Props) {
-  const { canSee, code, eligibility, codeIsStale } = visibility;
+  const { canSee, hasCode, code, eligibility, codeIsStale } = visibility;
 
   if (formOnly) {
     return onSetCode ? <SetCodeForm onSetCode={onSetCode} /> : null;
@@ -151,11 +151,13 @@ export function AccessCodePanel({
       הגדירה" הן ארבע שורות על אותו דבר. מה שנשאר: התווית, הקוד, והעתקה.
       ⚠️ וההסתייגות עברה ל-title, כדי שתהיה זמינה ולא תתפוס שורה.
     */
-    if (!code) {
+    // ⚠️ `hasCode` ולא הקוד עצמו. לחבר שאינו זכאי הקוד אינו נשלח כלל, ולכן
+    // "אין קוד" מזוהה בשדה נפרד. DOCS/PLANING/15
+    if (!hasCode) {
       return <span className="text-sm text-ink-faint">{t.code.noCode}</span>;
     }
 
-    if (!canSee) {
+    if (!canSee || !code) {
       return (
         <span className="text-sm text-ink-soft" title={t.code.notEligibleHint}>
           {t.code.notEligible}
@@ -176,7 +178,7 @@ export function AccessCodePanel({
         */}
         {/* ⚠️ הוקטן, בהכרעת בעל המוצר 06/10: "קצת חורג מהגודל ההגיוני". */}
         <span className="num select-all text-lg font-bold tracking-[0.1em] text-ink">
-          {code.code}
+          {code}
         </span>
         {/* ⚠️ אזהרת קוד ישן נשארת, והיא נקודה ולא פסקה. */}
         {codeIsStale && (
@@ -195,16 +197,16 @@ export function AccessCodePanel({
         {t.code.title}
       </h2>
 
-      {!code && <p className="mt-2 text-sm text-ink-soft">{t.code.noCode}</p>}
+      {!hasCode && <p className="mt-2 text-sm text-ink-soft">{t.code.noCode}</p>}
 
-      {code && !canSee && (
+      {hasCode && !canSee && (
         <div className="mt-2">
           <p className="text-sm font-medium text-ink">{t.code.notEligible}</p>
           <p className="mt-1 text-sm text-ink-soft">{t.code.notEligibleHint}</p>
         </div>
       )}
 
-      {code && canSee && (
+      {hasCode && canSee && code && (
         <div className="mt-2">
           <p className="text-sm text-ink-soft">
             {eligibility.reason === 'handedOver' ? t.code.eligibleByHandover : t.code.eligible}
@@ -221,7 +223,7 @@ export function AccessCodePanel({
               compact ? 'text-2xl tracking-[0.15em]' : 'text-4xl tracking-[0.2em]'
             }`}
           >
-            {code.code}
+            {code}
           </p>
 
           {/* ⚠️ אצל המנהלת שתי השורות האלה אינן נחוצות: היא יודעת מה הקוד

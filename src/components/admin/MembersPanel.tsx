@@ -18,6 +18,7 @@ import { shortDateLabel, toDateKey } from '../../utils/dates';
 import type { Member } from '../../types';
 // ⚠️ שם מלא כאן, ולא מקוצר. זה המסך שבו מזהים אדם לפני שמאשרים אותו.
 import { fullName } from '../../utils/names';
+import { isSystemOperator } from '../../utils/operator';
 
 function joinedLabel(joinedAt: number | undefined): string {
   if (!joinedAt) return '';
@@ -117,6 +118,17 @@ export function MembersPanel({ branchId }: { branchId: string }) {
     // ⚠️ ומנהלת אינה מסירה את עצמה מניהול. אם תעשה זאת כשהיא היחידה, אין יותר
     // מי שיאשר אף אחד, והתיקון חוזר לקונסולה.
     if (isMe) return <span className="text-sm text-ink-faint">{t.manager.me}</span>;
+
+    /*
+      ⚠️⚠️ ומפעיל המערכת אינו יורד מניהול, בבקשת בעל המוצר 26/10/2026.
+
+      ⚠️ והשורה הזו אינה ההגנה. החוק ב-`firestore.rules` הוא מה שחוסם, והוא
+      חוסם גם כתיבה ישירה למסד. כאן רק לא מוצג כפתור שתמיד ייכשל.
+      DOCS/PLANING/40-the-system-operator-can-be-demoted.md
+    */
+    if (isSystemOperator(member)) {
+      return <span className="text-sm text-ink-faint">{t.manager.systemOperator}</span>;
+    }
 
     const nextRole = member.role === 'manager' ? 'member' : 'manager';
     return (

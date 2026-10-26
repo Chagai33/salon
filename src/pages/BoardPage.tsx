@@ -38,7 +38,7 @@ import type { StatusItem } from '../components/layout/StatusLine';
 import { t } from '../i18n/dictionary';
 import { monthNameOf } from '../utils/dates';
 import { namedDaysOfMonth } from '../utils/hebrew';
-import { codeVisibilityFor } from '../utils/eligibility';
+import { codeVisibilityFor, visibilityFromAnswer } from '../utils/eligibility';
 import {
   cancelHandoverRequest,
   claimShift,
@@ -58,6 +58,7 @@ export function BoardPage({ branchId }: { branchId: string }) {
   const shifts = useStore((state) => state.shifts);
   const members = useStore((state) => state.members);
   const codes = useStore((state) => state.accessCodes);
+  const codeAnswer = useStore((state) => state.codeAnswer);
   const isMonthLoading = useStore((state) => state.isMonthLoading);
   const setError = useStore((state) => state.setError);
   const canOpenBranch = useStore((state) => state.canOpenBranch);
@@ -107,9 +108,21 @@ export function BoardPage({ branchId }: { branchId: string }) {
   const isManager = member?.role === 'manager';
   const canManageMembers = isManager || canOpenBranch;
 
+  /*
+    ⚠️⚠️ שני מקורות, ולא אחד.
+
+    המנהלת קוראת את אוסף הקודים ישירות, ולכן אצלה החישוב נשאר בדפדפן.
+    החבר אינו קורא אותו כלל: החוק דוחה אותו, והתשובה מגיעה מפונקציית הענן
+    שכבר חישבה את הזכאות. DOCS/PLANING/15-the-code-is-not-enforced-yet.md
+
+    ⚠️ ושתי הדרכים מחזירות את אותו `CodeVisibility`, כדי שלמסך תהיה שפה אחת.
+  */
   const visibility = useMemo(
-    () => codeVisibilityFor(shifts, codes, member?.id ?? ''),
-    [shifts, codes, member?.id],
+    () =>
+      isManager
+        ? codeVisibilityFor(shifts, codes, member?.id ?? '')
+        : visibilityFromAnswer(codeAnswer),
+    [isManager, shifts, codes, codeAnswer, member?.id],
   );
 
   /** שמות החגים של החודש. ⚠️ מידע ולא מדיניות, רשומה 14. */

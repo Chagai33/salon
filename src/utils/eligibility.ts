@@ -16,7 +16,7 @@
 // ⚠️ ואין שדה זכאות שנשמר, בכוונה. זכאות שנשמרת היא זכאות שיכולה להתיישן,
 // וחבר שביטל משמרת והשדה לא התעדכן הוא חבר שרואה קוד שאינו שלו.
 
-import type { AccessCode, EligibilityResult, Shift } from '../types';
+import type { AccessCode, CodeAnswer, EligibilityResult, Shift } from '../types';
 import { monthKeyOfDateKey, toMonthKey } from './dates';
 
 /**
@@ -77,7 +77,14 @@ export function periodMonthOf(validFrom: number): string {
 export interface CodeVisibility {
   /** האם להציג את הקוד עצמו. */
   canSee: boolean;
-  code: AccessCode | null;
+  /**
+   * ⚠️ האם מוגדר קוד בכלל, בלי קשר לזכאות.
+   * "הקוד עוד לא עודכן" ו"עוד לא השתבצת החודש" הם שני מסכים שונים, וחבר
+   * שאינו זכאי אינו מקבל את הקוד עצמו ולכן אי אפשר להסיק מקיומו.
+   */
+  hasCode: boolean;
+  /** ⚠️ המחרוזת ולא המסמך. לחבר מגיעה רק היא, ורק כשהוא זכאי. */
+  code: string | null;
   eligibility: EligibilityResult;
   /**
    * ⚠️ המנהלת דילגה על חודש: הקוד הנוכחי שייך לחודש קודם.
@@ -105,9 +112,45 @@ export function codeVisibilityFor(
 
   return {
     canSee: Boolean(code) && eligibility.isEligible,
-    code,
+    hasCode: Boolean(code),
+    code: code?.code ?? null,
     eligibility,
     codeIsStale: Boolean(code) && period < thisMonth,
+  };
+}
+
+/**
+ * אותה תשובה, כשהיא הגיעה מהשרת.
+ *
+ * ⚠️⚠️ וזה המסלול של חבר שאינו מנהלת. הוא אינו קורא את אוסף הקודים, ולכן
+ * אין לו מה לחשב: הזכאות חושבה בפונקציית הענן, והקוד נשלח רק אם היא יצאה
+ * חיובית. functions/eligibility.mjs
+ *
+ * ⚠️ ו-`null` פירושו שעוד לא ידוע, ולא שאין קוד. המסך אומר "עוד לא עודכן"
+ * גם במצב הזה, וזה הדבר הנכון לומר לפני שהתשובה חזרה.
+ */
+export function visibilityFromAnswer(answer: CodeAnswer | null): CodeVisibility {
+  if (!answer) {
+    return {
+      canSee: false,
+      hasCode: false,
+      code: null,
+      eligibility: { isEligible: false, reason: 'none', periodMonth: '', shiftDates: [] },
+      codeIsStale: false,
+    };
+  }
+
+  return {
+    canSee: Boolean(answer.code),
+    hasCode: answer.hasCode,
+    code: answer.code,
+    eligibility: {
+      isEligible: answer.isEligible,
+      reason: answer.reason,
+      periodMonth: answer.periodMonth,
+      shiftDates: answer.shiftDates,
+    },
+    codeIsStale: answer.codeIsStale,
   };
 }
 
