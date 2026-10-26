@@ -49,9 +49,30 @@ export type DayVerdict =
   /** ⚠️ יש רשומה, ומשהו שכתוב בה ייעלם. */
   | 'conflict';
 
+/**
+ * ⚠️⚠️ איזה מישור של היום השורה מדברת עליו.
+ *
+ * **נכתב בגלל סתירה שנראתה על המסך:** התגית אמרה "מצב היום לא משתנה",
+ * ומתחתיה כתוב ששני אירועים יוסרו. ⚠️ **שניהם היו נכונים**, כי מצב הגישה של
+ * היום באמת לא השתנה ורשימת האירועים שלו כן, **והמסך לא אמר שאלה שני
+ * דברים.** DOCS/PLANING/56
+ *
+ * ⚠️ וההבחנה קיימת במודל הנתונים מההתחלה: `publicAccess`, `memberAccess`
+ * ו-`closesAt` מול `events`, שדות נפרדים ב-`ActivityDay`. **היא נעלמה כאן,
+ * ברשימה שטוחה אחת.**
+ */
+export type DayPlane =
+  /** מצב הגישה של היום, ושעת הסגירה. */
+  | 'access'
+  /** ההערה שנכתבת ליום. */
+  | 'note'
+  /** רשימת האירועים. */
+  | 'events';
+
 export interface DayChange {
   /** ⚠️ `erase` הוא מה שמצדיק אישור ידני. השאר מוצג ואינו מסוכן. */
   kind: 'add' | 'erase' | 'keep';
+  plane: DayPlane;
   text: string;
 }
 
@@ -154,6 +175,7 @@ function mergeEvents(
       filled = true;
       changes.push({
         kind: merged.overwrites ? 'erase' : 'add',
+        plane: 'events',
         text: `ישתנה: ${eventLabel(merged.event)}`,
       });
     }
@@ -161,7 +183,9 @@ function mergeEvents(
 
   const storedIdentities = new Set(stored.map(eventIdentity));
   const added = read.filter((event) => !storedIdentities.has(eventIdentity(event)));
-  for (const event of added) changes.push({ kind: 'add', text: `יתווסף: ${eventLabel(event)}` });
+  for (const event of added) {
+    changes.push({ kind: 'add', plane: 'events', text: `יתווסף: ${eventLabel(event)}` });
+  }
 
   return { events: [...kept, ...added], changes, changed: filled || added.length > 0 };
 }
@@ -213,11 +237,11 @@ export function planFor(
     const closesAt = closing?.closesAt;
 
     const changes: DayChange[] = [
-      { kind: 'add', text: accessWord(publicAccess, memberAccess) },
+      { kind: 'add', plane: 'access', text: accessWord(publicAccess, memberAccess) },
     ];
-    if (closesAt) changes.push({ kind: 'add', text: closingLabel(closesAt, events) });
-    if (note) changes.push({ kind: 'add', text: `הערה: ${note}` });
-    for (const event of events) changes.push({ kind: 'add', text: eventLabel(event) });
+    if (closesAt) changes.push({ kind: 'add', plane: 'access', text: closingLabel(closesAt, events) });
+    if (note) changes.push({ kind: 'add', plane: 'note', text: `הערה: ${note}` });
+    for (const event of events) changes.push({ kind: 'add', plane: 'events', text: eventLabel(event) });
 
     return {
       verdict: 'new',
@@ -302,6 +326,7 @@ export function planFor(
     if (accessChanged) {
       changes.push({
         kind: readChanged || byManager ? 'erase' : 'add',
+        plane: 'access',
         text: `מצב היום: ${accessWord(stored.publicAccess, stored.memberAccess)} ⟵ ${accessWord(next.publicAccess, next.memberAccess)}`,
       });
       fields.publicAccess = next.publicAccess;
@@ -313,11 +338,13 @@ export function planFor(
         stored.closesAt
           ? {
               kind: 'erase',
+              plane: 'access',
               text: `שעת סגירה: ${stored.closesAt} ⟵ ${nextClosesAt ?? 'בלי שעת סגירה'}`,
             }
           : {
               kind: byManager ? 'erase' : 'add',
-              text: closingLabel(nextClosesAt ?? '', events),
+              plane: 'access',
+              text: closingLabel(nextClosesAt ?? '', merge.events),
             },
       );
       if (nextClosesAt) fields.closesAt = nextClosesAt;
@@ -329,7 +356,7 @@ export function planFor(
       יום שעובר ל"סגור לציבור" יכול להישאר עם סגירה ב-16:00 שאיש לא ביקש.
     */
     if (stored.closesAt && !closesChanged && next.publicAccess !== 'closesEarly') {
-      changes.push({ kind: 'keep', text: `שעת סגירה ${stored.closesAt} נשארת` });
+      changes.push({ kind: 'keep', plane: 'access', text: `שעת סגירה ${stored.closesAt} נשארת` });
     }
   }
 
@@ -339,8 +366,8 @@ export function planFor(
   if (note && note !== storedNote) {
     changes.push(
       storedNote
-        ? { kind: 'erase', text: `הערה: ${storedNote} ⟵ ${note}` }
-        : { kind: 'add', text: `הערה: ${note}` },
+        ? { kind: 'erase', plane: 'note', text: `הערה: ${storedNote} ⟵ ${note}` }
+        : { kind: 'add', plane: 'note', text: `הערה: ${note}` },
     );
     fields.note = note;
   }

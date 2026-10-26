@@ -34,7 +34,7 @@ import { planFor } from '../../utils/importDiff';
 import { useStore } from '../../store/useStore';
 import { saveBranchSettings } from '../../services/salonService';
 import { endsBeforeStart } from '../../utils/times';
-import type { DayPlan, DayVerdict } from '../../utils/importDiff';
+import type { DayPlan, DayPlane, DayVerdict } from '../../utils/importDiff';
 import type { ActivityDay } from '../../types';
 
 /** ⚠️ קריאה מתחת לזה מסומנת למנהלת. 0.7 הוא שיקול ולא מדידה. */
@@ -59,6 +59,18 @@ const VERDICT_TONE: Record<DayVerdict, 'open' | 'taken' | 'membersOnly'> = {
   adds: 'membersOnly',
   same: 'taken',
   conflict: 'open',
+};
+
+/*
+  ⚠️⚠️ שני מישורי היום, בסדר הזה: מה שנוגע לכל היום, ואז מה שבתוכו.
+  DOCS/PLANING/56
+*/
+const PLANES: DayPlane[] = ['access', 'note', 'events'];
+
+const PLANE_LABEL: Record<DayPlane, string> = {
+  access: t.importImage.planeAccess,
+  note: t.importImage.planeNote,
+  events: t.importImage.planeEvents,
 };
 
 /** ⚠️ שלוש מדרגות, בסדר הזה, וזה גם הסדר של הפסים. */
@@ -665,22 +677,46 @@ export function ImportBoardImage({
             {nothingToDo ? (
               <span className="block text-xs text-ink-faint">{t.importImage.sameHint}</span>
             ) : (
-              <ul className="mt-0.5 flex flex-col gap-0.5">
-                {plan.changes.map((change, index) => (
-                  <li
-                    key={`${change.kind}-${index}`}
-                    className={
-                      change.kind === 'erase'
-                        ? 'text-xs font-medium text-danger'
-                        : 'text-xs text-ink-soft'
-                    }
-                  >
-                    {/* ⚠️ מילה ולא צבע לבד. CLAUDE.md, עיצוב. */}
-                    {change.kind === 'erase' ? 'מחליף: ' : ''}
-                    {change.text}
-                  </li>
-                ))}
-              </ul>
+              /*
+                ⚠️⚠️ שני מישורים ולא רשימה אחת.
+
+                קודם זו הייתה רשימה שטוחה, **והתגית "מצב היום לא משתנה" נראתה
+                כסותרת את "שני אירועים יוסרו" שמתחתיה.** שניהם היו נכונים, כי
+                מצב הגישה ורשימת האירועים הם שני דברים. DOCS/PLANING/56
+
+                ⚠️ ומישור בלי שורות אינו מוצג, ולכן יום שמצב הגישה שלו אינו
+                משתנה פשוט לא יראה את הכותרת ההיא. **וזו הסתירה שנעלמת.**
+              */
+              <div className="mt-1 flex flex-col gap-1">
+                {PLANES.map((plane) => {
+                  const lines = plan.changes.filter((change) => change.plane === plane);
+                  if (lines.length === 0) return null;
+
+                  return (
+                    <div key={plane}>
+                      <span className="text-xs font-medium text-ink-faint">
+                        {PLANE_LABEL[plane]}
+                      </span>
+                      <ul className="flex flex-col gap-0.5">
+                        {lines.map((change, index) => (
+                          <li
+                            key={`${change.kind}-${index}`}
+                            className={
+                              change.kind === 'erase'
+                                ? 'text-xs font-medium text-danger'
+                                : 'text-xs text-ink-soft'
+                            }
+                          >
+                            {/* ⚠️ מילה ולא צבע לבד. CLAUDE.md, עיצוב. */}
+                            {change.kind === 'erase' ? `${t.importImage.overwrites}: ` : ''}
+                            {change.text}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </span>
         </label>
