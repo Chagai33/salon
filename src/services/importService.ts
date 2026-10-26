@@ -91,7 +91,13 @@ const callReadBoardImage = httpsCallable<
     text?: string;
   },
   CallResult
->(functions, 'readBoardImage');
+  /*
+    ⚠️⚠️ והזמן הזה אינו קישוט. ברירת המחדל של `httpsCallable` היא 70 שניות,
+    והפונקציה עצמה מוגדרת ל-300. נמדד 26/10 בלוג הענן: קריאה הצליחה בשרת
+    אחרי 75 שניות, והלקוח כבר ויתר והציג "המודל לא הצליח לקרוא את התמונה".
+    כלומר המשתמש ראה כישלון על קריאה שהצליחה. DOCS/PLANING/54
+  */
+>(functions, 'readBoardImage', { timeout: 300_000 });
 
 /** ⚠️ עשרים אלף תווים, כמו בפונקציה. נבדק כאן כדי לא לשלוח ולהיכשל. */
 export const MAX_TEXT_CHARS = 20000;
