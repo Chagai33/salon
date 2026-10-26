@@ -70,7 +70,16 @@ function accessWord(publicAccess: PublicAccess, memberAccess: MemberAccess): str
 function eventKey(event: ActivityEvent): string {
   // ⚠️ והחלל חלק מהמפתח: אירוע שהמנהלת שייכה לחלל בשלב הייבוא הוא שינוי,
   // ובלי זה היום היה נחשב "ללא שינוי" והשיוך לא היה נשמר. DOCS/PLANING/26
-  return `${event.title.trim()}|${event.startTime ?? ''}|${event.endTime ?? ''}|${event.spaceId ?? ''}`;
+  //
+  // ⚠️ ומאותה סיבה גם "ממשיך למחרת": הוא נסמן ביד בשלב הייבוא, ובלעדיו מהמפתח
+  // הסימון לא היה נשמר. DOCS/PLANING/42
+  return [
+    event.title.trim(),
+    event.startTime ?? '',
+    event.endTime ?? '',
+    event.spaceId ?? '',
+    event.endsNextDay ? 'next' : '',
+  ].join('|');
 }
 
 function eventLabel(event: ActivityEvent): string {

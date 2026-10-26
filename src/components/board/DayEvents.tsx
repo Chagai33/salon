@@ -12,6 +12,7 @@
 // היא אותה עובדה פעמיים.
 
 import type { ActivityEvent } from '../../types';
+import { t } from '../../i18n/dictionary';
 
 /**
  * ⚠️ אירוע ששמו הוא שם החג של אותו יום אינו מצויר שוב.
@@ -49,6 +50,14 @@ export function DayEvents({ events, limit, size = 'xs' }: Props) {
         <li key={index} className="flex items-baseline gap-2">
           {/* ⚠️ רוחב קבוע, כדי שהשמות יתחילו באותו קו בכל שורות העמודה. */}
           <span className="num w-11 shrink-0 text-ink-faint">{timeOf(event)}</span>
+          {/*
+            ⚠️⚠️ ואירוע שחוצה חצות אומר זאת במילה.
+            "23:00-01:00" בלי המילה נקרא כמו שעות שהתהפכו, וזו בדיוק הטעות
+            שהבדיקה בשמירה חוסמת. DOCS/PLANING/42
+          */}
+          {event.endsNextDay && (
+            <span className="shrink-0 text-ink-faint">{t.day.nextDay}</span>
+          )}
           {/*
             ⚠️⚠️ ואינו נחתך.
             בלשון בעל המוצר, 06/10: "אם יש אירוע כמו ארוחת שישי שזה לא

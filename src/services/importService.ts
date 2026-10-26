@@ -32,6 +32,8 @@ export interface ImportedEvent {
    * מתקיימים, וזה עוד בשלב הייבוא". DOCS/PLANING/26
    */
   spaceId?: string;
+  /** ⚠️ אירוע שנגמר אחרי חצות, מסומן ולא מוסק. DOCS/PLANING/42 */
+  endsNextDay?: boolean;
 }
 
 export interface ImportedDay {

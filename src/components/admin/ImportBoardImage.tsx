@@ -33,6 +33,7 @@ import { dayAccessOf } from '../../utils/hebrew';
 import { planFor } from '../../utils/importDiff';
 import { useStore } from '../../store/useStore';
 import { saveBranchSettings } from '../../services/salonService';
+import { endsBeforeStart } from '../../utils/times';
 import type { DayPlan, DayVerdict } from '../../utils/importDiff';
 import type { ActivityDay } from '../../types';
 
@@ -252,6 +253,27 @@ export function ImportBoardImage({
 
   function save() {
     if (!days || !plans) return;
+
+    /*
+      ⚠️⚠️ בדיקה בשמירה, ולא `min` בשדה בלבד.
+      `min` ב-`type="time"` מצמצם את הבורר ואינו חוסם הקלדה, ⚠️ ובייבוא הוא
+      גם אינו נוגע במה שהמודל החזיר. מה שבאמת עוצר יושב כאן.
+
+      ⚠️ ונבדקים הימים המסומנים בלבד. יום שהמנהלת לא סימנה אינו נכתב, ואין
+      סיבה שהוא יעצור את השמירה. DOCS/PLANING/42
+    */
+    const broken = days.find(
+      (day) =>
+        chosen.has(day.date) &&
+        day.events.some((event) =>
+          endsBeforeStart(event.startTime, event.endTime, event.endsNextDay),
+        ),
+    );
+    if (broken) {
+      setProblem(t.importImage.badEndTime(shortDateLabel(broken.date)));
+      return;
+    }
+
     /*
       ⚠️⚠️ ונכתבים `plan.fields` ולא מה שהמודל החזיר.
 
@@ -430,13 +452,29 @@ export function ImportBoardImage({
                       onChange={(e) => patchEvent(date, index, { startTime: timeOrNone(e.target.value) })}
                       className="num shrink-0 rounded-card border border-line px-1.5 py-1 text-xs text-ink"
                     />
+                    {/* ⚠️ הגבול התחתון הוא שעת ההתחלה, ומשתחרר כשהאירוע
+                        ממשיך למחרת. DOCS/PLANING/42 */}
                     <input
                       type="time"
                       aria-label={t.day.eventTo}
                       value={event.endTime ?? ''}
+                      min={event.endsNextDay ? undefined : event.startTime}
                       onChange={(e) => patchEvent(date, index, { endTime: timeOrNone(e.target.value) })}
                       className="num shrink-0 rounded-card border border-line px-1.5 py-1 text-xs text-ink"
                     />
+
+                    {/* ⚠️⚠️ סימון ולא הסקה. DOCS/PLANING/42 */}
+                    <label className="flex shrink-0 items-center gap-1 text-xs text-ink-soft">
+                      <input
+                        type="checkbox"
+                        className="size-4"
+                        checked={event.endsNextDay ?? false}
+                        onChange={(e) =>
+                          patchEvent(date, index, { endsNextDay: e.target.checked || undefined })
+                        }
+                      />
+                      {t.day.eventNextDay}
+                    </label>
 
                     <input
                       dir="auto"

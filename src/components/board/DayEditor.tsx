@@ -20,6 +20,7 @@ import { WEEKDAY_NAMES, shortDateLabel, weekdayOf } from '../../utils/dates';
 import { saveActivityDay, saveBranchSettings } from '../../services/salonService';
 import { useStore } from '../../store/useStore';
 import { toReadableError } from '../../utils/errors';
+import { closesOutsideHours, endsBeforeStart } from '../../utils/times';
 
 /** ארבעת החריגים, ולא שני שדות נפרדים שאפשר לסתור זה את זה. */
 type Exception = 'none' | 'closesEarly' | 'closed' | 'shut';
@@ -89,6 +90,9 @@ export function DayEditor({ branchId, dateKey, day, name, bare = false, onClose 
 
   const spaces = (branch?.spaces ?? []).filter((space) => space.isActive);
 
+  /** ⚠️ שעות היום הזה, והן הגבול של שעת הסגירה המוקדמת. DOCS/PLANING/42 */
+  const hours = branch?.openingHours?.[weekdayOf(dateKey)] ?? null;
+
   function patchEvent(index: number, patch: Partial<ActivityEvent>) {
     setEvents(events.map((event, i) => (i === index ? { ...event, ...patch } : event)));
   }
@@ -124,6 +128,29 @@ export function DayEditor({ branchId, dateKey, day, name, bare = false, onClose 
   }
 
   function save() {
+    /*
+      ⚠️⚠️ בדיקה בשמירה, ולא `min` בשדה בלבד.
+      `min` ב-`type="time"` מצמצם את הבורר ואינו חוסם הקלדה, ולכן הוא הצעה
+      ולא גבול. מה שבאמת עוצר יושב כאן. DOCS/PLANING/42
+    */
+    if (events.some((event) => endsBeforeStart(event.startTime, event.endTime, event.endsNextDay))) {
+      setProblem(t.day.badEndTime);
+      return;
+    }
+
+    /*
+      ⚠️ ושעת סגירה מוקדמת שאינה בשעות הפתיחה אינה סגירה מוקדמת.
+      נמדד שהשדה היה חופשי לגמרי, ולכן אפשר היה לקבוע 23:00 בסלון שסוגר
+      ב-22:00. DOCS/PLANING/42
+    */
+    if (
+      (exception === 'closesEarly' || exception === 'shut') &&
+      closesOutsideHours(timeOrNone(closesAt), hours)
+    ) {
+      setProblem(t.day.badClosesAt(hours?.open ?? '', hours?.close ?? ''));
+      return;
+    }
+
     setBusy(true);
     setProblem(null);
     void saveActivityDay(branchId, {
@@ -199,9 +226,12 @@ export function DayEditor({ branchId, dateKey, day, name, bare = false, onClose 
           {(exception === 'closesEarly' || exception === 'shut') && (
             <label className="flex items-center gap-1.5 text-sm text-ink-soft">
               {exception === 'shut' ? t.day.exceptionFrom : t.day.exceptionAt}
+              {/* ⚠️ הבורר מצומצם לשעות היום, והגבול האמיתי הוא ב-`save`. */}
               <input
                 type="time"
                 value={closesAt}
+                min={hours?.open}
+                max={hours?.close}
                 onChange={(event) => setClosesAt(event.target.value)}
                 className={`num ${field}`}
               />
@@ -263,12 +293,29 @@ export function DayEditor({ branchId, dateKey, day, name, bare = false, onClose 
               </label>
               <label>
                 <span className="block text-xs text-ink-faint">{t.day.eventTo}</span>
+                {/* ⚠️ הגבול התחתון הוא שעת ההתחלה, ⚠️ והוא משתחרר כשהאירוע
+                    ממשיך למחרת. DOCS/PLANING/42 */}
                 <input
                   type="time"
                   value={event.endTime ?? ''}
+                  min={event.endsNextDay ? undefined : event.startTime}
                   onChange={(e) => patchEvent(index, { endTime: timeOrNone(e.target.value) })}
                   className={`num mt-1 ${field}`}
                 />
+              </label>
+
+              {/* ⚠️⚠️ סימון ולא הסקה. אירוע 23:00 עד 01:00 קיים, ואירוע
+                  19:00 עד 18:00 הוא טעות, ובמספרים הם זהים. */}
+              <label className="flex min-h-11 items-center gap-1.5 text-xs text-ink-soft">
+                <input
+                  type="checkbox"
+                  className="size-4"
+                  checked={event.endsNextDay ?? false}
+                  onChange={(e) =>
+                    patchEvent(index, { endsNextDay: e.target.checked || undefined })
+                  }
+                />
+                {t.day.eventNextDay}
               </label>
               <button
                 type="button"
