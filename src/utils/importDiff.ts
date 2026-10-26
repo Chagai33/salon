@@ -24,6 +24,9 @@
 //
 // ⚠️ ומה שהייבוא עוד אינו מוחק: שעת סגירה שהמנהלת כתבה ביד. יום שסומן `app`
 // אינו מוחלף בשקט, והוא מוצג כהתנגשות שהיא מאשרת. DOCS/PLANING/25
+//
+// ⚠️⚠️ ומ-26/10/2026 הייבוא אינו מוחק אירועים בכלל, בהכרעת בעל המוצר ("1א").
+// הוא מוסיף את מה שנקרא ואינו בלוח, וממלא שדות באירוע שכבר קיים. DOCS/PLANING/56
 
 import type {
   ActivityDay,
@@ -83,19 +86,84 @@ function accessWord(publicAccess: PublicAccess, memberAccess: MemberAccess): str
 }
 
 /** ⚠️ שם ושעות, ולא השם לבד. "פילוסופיה 19:00" ו"פילוסופיה 20:30" אינם אותו אירוע. */
-function eventKey(event: ActivityEvent): string {
-  // ⚠️ והחלל חלק מהמפתח: אירוע שהמנהלת שייכה לחלל בשלב הייבוא הוא שינוי,
-  // ובלי זה היום היה נחשב "ללא שינוי" והשיוך לא היה נשמר. DOCS/PLANING/26
-  //
-  // ⚠️ ומאותה סיבה גם "ממשיך למחרת": הוא נסמן ביד בשלב הייבוא, ובלעדיו מהמפתח
-  // הסימון לא היה נשמר. DOCS/PLANING/42
-  return [
-    event.title.trim(),
-    event.startTime ?? '',
-    event.endTime ?? '',
-    event.spaceId ?? '',
-    event.endsNextDay ? 'next' : '',
-  ].join('|');
+function eventIdentity(event: ActivityEvent): string {
+  return [event.title.trim(), event.startTime ?? '', event.endTime ?? ''].join('|');
+}
+
+/**
+ * ⚠️⚠️ מה הייבוא ממלא באירוע שכבר קיים בלוח.
+ *
+ * **שדה שהוא קרא נכנס, ושדה ששתק בו אינו מוחק.** זה אותו כלל בדיוק שעושה את
+ * המיזוג אמיתי ברמת היום, `mergeActivityDay`, וכאן הוא ברמת האירוע.
+ *
+ * ⚠️ והחלל וה"ממשיך למחרת" הם השדות שנמלאים, כי שם והשעות הם הזהות של האירוע.
+ *
+ * ⚠️⚠️ ובלי זה היו נשברים שני דברים שנבנו קודם: המנהלת משייכת חלל בחלון
+ * הייבוא, DOCS/PLANING/26, ומסמנת "ממשיך למחרת", DOCS/PLANING/42, **ושניהם
+ * היו נבלעים** כי שם האירוע והשעה לא השתנו.
+ *
+ * ⚠️ ו-`overwrites` אומר שהשדה לא היה ריק. **אז זו דריסה של מה שהמנהלת
+ * קבעה, והיא מחכה לאישור שלה**, DOCS/PLANING/25. **ושדה שהיה ריק הוא תוספת.**
+ */
+function fillEvent(
+  stored: ActivityEvent,
+  read: ActivityEvent,
+): { event: ActivityEvent; changed: boolean; overwrites: boolean } {
+  const event = { ...stored };
+  let overwrites = false;
+
+  if (read.spaceId !== undefined && read.spaceId !== stored.spaceId) {
+    if (stored.spaceId !== undefined) overwrites = true;
+    event.spaceId = read.spaceId;
+  }
+  if (read.endsNextDay !== undefined && read.endsNextDay !== stored.endsNextDay) {
+    if (stored.endsNextDay !== undefined) overwrites = true;
+    event.endsNextDay = read.endsNextDay;
+  }
+
+  const changed =
+    event.spaceId !== stored.spaceId || event.endsNextDay !== stored.endsNextDay;
+  return { event, changed, overwrites };
+}
+
+/**
+ * ⚠️⚠️ רשימת האירועים שתישמר: הקיימים, ואחריהם מה שנקרא ואינו בהם.
+ *
+ * **הייבוא מוסיף ואינו מוחק**, בהכרעת בעל המוצר 26/10/2026 ("1א").
+ * DOCS/PLANING/56
+ *
+ * ⚠️ והקיימים נשארים בסדרם, כדי שהדבקה אחת לא תסדר מחדש יום שלם.
+ */
+function mergeEvents(
+  stored: ActivityEvent[],
+  read: ActivityEvent[],
+): { events: ActivityEvent[]; changes: DayChange[]; changed: boolean } {
+  const changes: DayChange[] = [];
+  const kept: ActivityEvent[] = [];
+  let filled = false;
+
+  for (const event of stored) {
+    const match = read.find((item) => eventIdentity(item) === eventIdentity(event));
+    if (!match) {
+      kept.push(event);
+      continue;
+    }
+    const merged = fillEvent(event, match);
+    kept.push(merged.event);
+    if (merged.changed) {
+      filled = true;
+      changes.push({
+        kind: merged.overwrites ? 'erase' : 'add',
+        text: `ישתנה: ${eventLabel(merged.event)}`,
+      });
+    }
+  }
+
+  const storedIdentities = new Set(stored.map(eventIdentity));
+  const added = read.filter((event) => !storedIdentities.has(eventIdentity(event)));
+  for (const event of added) changes.push({ kind: 'add', text: `יתווסף: ${eventLabel(event)}` });
+
+  return { events: [...kept, ...added], changes, changed: filled || added.length > 0 };
 }
 
 function eventLabel(event: ActivityEvent): string {
@@ -170,6 +238,16 @@ export function planFor(
   const changes: DayChange[] = [];
   const fields: DayPlan['fields'] = { date: imported.date };
 
+  /*
+    ⚠️⚠️ רשימת האירועים נבנית ראשונה, והשורות שלה נכתבות בהמשך.
+
+    ⚠️ **כי שעת הסגירה נגזרת מהרשימה שתישמר ולא ממה שנקרא.** יום שיש בו אירוע
+    ב-10:00 בלוח, ושהודבקה לו שורה של אירוע ב-19:00, נסגר לפי 10:00 ולא לפי
+    19:00. **בגרסה הראשונה הגזירה רצה על מה שנקרא בלבד, והיה יוצא 18:30 ליום
+    שתפוס מהבוקר.** DOCS/PLANING/38, DOCS/PLANING/56
+  */
+  const merge = mergeEvents(stored.events, events);
+
   // ---------- מצב היום ----------
   /*
     ⚠️ המודל ששתק אינו משנה מצב. זה הדבר שהחזיר יום סגור למצב פתוח.
@@ -183,7 +261,7 @@ export function planFor(
     ⚠️⚠️ וחצי השעה לפני האירוע נגזרת גם ביום קיים. DOCS/PLANING/38
     היא נכתבת על מה שהמודל קרא, ולכן יום שסגור לציבור אינו "נסגר מוקדם".
   */
-  const closing = closingFor(events, read.publicAccess, hours);
+  const closing = closingFor(merge.events, read.publicAccess, hours);
   const next = {
     publicAccess: closing?.publicAccess ?? read.publicAccess,
     memberAccess: read.memberAccess,
@@ -269,19 +347,30 @@ export function planFor(
 
   // ---------- אירועים ----------
   /*
-    ⚠️ מערך אינו ממוזג ב-Firestore אלא מוחלף, ולכן אירוע שאינו בתמונה נעלם.
-    ואין כאן מיזוג אוטומטי: מה שנעלם מוצג, והמנהלת מאשרת.
-  */
-  const storedKeys = new Set(stored.events.map(eventKey));
-  const importedKeys = new Set(events.map(eventKey));
-  const removed = stored.events.filter((event) => !importedKeys.has(eventKey(event)));
-  const added = events.filter((event) => !storedKeys.has(eventKey(event)));
+    ⚠️⚠️ הייבוא מוסיף אירועים ואינו מוחק אותם, בהכרעת בעל המוצר 26/10 ("1א").
 
-  if (removed.length > 0 || added.length > 0) {
-    for (const event of removed) changes.push({ kind: 'erase', text: `יוסר: ${eventLabel(event)}` });
-    for (const event of added) changes.push({ kind: 'add', text: `יתווסף: ${eventLabel(event)}` });
-    fields.events = events;
-  }
+    **מה שהיה כאן קודם:** `fields.events = events`, כלומר מה שנקרא בלבד.
+    ⚠️ **ומערך אינו ממוזג ב-Firestore אלא מוחלף**, ולכן אירוע שלא נקרא נעלם.
+    ההערה הקודמת כאן קבעה "ואין כאן מיזוג אוטומטי: מה שנעלם מוצג, והמנהלת
+    מאשרת", **וזו הייתה הכרעה כתובה ולא רק תוצאה של המבנה.**
+
+    **ובפועל זה אמר:** בעל המוצר הדביק שורת טקסט אחת כדי להוסיף אירוע, **ושני
+    אירועים קיימים סומנו להסרה.** בלשונו: "מה קורה פה? זה קצת מבלבל".
+
+    ⚠️ **ומי שמדביק שורה מצפה להוסיף אותה.** מחיקה של אירועים שלא הזכיר היא
+    הפתעה, **ומי שרוצה למחוק אירוע מוחק אותו ביד בעורך היום.**
+    DOCS/PLANING/56
+
+    ⚠️⚠️ **והכלל אחד לשני המסלולים, טקסט ותמונה**, בהכרעת בעל המוצר ("2א").
+    נמדד שהם זהים לגמרי היום: `ImportedDay` אינו נושא שום סימן למקור. **וגם
+    בצילום לוח שלם, "המודל לא קרא את האירוע" ו"האירוע בוטל" הם אותו דבר על
+    המסך**, ונמדד שהמודל החזיר יום אחד מתוך 13 שורות, DOCS/PLANING/52.
+
+    ⚠️ **ורשומה 25 אינה נפגעת אלא מתחזקת:** היא אסרה על מחיקה בשקט, **והמיזוג
+    אינו מוחק כלל.**
+  */
+  for (const change of merge.changes) changes.push(change);
+  if (merge.changed) fields.events = merge.events;
 
   const verdict: DayVerdict = changes.some((change) => change.kind === 'erase')
     ? 'conflict'

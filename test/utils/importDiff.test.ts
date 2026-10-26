@@ -90,13 +90,20 @@ describe('⚠️ יום שהמנהלת ערכה, וזה הבאג', () => {
     assert.equal('memberAccess' in fields, false);
   });
 
-  it('⚠️ והאירוע שתיעלם מסומן כהתנגשות ולא נשמר בשקט', () => {
+  /*
+    ⚠️⚠️ והבדיקה הזאת התהפכה ב-26/10/2026, בהכרעת בעל המוצר ("1א").
+
+    קודם היא דרשה שאירוע שלא נקרא יסומן כהתנגשות, **ועכשיו הוא פשוט אינו
+    מוסר.** ⚠️ ורשומה 25 אינה נפגעת אלא מתחזקת: היא אסרה על מחיקה בשקט,
+    **והמיזוג אינו מוחק כלל.** DOCS/PLANING/56
+  */
+  it('⚠️⚠️ והאירוע שלא נקרא אינו מוסר בכלל, ואין מה לאשר', () => {
     const plan = planFor(secondRead, edited, WEEKDAY);
-    assert.equal(plan.verdict, 'conflict');
-    assert.deepEqual(
-      plan.changes.filter((change) => change.kind === 'erase').map((change) => change.text),
-      ['יוסר: חוג ערבית 20:30'],
+    assert.equal(
+      plan.changes.some((change) => change.text.includes('חוג ערבית')),
+      false,
     );
+    assert.equal('events' in plan.fields, false);
   });
 
   it('ו-source אינו נכתב, כלומר העדות שאדם נגע ביום נשמרת', () => {
@@ -104,7 +111,17 @@ describe('⚠️ יום שהמנהלת ערכה, וזה הבאג', () => {
   });
 
   it('⚠️ ושעת סגירה שנשארת נאמרת, כי המצב אינו עקבי', () => {
-    const plan = planFor(read({ access: 'open', events: [] }), edited, WEEKDAY);
+    /*
+      ⚠️ ויום בלי אירועים, כי מ-26/10 שעת הסגירה נגזרת מהאירועים של היום
+      ואינה נשארת כשיש מה לגזור ממנו. DOCS/PLANING/38
+    */
+    const quiet = storedDay({
+      closesAt: '16:00',
+      publicAccess: 'closed',
+      memberAccess: 'closed',
+      source: 'app',
+    });
+    const plan = planFor(read({ access: 'open', events: [] }), quiet, WEEKDAY);
     assert.ok(plan.changes.some((change) => change.kind === 'keep' && change.text.includes('16:00')));
   });
 });
@@ -142,7 +159,121 @@ describe('ומה שאינו התנגשות', () => {
   it('⚠️ ושעה שונה היא אירוע אחר, ולא אותו אירוע', () => {
     const stored = storedDay({ events: [{ title: 'פילוסופיה', startTime: '19:00' }] });
     const plan = planFor(read({ events: [{ title: 'פילוסופיה', startTime: '20:30' }] }), stored, WEEKDAY);
+    /*
+      ⚠️ ומ-26/10 זו תוספת ולא התנגשות: שני האירועים נשמרים, כי הייבוא אינו
+      מוחק. DOCS/PLANING/56
+    */
+    assert.equal(plan.verdict, 'adds');
+    assert.equal(plan.fields.events?.length, 2);
+  });
+});
+
+/*
+  ⚠️⚠️ הדבקה חלקית מוסיפה ואינה מוחקת, בהכרעת בעל המוצר 26/10 ("1א").
+
+  בעל המוצר הדביק שורת טקסט אחת, ושני אירועים קיימים סומנו להסרה.
+  DOCS/PLANING/56
+*/
+describe('⚠️ הייבוא מוסיף ואינו מוחק', () => {
+  const twoEvents = storedDay({
+    events: [
+      { title: 'סינמה בסלון', startTime: '19:30' },
+      { title: 'סתם אירוע' },
+    ],
+  });
+
+  it('⚠️⚠️ שורה אחת שהודבקה אינה מסמנת את השניים הקיימים להסרה', () => {
+    const plan = planFor(read({ events: [{ title: 'סלון בסלון' }] }), twoEvents, WEEKDAY);
+    assert.equal(plan.verdict, 'adds');
+    assert.equal(
+      plan.changes.some((change) => change.kind === 'erase'),
+      false,
+    );
+  });
+
+  it('⚠️ והיום נשמר עם שלושת האירועים, בסדר: הקיימים ואז החדש', () => {
+    const plan = planFor(read({ events: [{ title: 'סלון בסלון' }] }), twoEvents, WEEKDAY);
+    assert.deepEqual(
+      plan.fields.events?.map((event) => event.title),
+      ['סינמה בסלון', 'סתם אירוע', 'סלון בסלון'],
+    );
+  });
+
+  it('⚠️ וקריאה שנייה של אותו אירוע אינה יוצרת כפילות', () => {
+    const plan = planFor(
+      read({ events: [{ title: 'סינמה בסלון', startTime: '19:30' }] }),
+      twoEvents,
+      WEEKDAY,
+    );
+    // ⚠️ רשימת האירועים אינה נוגעת. מה שכן משתנה ביום הזה הוא שעת הסגירה,
+    //    שנגזרת מהאירוע, DOCS/PLANING/38.
+    assert.equal('events' in plan.fields, false);
+  });
+
+  it('⚠️⚠️ ושעת הסגירה נגזרת מהרשימה שתישמר, ולא ממה שנקרא', () => {
+    const stored = storedDay({ events: [{ title: 'בוקר', startTime: '10:15' }] });
+    const plan = planFor(
+      read({ events: [{ title: 'ערב', startTime: '19:00' }] }),
+      stored,
+      WEEKDAY,
+      { open: '10:00', close: '22:00' },
+    );
+    /*
+      ⚠️ היום תפוס מ-10:15, ולכן 09:45 הנגזרת מוקדמת מהפתיחה והיום סגור
+      לציבור. **ולא 18:30**, שהיה יוצא מהאירוע שנקרא לבדו.
+    */
+    assert.equal(plan.fields.publicAccess, 'closed');
+    assert.equal('closesAt' in plan.fields, false);
+  });
+
+  it('⚠️⚠️ וחלל שהמנהלת שייכה בחלון הייבוא נשמר, ואינו נבלע', () => {
+    const stored = storedDay({ events: [{ title: 'פילוסופיה', startTime: '19:00' }] });
+    const plan = planFor(
+      read({ events: [{ title: 'פילוסופיה', startTime: '19:00', spaceId: 'big' }] }),
+      stored,
+      WEEKDAY,
+    );
+    assert.equal(plan.verdict, 'adds');
+    assert.equal(plan.fields.events?.length, 1);
+    assert.equal(plan.fields.events?.[0].spaceId, 'big');
+  });
+
+  it('⚠️⚠️ וחלל שהמנהלת כתבה בעורך היום אינו נמחק בייבוא ששתק בו', () => {
+    const stored = storedDay({
+      events: [{ title: 'פילוסופיה', startTime: '19:00', spaceId: 'quiet' }],
+    });
+    const plan = planFor(
+      read({ events: [{ title: 'פילוסופיה', startTime: '19:00' }] }),
+      stored,
+      WEEKDAY,
+    );
+    // ⚠️ רשימת האירועים אינה נשלחת בכלל, ולכן החלל שלה נשאר במקומו.
+    assert.equal('events' in plan.fields, false);
+  });
+
+  it('⚠️⚠️ וחלל אחר על אירוע שכבר יש לו חלל הוא דריסה, ומחכה לאישור', () => {
+    const stored = storedDay({
+      events: [{ title: 'פילוסופיה', startTime: '19:00', spaceId: 'quiet' }],
+    });
+    const plan = planFor(
+      read({ events: [{ title: 'פילוסופיה', startTime: '19:00', spaceId: 'big' }] }),
+      stored,
+      WEEKDAY,
+    );
     assert.equal(plan.verdict, 'conflict');
+    assert.equal(plan.fields.events?.[0].spaceId, 'big');
+  });
+
+  it('⚠️ ו"ממשיך למחרת" שנסמן בחלון הייבוא נשמר', () => {
+    const stored = storedDay({
+      events: [{ title: 'מסיבה', startTime: '23:00', endTime: '01:00' }],
+    });
+    const plan = planFor(
+      read({ events: [{ title: 'מסיבה', startTime: '23:00', endTime: '01:00', endsNextDay: true }] }),
+      stored,
+      WEEKDAY,
+    );
+    assert.equal(plan.fields.events?.[0].endsNextDay, true);
   });
 });
 
