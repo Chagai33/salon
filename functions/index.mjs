@@ -158,11 +158,22 @@ async function handle(request) {
     ? requestBodyForText(monthKey, source.trim())
     : requestBodyFor(monthKey, mimeType, imageBase64);
 
+  /*
+    ⚠️ ומודדים כמה זמן המודל לקח.
+
+    נמדד 26/10 בלוג הענן: קריאה שהחזירה אפס ימים ארכה 75 שניות, והלקוח
+    ויתר אחרי 70. בעל המוצר שאל למה פענוח של טבלה קטנה לוקח כל כך הרבה,
+    ואין בלוג שום מספר שעונה על זה. DOCS/PLANING/55
+  */
+  const startedAt = Date.now();
+
   const response = await fetch(`${ENDPOINT}?key=${encodeURIComponent(GEMINI_API_KEY.value())}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(requestBody),
   });
+
+  const modelMs = Date.now() - startedAt;
 
   if (!response.ok) {
     /*
@@ -221,6 +232,17 @@ async function handle(request) {
     monthKey,
     source: asText ? 'text' : 'image',
     days: days.length,
+    /*
+      ⚠️⚠️ וארבעת המספרים האלה הם מה שיענה על "למה זה איטי".
+
+      `thoughts` הוא מספר אסימוני החשיבה של המודל, והוא ההשערה המובילה.
+      אם הוא גדול, הזמן הולך לשם והתיקון הוא תקציב חשיבה. אם הוא אפס או
+      חסר, הזמן הולך למקום אחר והשערה אחרת נמדדת. DOCS/PLANING/55
+    */
+    modelMs,
+    promptTokens: body?.usageMetadata?.promptTokenCount,
+    answerTokens: body?.usageMetadata?.candidatesTokenCount,
+    thoughts: body?.usageMetadata?.thoughtsTokenCount,
   });
 
   // ⚠️ ומחזירה ואינה כותבת. המנהלת רואה, מסמנת, ורק אז נכתב.
