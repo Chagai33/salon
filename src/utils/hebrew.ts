@@ -15,6 +15,7 @@
 
 import type { ActivityDay, MemberAccess, PublicAccess } from '../types';
 import { weekdayOf } from './dates';
+import { closingCauseOf } from './closing.ts';
 
 const MONTH = {
   TISHRI: 'Tishri',
@@ -108,6 +109,14 @@ export interface DayAccess {
   name?: string;
   /** ההערה שהמנהלת כתבה ליום. */
   note?: string;
+  /**
+   * ⚠️ שם האירוע שגרם לסגירה המוקדמת, בלשון בעל המוצר 26/10 "ולציין זאת".
+   *
+   * ⚠️⚠️ ונגזר ולא נשמר: אין שדה כזה במסד. הוא מחושב מהאירועים של אותו יום,
+   * **ורק כששעת הסגירה באמת נגזרה מהם.** שעה שהמנהלת כתבה ביד אינה מקבלת שם
+   * אירוע, כי אין לה אירוע. DOCS/PLANING/38
+   */
+  closesFor?: string;
 }
 
 /**
@@ -133,6 +142,7 @@ export function dayAccessOf(
       from: 'manager',
       name,
       note: stored.note,
+      closesFor: closingCauseOf(stored.events, stored.closesAt),
     };
   }
 

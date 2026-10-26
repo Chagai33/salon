@@ -111,7 +111,15 @@ describe('⚠️ יום שהמנהלת ערכה, וזה הבאג', () => {
 
 describe('ומה שאינו התנגשות', () => {
   it('קריאה זהה לרשומה אינה כותבת כלום', () => {
-    const stored = storedDay({ events: [{ title: 'פילוסופיה', startTime: '19:00' }] });
+    /*
+      ⚠️ והיום נושא כבר את הסגירה שנגזרת מהאירוע, 18:30, מ-26/10/2026.
+      בלעדיה הייבוא כן היה כותב משהו, וזו בדיוק הבקשה. DOCS/PLANING/38
+    */
+    const stored = storedDay({
+      events: [{ title: 'פילוסופיה', startTime: '19:00' }],
+      publicAccess: 'closesEarly',
+      closesAt: '18:30',
+    });
     const plan = planFor(read({ events: [{ title: 'פילוסופיה', startTime: '19:00' }] }), stored, WEEKDAY);
     assert.equal(plan.verdict, 'same');
     assert.deepEqual(Object.keys(plan.fields), ['date']);
@@ -135,5 +143,131 @@ describe('ומה שאינו התנגשות', () => {
     const stored = storedDay({ events: [{ title: 'פילוסופיה', startTime: '19:00' }] });
     const plan = planFor(read({ events: [{ title: 'פילוסופיה', startTime: '20:30' }] }), stored, WEEKDAY);
     assert.equal(plan.verdict, 'conflict');
+  });
+});
+
+/*
+  ⚠️⚠️ חצי שעה לפני האירוע, בבקשת בעל המוצר 26/10/2026.
+  "למשל אירע שמתחיל ב 19:00 יכריז על הסלון כסגור כבר ב 18:30".
+  DOCS/PLANING/38
+*/
+describe('⚠️ חצי שעה לפני האירוע', () => {
+  const HOURS = { open: '10:00', close: '22:00' };
+
+  it('יום חדש נסגר חצי שעה לפני האירוע, והשעה נכתבת למסד', () => {
+    const plan = planFor(
+      read({ events: [{ title: 'NLP הרצאה', startTime: '19:00' }] }),
+      undefined,
+      WEEKDAY,
+      HOURS,
+    );
+    assert.equal(plan.fields.publicAccess, 'closesEarly');
+    assert.equal(plan.fields.closesAt, '18:30');
+  });
+
+  it('⚠️ והשעה המוקדמת מבין האירועים קובעת, ולא האחרון', () => {
+    const plan = planFor(
+      read({
+        events: [
+          { title: 'חוג ערבית', startTime: '20:30' },
+          { title: 'פילוסופיה', startTime: '19:00' },
+        ],
+      }),
+      undefined,
+      WEEKDAY,
+      HOURS,
+    );
+    assert.equal(plan.fields.closesAt, '18:30');
+  });
+
+  it('⚠️ ושם האירוע שגרם לסגירה נאמר למנהלת', () => {
+    const plan = planFor(
+      read({ events: [{ title: 'NLP הרצאה', startTime: '19:00' }] }),
+      undefined,
+      WEEKDAY,
+      HOURS,
+    );
+    assert.ok(plan.changes.some((change) => change.text.includes('לקראת NLP הרצאה')));
+  });
+
+  it('אירוע בלי שעת התחלה אינו גוזר כלום', () => {
+    const plan = planFor(read({ events: [{ title: 'משהו' }] }), undefined, WEEKDAY, HOURS);
+    assert.equal(plan.fields.publicAccess, 'open');
+    assert.equal('closesAt' in plan.fields, false);
+  });
+
+  it('יום בלי אירועים אינו נסגר מוקדם', () => {
+    const plan = planFor(read({ events: [] }), undefined, WEEKDAY, HOURS);
+    assert.equal(plan.fields.publicAccess, 'open');
+  });
+
+  it('⚠️⚠️ ושעה שמוקדמת מהפתיחה הופכת את היום לסגור לציבור, בלי שעת סגירה', () => {
+    const plan = planFor(
+      read({ events: [{ title: 'בוקר טוב', startTime: '10:00' }] }),
+      undefined,
+      WEEKDAY,
+      HOURS,
+    );
+    assert.equal(plan.fields.publicAccess, 'closed');
+    assert.equal(plan.fields.memberAccess, 'open');
+    assert.equal('closesAt' in plan.fields, false);
+  });
+
+  it('⚠️ ושישי אינו נסגר מוקדם, כי הוא סגור לציבור ממילא', () => {
+    const plan = planFor(
+      read({ date: '2026-10-24', events: [{ title: 'משהו', startTime: '19:00' }] }),
+      undefined,
+      WEEKEND,
+      null,
+    );
+    assert.equal(plan.fields.publicAccess, 'closed');
+    assert.equal('closesAt' in plan.fields, false);
+  });
+
+  it('⚠️ ויום פתוח קיים מקבל את הסגירה כתוספת ולא כהתנגשות', () => {
+    const stored = storedDay({ events: [{ title: 'פילוסופיה', startTime: '19:00' }] });
+    const plan = planFor(
+      read({ events: [{ title: 'פילוסופיה', startTime: '19:00' }] }),
+      stored,
+      WEEKDAY,
+      HOURS,
+    );
+    assert.equal(plan.verdict, 'adds');
+    assert.equal(plan.fields.closesAt, '18:30');
+  });
+
+  it('⚠️⚠️ ויום שהמנהלת ערכה הוא התנגשות, גם כשאין בו שעת סגירה כלל', () => {
+    const stored = storedDay({
+      events: [{ title: 'פילוסופיה', startTime: '19:00' }],
+      source: 'app',
+    });
+    const plan = planFor(
+      read({ events: [{ title: 'פילוסופיה', startTime: '19:00' }] }),
+      stored,
+      WEEKDAY,
+      HOURS,
+    );
+    assert.equal(plan.verdict, 'conflict');
+  });
+
+  it('⚠️⚠️ ושעה שהמנהלת כתבה ביד מוצגת כהחלפה ואינה נכתבת בשקט', () => {
+    const stored = storedDay({
+      events: [{ title: 'פילוסופיה', startTime: '19:00' }],
+      publicAccess: 'closesEarly',
+      closesAt: '16:00',
+      source: 'app',
+    });
+    const plan = planFor(
+      read({ events: [{ title: 'פילוסופיה', startTime: '19:00' }] }),
+      stored,
+      WEEKDAY,
+      HOURS,
+    );
+    assert.equal(plan.verdict, 'conflict');
+    assert.ok(
+      plan.changes.some(
+        (change) => change.kind === 'erase' && change.text.includes('16:00'),
+      ),
+    );
   });
 });

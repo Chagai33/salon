@@ -22,7 +22,7 @@ import { Button } from '../common/Button';
 import { useMemo, useState } from 'react';
 import { t } from '../../i18n/dictionary';
 import { shortDateLabel } from '../../utils/dates';
-import { monthNameOf } from '../../utils/dates';
+import { monthNameOf, weekdayOf } from '../../utils/dates';
 import { logEvent, mergeActivityDay } from '../../services/salonService';
 import { readBoardImage } from '../../services/importService';
 import type { ImportedDay, ImportedEvent, ImportStage } from '../../services/importService';
@@ -167,6 +167,13 @@ export function ImportBoardImage({
     [branch?.importIgnore],
   );
 
+  /*
+    ⚠️ שעות הסלון, והן הגבול של שעת הסגירה הנגזרת.
+    אירוע ב-10:00 בסלון שנפתח ב-10:00 גוזר 09:30, ⚠️ ואז היום סגור לציבור ואינו
+    "נסגר מוקדם", בהכרעת בעל המוצר ("4א"). DOCS/PLANING/38
+  */
+  const openingHours = branch?.openingHours;
+
   const monthName = useMemo(() => monthNameOf(monthKey), [monthKey]);
 
   /*
@@ -192,10 +199,18 @@ export function ImportBoardImage({
           .filter((event) => !skippedNow.has(normalizeTitle(event.title)))
           .map((event) => ({ ...event, title: event.title.trim() })),
       };
-      byDate.set(day.date, planFor(clean, activityByDate.get(day.date), fallbackFor(day.date)));
+      byDate.set(
+        day.date,
+        planFor(
+          clean,
+          activityByDate.get(day.date),
+          fallbackFor(day.date),
+          openingHours?.[weekdayOf(day.date)] ?? null,
+        ),
+      );
     }
     return byDate;
-  }, [days, activityByDate, skippedNow]);
+  }, [days, activityByDate, skippedNow, openingHours]);
 
   const conflictCount = useMemo(
     () => (plans ? [...plans.values()].filter((plan) => plan.verdict === 'conflict').length : 0),
@@ -258,6 +273,7 @@ export function ImportBoardImage({
                   day,
                   activityByDate.get(day.date),
                   fallbackFor(day.date),
+                  openingHours?.[weekdayOf(day.date)] ?? null,
                 ).verdict;
                 return verdict === 'new' || verdict === 'adds';
               })
