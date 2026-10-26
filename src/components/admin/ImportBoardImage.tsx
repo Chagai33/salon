@@ -326,12 +326,18 @@ export function ImportBoardImage({
 
       ⚠️ ונבדקים הימים המסומנים בלבד. יום שהמנהלת לא סימנה אינו נכתב, ואין
       סיבה שהוא יעצור את השמירה. DOCS/PLANING/42
+
+      ⚠️⚠️ ואירוע מדולג אינו נבדק, מאותה סיבה בדיוק: הוא אינו נכתב.
+      בלי התנאי הזה אירוע שהמנהלת דילגה עליו היה חוסם את השמירה, והיא הייתה
+      צריכה לתקן שעה באירוע שהיא כבר הוציאה מהייבוא. DOCS/PLANING/41
     */
     const broken = days.find(
       (day) =>
         chosen.has(day.date) &&
-        day.events.some((event) =>
-          endsBeforeStart(event.startTime, event.endTime, event.endsNextDay),
+        day.events.some(
+          (event) =>
+            !skippedNow.has(normalizeTitle(event.title)) &&
+            endsBeforeStart(event.startTime, event.endTime, event.endsNextDay),
         ),
     );
     if (broken) {
