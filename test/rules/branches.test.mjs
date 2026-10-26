@@ -41,6 +41,14 @@ after(async () => {
   await env?.cleanup();
 });
 
+/**
+ * ⚠️ חבר עם מייל באסימון.
+ * מאז 26/10/2026 החוק דורש שהמייל ברשומה יהיה זה שבאסימון, אחרת כל נרשם
+ * יכול לכתוב לעצמו את הכתובת של מפעיל המערכת.
+ * DOCS/PLANING/40-the-system-operator-can-be-demoted.md
+ */
+const as = (uid, email) => env.authenticatedContext(uid, email ? { email } : undefined).firestore();
+
 /** שני סלונים קיימים, ולכל אחד חבר משלו. */
 async function seed() {
   await env.clearFirestore();
@@ -73,7 +81,7 @@ async function seed() {
 describe('פתיחת סלון', () => {
   it('מי שפותח סלון חדש נכתב כמנהל שלו, באותה אצווה', async () => {
     await seed();
-    const db = env.authenticatedContext('founder').firestore();
+    const db = as('founder', 'f@b.c');
     const batch = writeBatch(db);
     batch.set(doc(db, 'branches', 'haifa'), { name: 'הסלון בחיפה', createdBy: 'founder' });
     batch.set(doc(db, 'branches', 'haifa', 'members', 'founder'), {
@@ -85,7 +93,8 @@ describe('פתיחת סלון', () => {
 
   it('⚠️⚠️ ומי שאינו מנהל מערכת אינו פותח סלון בכלל', async () => {
     await seed();
-    const db = env.authenticatedContext('nobody').firestore();
+    // ⚠️ המייל תואם לאסימון, כדי שמה שנמדד יהיה ההרשאה ולא המייל.
+    const db = as('nobody', 'n@b.c');
     const batch = writeBatch(db);
     batch.set(doc(db, 'branches', 'haifa'), { name: 'חיפה', createdBy: 'nobody' });
     batch.set(doc(db, 'branches', 'haifa', 'members', 'nobody'), {
@@ -119,7 +128,7 @@ describe('פתיחת סלון', () => {
 
   it('⚠️ אי אפשר לפתוח סלון בשם מישהו אחר', async () => {
     await seed();
-    const db = env.authenticatedContext('founder').firestore();
+    const db = as('founder', 'f@b.c');
     const batch = writeBatch(db);
     batch.set(doc(db, 'branches', 'haifa'), { name: 'חיפה', createdBy: 'someone-else' });
     batch.set(doc(db, 'branches', 'haifa', 'members', 'founder'), {
@@ -131,7 +140,7 @@ describe('פתיחת סלון', () => {
 
   it('⚠️⚠️ והחור שהחוק הזה סוגר: אי אפשר למנות את עצמי למנהל בסלון קיים', async () => {
     await seed();
-    const db = env.authenticatedContext('intruder').firestore();
+    const db = as('intruder', 'i@b.c');
     await assertFails(
       setDoc(doc(db, 'branches', 'tel-aviv', 'members', 'intruder'), {
         uid: 'intruder', displayName: 'פולש', email: 'i@b.c',
@@ -142,7 +151,7 @@ describe('פתיחת סלון', () => {
 
   it('ואותו ניסיון גם כאצווה שמנסה לדרוס את מסמך הסלון', async () => {
     await seed();
-    const db = env.authenticatedContext('intruder').firestore();
+    const db = as('intruder', 'i@b.c');
     const batch = writeBatch(db);
     batch.set(doc(db, 'branches', 'tel-aviv'), { name: 'שלי עכשיו', createdBy: 'intruder' });
     batch.set(doc(db, 'branches', 'tel-aviv', 'members', 'intruder'), {
@@ -154,7 +163,7 @@ describe('פתיחת סלון', () => {
 
   it('הצטרפות לסלון קיים נשארת pending', async () => {
     await seed();
-    const db = env.authenticatedContext('newcomer').firestore();
+    const db = as('newcomer', 'n@b.c');
     await assertSucceeds(
       setDoc(doc(db, 'branches', 'tel-aviv', 'members', 'newcomer'), {
         uid: 'newcomer', displayName: 'חדש', email: 'n@b.c',
@@ -220,7 +229,7 @@ describe('תביעת המערכת', () => {
 
   it('מי שתבע פותח סלון, ומי שלא תבע אינו פותח', async () => {
     await bare();
-    const db = env.authenticatedContext('first').firestore();
+    const db = as('first', 'f@b.c');
     const claim = writeBatch(db);
     claim.set(doc(db, 'platformAdmins', 'first'), { claimedAt: 1 });
     claim.set(doc(db, 'system', 'bootstrap'), { claimedBy: 'first', claimedAt: 1 });
@@ -263,7 +272,9 @@ describe('הגבול בין סלונים', () => {
     await assertSucceeds(getDocs(collection(db, 'branches')));
   });
 
-  it('⚠️ וחבר של סלון אחד אינו קורא את החברים של האחר', async () => {
+  // ⚠️ `tlv-member` נזרע כמנהלת, ולכן השם אומר מנהלת. סריקת החברים מותרת
+  // למנהלת בלבד, וכשם שהיה כתוב קודם הבדיקה הייתה עוברת מהסיבה הלא נכונה.
+  it('⚠️ ומנהלת של סלון אחד אינה קוראת את החברים של האחר', async () => {
     await seed();
     const db = env.authenticatedContext('tlv-member').firestore();
     await assertSucceeds(getDocs(collection(db, 'branches', 'tel-aviv', 'members')));
@@ -276,7 +287,8 @@ describe('הגבול בין סלונים', () => {
     await assertFails(getDocs(collection(db, 'branches', 'jerusalem', 'shifts')));
   });
 
-  it('⚠️⚠️ ואינו קורא את קוד הכניסה של האחר', async () => {
+  // ⚠️ ומנהלת, מאותה סיבה. מאז 26/10 הקוד נקרא למנהלת בלבד, רשומה 15.
+  it('⚠️⚠️ ומנהלת אינה קוראת את קוד הכניסה של האחר', async () => {
     await seed();
     const db = env.authenticatedContext('tlv-member').firestore();
     await assertSucceeds(getDoc(doc(db, 'branches', 'tel-aviv', 'accessCodes', '1')));

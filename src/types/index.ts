@@ -193,6 +193,24 @@ export interface EligibilityResult {
 }
 
 /**
+ * ⚠️⚠️ מה שפונקציית הענן מחזירה לחבר, והיא הדרך היחידה שלו אל הקוד.
+ *
+ * `code` הוא מחרוזת רק כשהחבר זכאי, ובכל מצב אחר הוא `null`. מה שלא נשלח
+ * אינו נקרא בכלי פיתוח, וזו כל הנקודה.
+ * DOCS/PLANING/15-the-code-is-not-enforced-yet.md
+ */
+export interface CodeAnswer {
+  /** ⚠️ האם מוגדר קוד בכלל. אין בזה סוד, ו"אין קוד" הוא מסך אחר מ"אינך זכאי". */
+  hasCode: boolean;
+  code: string | null;
+  periodMonth: string;
+  isEligible: boolean;
+  reason: EligibilityResult['reason'];
+  shiftDates: string[];
+  codeIsStale: boolean;
+}
+
+/**
  * ⚠️ אזור ליבה. הרשומה שנכתבת ואינה נמחקת, שאומרת מי עשה מה ומתי.
  * DOCS/PLANING/29-nothing-records-that-someone-cancelled.md
  *

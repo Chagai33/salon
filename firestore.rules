@@ -53,6 +53,21 @@ service cloud.firestore {
     }
 
     /**
+     * ⚠️⚠️ מפעיל המערכת, קשיח לכתובת מייל.
+     *
+     * בהכרעת בעל המוצר, 26/10/2026, בלשונו: "לא לא, זה צריך להיות רק קשיח
+     * לכתובת מייל שלי מבחינתי מספיק שבמסד זה עובד". ההצעה ההפוכה, אוסף
+     * `platformAdmins` כזהות, הוגשה ונדחתה.
+     *
+     * ⚠️ ונאמר לו לפני ההכרעה: הקובץ הזה נדחף למאגר, והמאגר ציבורי, רשומה
+     * 08. הכתובת גלויה כאן, וזו הכרעה שהתקבלה בידיעה.
+     * DOCS/PLANING/40-the-system-operator-can-be-demoted.md
+     */
+    function operatorEmail() {
+      return 'chagai33@gmail.com';
+    }
+
+    /**
      * ⚠️⚠️ מסמך אחד, והוא הדלת. `system/bootstrap`.
      *
      * הבעיה: מנהל העל הוא אדם, והמסד אינו יודע מי הוא. כניסה ב-Google מזהה
@@ -150,9 +165,19 @@ service cloud.firestore {
         // באצווה שיוצרת סלון שעוד לא היה קיים. `exists` משקף את המצב לפני
         // האצווה, ולכן על סלון קיים התנאי שקרי תמיד, ואי אפשר למנות את עצמך
         // בו. זו המחצית השנייה של החוק שיושב על מסמך הסלון למעלה.
+        //
+        // ⚠️⚠️ והמייל חייב להיות המייל שבאסימון, ולא מה שנכתב בבקשה.
+        //
+        // בלי השורה הזו כל נרשם כותב לעצמו כל כתובת שירצה, כולל זו של מפעיל
+        // המערכת, והזיהוי הקשיח שלמעלה מפסיק להיות זיהוי. הוא היה פתוח, וזו
+        // הייתה טעות. DOCS/PLANING/40-the-system-operator-can-be-demoted.md
+        //
+        // ⚠️ ו-`get` עם ברירת מחדל ולא גישה ישירה: אסימון בלי מייל מחזיר
+        // מחרוזת ריקה במקום להפיל את הערכת החוק כולה.
         allow create: if signedIn()
           && memberId == request.auth.uid
           && request.resource.data.uid == request.auth.uid
+          && request.resource.data.get('email', '') == request.auth.token.get('email', '')
           && (
             (request.resource.data.status == 'pending' && request.resource.data.role == 'member')
             || (
@@ -165,24 +190,247 @@ service cloud.firestore {
             )
           );
 
+        /**
+         * ⚠️⚠️ וכאן נחסמת הסרתו של מפעיל המערכת מניהול הסלון.
+         *
+         * בקשת בעל המוצר, 26/10/2026: "לא לאפשר להסיר את מנהל המערכת
+         * chagai33@gmail.com בשום צורה".
+         *
+         * ⚠️ והחסימה היא על המעבר ולא על המסמך. מפעיל המערכת יכול להתמנות
+         * למנהל, ואפשר לאשר אותו כחבר רגיל. מה שאי אפשר הוא להוריד אותו
+         * מ-`manager` או להוציא אותו מ-`active`, וזו בדיוק ההסרה.
+         *
+         * ⚠️⚠️ ושינוי המייל נחסם יחד איתם, ולא בגלל פרטיות. בלעדיו ההגנה
+         * נעקפת בשתי כתיבות: קודם משנים את הכתובת ברשומה, ואז היא כבר אינה
+         * הרשומה של מפעיל המערכת, והורדת התפקיד עוברת.
+         *
+         * ⚠️ ו-`resource.data` הוא המצב שלפני הכתיבה, ולכן אין צורך ב-`get`
+         * על מסמך אחר: המסמך הנכתב הוא המסמך הנבדק.
+         *
+         * DOCS/PLANING/40-the-system-operator-can-be-demoted.md
+         */
+        function removesOperator() {
+          return resource.data.get('email', '') == operatorEmail()
+            && (
+              request.resource.data.get('email', '') != operatorEmail()
+              || (resource.data.get('role', '') == 'manager'
+                  && request.resource.data.get('role', '') != 'manager')
+              || (resource.data.get('status', '') == 'active'
+                  && request.resource.data.get('status', '') != 'active')
+            );
+        }
+
         // מנהלת מאשרת ומשנה תפקיד.
         //
         // ⚠️ ומנהל המערכת גם הוא, וזו הדרך להגדיר את המנהלת הראשונה של סלון
         // שנוצר לפני שהחוק הזה היה קיים. בלעדיה היא נקבעת ביד בקונסולה.
-        allow update: if isManager(branchId) || isPlatformAdmin();
+        allow update: if (isManager(branchId) || isPlatformAdmin())
+          && !removesOperator();
+
+        // ⚠️ ואין מחיקה לאיש, ולכן גם רשומת מפעיל המערכת אינה נמחקת.
         allow delete: if false;
       }
 
+      /**
+       * ⚠️⚠️ אזור ליבה, וזהו הצד הכותב של התנאי שהמוצר בנוי עליו.
+       *
+       * DOCS/PLANING/45-a-member-can-write-himself-onto-a-shift.md
+       *
+       * הבעיה: עד 26/10/2026 ישב כאן `allow update: if isActive(branchId)`,
+       * בלי הגבלת שדות. חבר פעיל כתב את עצמו על משמרת קיימת ישירות במסד,
+       * ובזה הפך את עצמו לזכאי לקוד בלי לשמור משמרת. ⚠️ נמדד מול האמולטור,
+       * ושתי כתיבות עברו: `assigneeMemberId` של עצמו על משמרת של אדם אחר,
+       * ו-`handoverFromMemberId` של עצמו עם `handoverState` שהוא `completed`.
+       *
+       * ⚠️ והקריאה כבר עברה למסד בסבב שלפני זה. זו הכתיבה, והיא הקלט של
+       * אותו חישוב: `readAccessCode` שואלת את האוסף הזה מי משובץ.
+       *
+       * הפתרון: כל מסלול כתיבה שקיים בשכבת השירות מקבל כאן ענף משלו, עם
+       * רשימת שדות סגורה ועם המצב הקודם שהוא דורש. שבעה מסלולים נמנו
+       * ב-`src/services/salonService.ts`, וכולם עוברים בחוק הזה כפי שהם.
+       *
+       * ⚠️⚠️ ומה שהחוק הזה אינו יכול לעשות, ונאמר בשמו:
+       *
+       *   1. הזכאות עצמה. היא שאילתה על אוסף, וחוק קורא מסמך. זו הסיבה
+       *      שפונקציית הענן קיימת, ולא השתנה.
+       *   2. לדרוש שהשורה שאינה נמחקת נכתבה. מזהה מסמך השורה נוצר אוטומטית,
+       *      ואין נתיב ש-`getAfter` יכול לבדוק. כתיבה ישירה על משמרת היא
+       *      חוקית ואינה מותירה שורה. DOCS/PLANING/48
+       *   3. לאמת ששם המשובץ הוא שמו. אפשר להשוות לרשומת החבר, ולא נעשה:
+       *      מסך עם שם מיושן היה נדחה, והזכאות נגזרת מהמזהה ולא מהשם.
+       *   4. לאמת שזמן השיבוץ הוא עכשיו. הוא שעון הדפדפן.
+       *   5. לחסום לקיחת משמרת שהתאריך שלה עבר. זה כלל מוצר שאינו קיים
+       *      בשום שכבה, ובהכרעת בעל המוצר 26/10 הוא נרשם ואינו נחסם כאן.
+       *      DOCS/PLANING/47
+       *   6. ⚠️⚠️ ולעצור את מחיקת הסלון. `deleteDueBranches` מוחקת את מסמך
+       *      הסלון ואת כל תתי האוספים שלו ב-`recursiveDelete`, ובהם
+       *      המשמרות. היא רצה ב-Admin SDK, שעובר מעל החוקים כולם, ולכן
+       *      `allow delete: if false` שלמטה אינו נוגע בה.
+       *      DOCS/PLANING/35-there-is-no-way-to-delete-a-salon.md
+       */
       match /shifts/{shiftId} {
         allow read: if isMember(branchId);
 
-        // רק מנהלת מולידה חודש ומוחקת.
-        allow create: if isManager(branchId);
+        /*
+          ⚠️ המשמרת נולדת בידי מנהלת בלבד, ונולדת פנויה.
+          `hasOnly` על שבעת השדות ש-`generateMonth` כותב הוא מה שמונע
+          משמרת שנולדת כשהיא כבר משובצת, כי `assigneeMemberId` אינו ברשימה.
+        */
+        allow create: if isManager(branchId)
+          && request.resource.data.keys().hasOnly([
+               'branchId', 'date', 'templateId', 'startTime', 'endTime',
+               'attendance', 'handoverState'
+             ])
+          && request.resource.data.keys().hasAll([
+               'branchId', 'date', 'templateId', 'attendance', 'handoverState'
+             ])
+          && request.resource.data.branchId == branchId
+          && request.resource.data.attendance == 'assumed'
+          && request.resource.data.handoverState == 'none';
+
+        // ⚠️ ואין מחיקה לאיש מתוך האפליקציה. אין מסלול מחיקה בשכבת השירות,
+        // ולכן אין מה להתיר. המחיקה היחידה היא מחיקת הסלון, והיא בשרת.
         allow delete: if false;
 
-        // ⚠️ חבר פעיל מעדכן משמרת, והכללים שמגבילים אותו לשיבוץ של עצמו
-        // יושבים כרגע בשכבת השירות ולא כאן. רשומה 15.
-        allow update: if isActive(branchId) || isManager(branchId);
+        /** השדות שהכתיבה הזו נוגעת בהם, ולא אלה שהיא שולחת. */
+        function shiftTouched() {
+          return request.resource.data.diff(resource.data).affectedKeys();
+        }
+
+        /*
+          ⚠️⚠️ ארבע הבדיקות על המשובץ עוברות ב-`is string` ולא בהשוואה ל-`null`,
+          ואין זו העדפת סגנון.
+
+          לשדה `assigneeMemberId` שלושה מצבים: חסר במשמרת שנולדה, `null`
+          במשמרת ששוחררה, ומחרוזת במשמרת משובצת. ⚠️ והשוואה של `null`
+          למחרוזת בחוק אינה מחזירה שקר אלא מפילה את הערכת הביטוי, והדחייה
+          שמתקבלת היא דחייה מתוך שגיאה. נמדד מול האמולטור: עשר הדחיות נראו
+          כ-`evaluation error`, ולא כ-`false`.
+
+          ⚠️ ובאזור ליבה זה אינו מקובל, כי `||` בחוקי המסד בולע שגיאה כשענף
+          אחר מחזיר אמת, ולכן חוק שגוי יכול להיראות עובד.
+        */
+        function assignedBefore() {
+          return resource.data.get('assigneeMemberId', null) is string;
+        }
+
+        function heldByCaller() {
+          return assignedBefore() && resource.data.assigneeMemberId == request.auth.uid;
+        }
+
+        function heldByOther() {
+          return assignedBefore() && resource.data.assigneeMemberId != request.auth.uid;
+        }
+
+        function claimedByCaller() {
+          return request.resource.data.get('assigneeMemberId', null) is string
+            && request.resource.data.assigneeMemberId == request.auth.uid;
+        }
+
+        function openAfter() {
+          return !(request.resource.data.get('assigneeMemberId', null) is string);
+        }
+
+        /**
+         * מנהלת: שיבוץ, שחרור, החלפה ונוכחות, 12 שדות.
+         *
+         * ⚠️⚠️ וחמישה שאינם ברשימה, גם לה: `branchId`, `date`, `templateId`,
+         * `startTime` ו-`endTime`. בהכרעת בעל המוצר 26/10/2026, בלשונו
+         * *"2א"*: התאריך, התבנית והשעות נעולים לכולם.
+         *
+         * שתי סיבות. מזהה המשמרת הוא התאריך והתבנית, ולכן תאריך שמשתנה יוצר
+         * משמרת שהמזהה שלה משקר. ותאריך שעובר לחודש אחר מעביר את הזכאות של
+         * מי שמשובץ עליה לחודש אחר בלי שהוא יודע.
+         */
+        function managerShiftUpdate() {
+          return shiftTouched().hasOnly([
+            'assigneeMemberId', 'assigneeName', 'assignedAt', 'assignedBy',
+            'handoverState', 'handoverRequestedAt', 'handoverReason',
+            'handoverFromMemberId', 'handoverFromName',
+            'attendance', 'attendanceSetBy', 'attendanceSetAt'
+          ]);
+        }
+
+        /**
+         * חבר לוקח משמרת פנויה, ורק את עצמו.
+         * `claimShift`, הענף שאין בו בקשת מחליף.
+         */
+        function memberClaimsOpen() {
+          return !assignedBefore()
+            && shiftTouched().hasOnly([
+                 'assigneeMemberId', 'assigneeName', 'assignedAt', 'assignedBy'
+               ])
+            && claimedByCaller()
+            && request.resource.data.get('assignedBy', '') == request.auth.uid;
+        }
+
+        /**
+         * חבר לוקח משמרת שמבוקש לה מחליף.
+         * `claimShift`, הענף השני. DOCS/PLANING/10-shift-handover.md
+         *
+         * ⚠️⚠️ והשורה שחוסמת את הכתיבה שנמדדה: `handoverFromMemberId` חייב
+         * להיות המשובץ שלפני הכתיבה. כלומר אי אפשר להמציא שמסרו לי משמרת,
+         * ואי אפשר לכתוב את עצמי כמי שמסר.
+         *
+         * ⚠️ ולא המבקש עצמו, כי הלינק שהוא משתף מגיע גם אליו. DOCS/PLANING/28
+         */
+        function memberTakesHandover() {
+          return resource.data.get('handoverState', 'none') == 'requested'
+            && heldByOther()
+            && shiftTouched().hasOnly([
+                 'assigneeMemberId', 'assigneeName', 'assignedAt', 'assignedBy',
+                 'handoverState', 'handoverFromMemberId', 'handoverFromName'
+               ])
+            && claimedByCaller()
+            && request.resource.data.get('assignedBy', '') == request.auth.uid
+            && request.resource.data.get('handoverState', '') == 'completed'
+            && request.resource.data.get('handoverFromMemberId', '')
+                 == resource.data.assigneeMemberId;
+        }
+
+        /**
+         * חבר מבקש מחליף, או מבטל את הבקשה, על משמרת שהוא מחזיק.
+         * `requestHandover` ו-`cancelHandoverRequest`.
+         *
+         * ⚠️ ו-`completed` אינו מצב שהמסלול הזה מגיע אליו. השלמת החלפה היא
+         * לקיחה, והיא עוברת ב-`memberTakesHandover` עם המצב שהיא דורשת.
+         */
+        function memberSetsHandover() {
+          return heldByCaller()
+            && shiftTouched().hasOnly([
+                 'handoverState', 'handoverRequestedAt', 'handoverReason'
+               ])
+            && request.resource.data.get('handoverState', '') in ['requested', 'none'];
+        }
+
+        /**
+         * חבר משחרר את המשמרת של עצמו, ורק אותה. `releaseShift`.
+         *
+         * ⚠️⚠️ ו-`handoverFromMemberId` אינו ברשימה, בכוונה. הוא הזכאות של מי
+         * שמסר את המשמרת, ומחיקתו היא שלילת זכאות בשקט.
+         * DOCS/PLANING/10-shift-handover.md
+         */
+        function memberReleasesOwn() {
+          return heldByCaller()
+            && shiftTouched().hasOnly([
+                 'assigneeMemberId', 'assigneeName', 'assignedAt', 'assignedBy',
+                 'handoverState', 'handoverRequestedAt', 'handoverReason'
+               ])
+            && openAfter()
+            && request.resource.data.get('handoverState', '') == 'none';
+        }
+
+        /*
+          ⚠️ והנוכחות אינה באף אחד מארבעת הענפים של החבר, ולכן היא למנהלת
+          בלבד. היא אינה מזכה, ובכל זאת היא רשומה שלילית על אדם.
+        */
+        allow update: if (isManager(branchId) && managerShiftUpdate())
+          || (isActive(branchId) && (
+                memberClaimsOpen()
+                || memberTakesHandover()
+                || memberSetsHandover()
+                || memberReleasesOwn()
+              ));
       }
 
       match /activityDays/{dayId} {
@@ -268,23 +516,27 @@ service cloud.firestore {
         allow list: if isManager(branchId);
       }
 
-      // ⚠️⚠️ כאן יושב החור היחיד שידוע מראש, והוא הפיצ'ר המרכזי.
+      // ⚠️⚠️ אזור ליבה, והתנאי שהמוצר כולו בנוי עליו.
       //
       // הכלל במוצר: הקוד נחשף רק למי שמשובץ לפחות למשמרת אחת בחודש.
       //
       // חוק מסד אינו יכול לבדוק את זה. הזכאות היא שאילתה על אוסף המשמרות,
       // וחוקי Firestore יודעים לקרוא מסמך בודד ואינם יודעים לשאול אוסף.
       //
-      // מה שהשורה הבאה אומרת בפועל: כל חבר פעיל יכול לקרוא את הקוד ישירות
-      // מהמסד, גם אם אינו משובץ החודש. הסינון שבאפליקציה הוא בממשק בלבד.
+      // ⚠️ עד 26/10/2026 כאן ישב `allow read: if isActive(branchId)`, וכל חבר
+      // פעיל קרא את הקוד ישירות מהמסד גם בלי להיות משובץ. הסינון היה בממשק
+      // בלבד, והממשק אינו הגנה.
       //
-      // ⚠️ כלומר התנאי שהמוצר כולו בנוי עליו אינו נאכף כרגע.
+      // ⚠️⚠️ ומה שהשורה הבאה אומרת: הדפדפן אינו קורא את האוסף הזה עוד, חוץ
+      // מהדפדפן של מנהלת. החבר מקבל את הקוד מפונקציית הענן `readAccessCode`,
+      // שמריצה את חישוב הזכאות בצד השרת ומחזירה את הקוד או כלום.
+      // functions/eligibility.mjs
       //
-      // התיקון הוא פונקציית ענן שמחשבת זכאות בצד השרת ומחזירה את הקוד, ואז
-      // השורה הזו הופכת ל-`if isManager(branchId)`.
+      // ⚠️ והמנהלת כן קוראת ישירות, כי היא זו שמגדירה את הקוד, והטופס שלה
+      // אינו תלוי בזכאות שלה עצמה.
       // DOCS/PLANING/15-the-code-is-not-enforced-yet.md
       match /accessCodes/{codeId} {
-        allow read: if isActive(branchId);
+        allow read: if isManager(branchId);
         allow write: if isManager(branchId);
       }
     }

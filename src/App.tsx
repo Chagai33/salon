@@ -16,6 +16,7 @@ import {
 } from 'react-router-dom';
 import { useStore } from './store/useStore';
 import {
+  useAccessCodeBinding,
   useAuthBinding,
   useBranchesBinding,
   useCurrentBranchBinding,
@@ -296,6 +297,8 @@ function BranchScope() {
 function BoardRoute() {
   const { branchId = '' } = useParams();
   useMonthBinding(branchId);
+  // ⚠️ אחרי מאזיני החודש, כי קריאה חוזרת של הקוד תלויה במשמרות שנטענו.
+  useAccessCodeBinding(branchId);
   return <BoardPage branchId={branchId} />;
 }
 

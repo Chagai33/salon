@@ -19,6 +19,7 @@ import { logger } from 'firebase-functions';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { firestore } from './admin-app.mjs';
 import { ACTIONS, BRANCH_ID, deleteAfterFrom, isDue, planAction } from './branch-deletion.mjs';
+import { codeAnswerFor, monthBounds, monthKeyNow } from './eligibility.mjs';
 import {
   ALLOWED_TYPES,
   MAX_IMAGE_BYTES,
@@ -197,6 +198,127 @@ async function handle(request) {
   // ⚠️ ומחזירה ואינה כותבת. המנהלת רואה, מסמנת, ורק אז נכתב.
   // CLAUDE.md, אזור ליבה 4.
   return { model: MODEL, days };
+}
+
+// ---------- קוד הכניסה ----------
+//
+// ⚠️⚠️ אזור ליבה, ובשביל זה הסבב הזה קיים.
+// DOCS/PLANING/15-the-code-is-not-enforced-yet.md
+//
+// הכלל במוצר: הקוד נחשף רק למי שמשובץ לפחות למשמרת אחת בחודש. עד עכשיו
+// הסינון היה בדפדפן בלבד, ו-`allow read: if isActive(branchId)` נתן לכל חבר
+// פעיל לקרוא את הקוד ישירות מהמסד.
+//
+// ⚠️ ולמה חוק המסד אינו יכול לעשות את זה לבדו: הזכאות היא שאילתה על אוסף
+// המשמרות, וחוקי Firestore יודעים לקרוא מסמך בודד ואינם יודעים לשאול אוסף.
+//
+// ⚠️⚠️ והפתרון המפתה שנדחה: לשמור שדה זכאות על רשומת החבר. זו התיישנות.
+// חבר שביטל משמרת והשדה לא התעדכן רואה קוד שאינו שלו, לנצח.
+// DOCS/PLANING/02-the-data-model.md
+//
+// ⚠️ והחישוב עצמו אינו כאן אלא ב-`eligibility.mjs`, כדי שיהיה לו בדיקה.
+
+/**
+ * ⚠️ חבר פעיל, וכל תפקיד. מנהלת אינה צריכה את הפונקציה הזו, כי החוק מתיר לה
+ * לקרוא את האוסף ישירות, והיא כן מגיעה לכאן בלי נזק.
+ */
+async function assertActiveMember(uid, branchId) {
+  let snapshot;
+  try {
+    snapshot = await firestore().doc(`branches/${branchId}/members/${uid}`).get();
+  } catch (error) {
+    // ⚠️ `cause` ולא `message`. `message` מפתח שמור, והלוגר דורס אותו.
+    logger.error('member lookup failed', {
+      branchId,
+      uid,
+      code: error?.code ?? error?.name ?? 'unknown',
+      cause: String(error?.message ?? error),
+    });
+    throw new HttpsError('internal', 'memberLookupFailed');
+  }
+
+  const member = snapshot.data();
+  if (!snapshot.exists || member?.status !== 'active') {
+    logger.warn('not an active member', {
+      branchId,
+      uid,
+      exists: snapshot.exists,
+      status: member?.status ?? null,
+    });
+    throw new HttpsError('permission-denied', 'notActive');
+  }
+}
+
+export const readAccessCode = onCall(
+  { maxInstances: 2, region: 'us-central1' },
+  async (request) => {
+    try {
+      return await handleAccessCode(request);
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      logger.error('unexpected', {
+        code: error?.code ?? error?.name ?? 'unknown',
+        cause: String(error?.message ?? error),
+        stack: error?.stack,
+      });
+      throw new HttpsError('internal', 'unexpected');
+    }
+  },
+);
+
+async function handleAccessCode(request) {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'noAuth');
+
+  const { branchId } = request.data ?? {};
+  // ⚠️ מזהה ולא נתיב. `x/members/y` היה מכוון את הקריאה למקום אחר.
+  if (typeof branchId !== 'string' || !BRANCH_ID.test(branchId)) {
+    throw new HttpsError('invalid-argument', 'badBranch');
+  }
+
+  await assertActiveMember(uid, branchId);
+
+  const db = firestore();
+  // ⚠️ שעון השרת ולא מה שהדפדפן שלח. `now` שמגיע מהלקוח הוא `now` שאפשר
+  // להזיז קדימה, ואז קוד עתידי הופך לנוכחי.
+  const now = Date.now();
+
+  /*
+    ⚠️ אי שוויון ו-`orderBy` על אותו שדה, ולכן אין צורך באינדקס מורכב.
+    `firestore.indexes.json` לא משתנה בגלל הפונקציה הזו.
+  */
+  const codes = await db
+    .collection(`branches/${branchId}/accessCodes`)
+    .where('validFrom', '<=', now)
+    .orderBy('validFrom', 'desc')
+    .limit(1)
+    .get();
+
+  const code = codes.docs[0]?.data();
+  // ⚠️ אין קוד, ואין בשביל מה לקרוא את המשמרות.
+  if (!code) return codeAnswerFor([], [], uid, now);
+
+  const { from, to } = monthBounds(code.periodMonth ?? monthKeyNow(now));
+  /*
+    ⚠️⚠️ ומשמרות החודש של הקוד, ולא של החודש שהלוח מציג. זה ההבדל מהדפדפן,
+    שמחזיק רק את החודש שנפתח. DOCS/PLANING/43
+  */
+  const shifts = await db
+    .collection(`branches/${branchId}/shifts`)
+    .where('date', '>=', from)
+    .where('date', '<=', to)
+    .get();
+
+  /*
+    ⚠️⚠️ והתשובה אינה נרשמת ביומן, גם לא בהצלחה. הקוד הוא הדבר היחיד
+    שהמוצר שומר, ושורת לוג היא עותק שלו במקום שאיש לא ביקש. DOCS/PLANING/29
+  */
+  return codeAnswerFor(
+    shifts.docs.map((entry) => entry.data()),
+    [code],
+    uid,
+    now,
+  );
 }
 
 // ---------- סגירה ומחיקה של סלון ----------

@@ -16,8 +16,11 @@
 // ⚠️ ואין שדה זכאות שנשמר, בכוונה. זכאות שנשמרת היא זכאות שיכולה להתיישן,
 // וחבר שביטל משמרת והשדה לא התעדכן הוא חבר שרואה קוד שאינו שלו.
 
-import type { AccessCode, EligibilityResult, Shift } from '../types';
-import { monthKeyOfDateKey, toMonthKey } from './dates';
+import type { AccessCode, CodeAnswer, EligibilityResult, Shift } from '../types';
+// ⚠️ עם סיומת, כמו ב-`releases.ts` ומאותה סיבה: בלעדיה
+// `node --test --experimental-strip-types` אינו מוצא את המודול, ואי אפשר
+// לבדוק את הקובץ הזה. test/utils/eligibility.test.ts
+import { monthKeyOfDateKey, toMonthKey } from './dates.ts';
 
 /**
  * האם החבר זכאי לקוד בחודש נתון.
@@ -43,12 +46,23 @@ export function eligibilityFor(
     };
   }
 
-  // החצי השני של הנוסחה: מי שמסר משמרת ומישהו לקח אותה.
-  // ⚠️ רק handoverState שהוא completed. בקשה שלא נענתה אינה מזכה, והאחריות
-  // נשארת על המבקש. DOCS/PLANING/10-shift-handover.md
-  const handedOver = inMonth.filter(
-    (shift) => shift.handoverFromMemberId === memberId && shift.handoverState === 'completed',
-  );
+  /*
+    החצי השני של הנוסחה: מי שמסר משמרת ומישהו לקח אותה.
+
+    ⚠️ ו-`handoverFromMemberId` לבדו, בלי `handoverState`. בקשה שלא נענתה
+    אינה מזכה גם כך, כי השדה הזה נכתב רק ברגע שמישהו לוקח.
+
+    ⚠️⚠️ והתנאי על `handoverState` היה כאן ונמחק, כי הוא ביטל את ההבטחה
+    שהוא בא לקיים. המצב חוזר ל-`none` ברגע שהמקבל משחרר את המשמרת, ול-
+    `requested` ברגע שהוא מבקש לה מחליף בעצמו, ובשני המצבים מי שמסר אותה
+    איבד את הזכאות שלו בשקט, בלי שעשה דבר. בהכרעת בעל המוצר 26/10/2026,
+    בלשונו *"4א"*: זו הפרה של הבטחה כתובה ולא ממצא אגב.
+
+    ⚠️ ואין כאן שדה שמתיישן: `handoverFromMemberId` נכתב בלקיחה בלבד, ואין
+    בכל העץ מסלול שמוחק אותו. חוקי המסד נועלים את זה: הוא אינו ברשימת
+    השדות שחבר רשאי לגעת בהם בשחרור. DOCS/PLANING/10-shift-handover.md
+  */
+  const handedOver = inMonth.filter((shift) => shift.handoverFromMemberId === memberId);
   if (handedOver.length > 0) {
     return {
       isEligible: true,
@@ -77,7 +91,14 @@ export function periodMonthOf(validFrom: number): string {
 export interface CodeVisibility {
   /** האם להציג את הקוד עצמו. */
   canSee: boolean;
-  code: AccessCode | null;
+  /**
+   * ⚠️ האם מוגדר קוד בכלל, בלי קשר לזכאות.
+   * "הקוד עוד לא עודכן" ו"עוד לא השתבצת החודש" הם שני מסכים שונים, וחבר
+   * שאינו זכאי אינו מקבל את הקוד עצמו ולכן אי אפשר להסיק מקיומו.
+   */
+  hasCode: boolean;
+  /** ⚠️ המחרוזת ולא המסמך. לחבר מגיעה רק היא, ורק כשהוא זכאי. */
+  code: string | null;
   eligibility: EligibilityResult;
   /**
    * ⚠️ המנהלת דילגה על חודש: הקוד הנוכחי שייך לחודש קודם.
@@ -105,9 +126,47 @@ export function codeVisibilityFor(
 
   return {
     canSee: Boolean(code) && eligibility.isEligible,
-    code,
+    hasCode: Boolean(code),
+    // ⚠️ המחרוזת רק כשמותר להציג אותה, בדיוק כמו בצד השרת. אובייקט שנושא
+    // את הקוד ו-`canSee: false` הוא הזמנה לקורא הבא להציג אותו.
+    code: code && eligibility.isEligible ? code.code : null,
     eligibility,
     codeIsStale: Boolean(code) && period < thisMonth,
+  };
+}
+
+/**
+ * אותה תשובה, כשהיא הגיעה מהשרת.
+ *
+ * ⚠️⚠️ וזה המסלול של חבר שאינו מנהלת. הוא אינו קורא את אוסף הקודים, ולכן
+ * אין לו מה לחשב: הזכאות חושבה בפונקציית הענן, והקוד נשלח רק אם היא יצאה
+ * חיובית. functions/eligibility.mjs
+ *
+ * ⚠️ ו-`null` פירושו שעוד לא ידוע, ולא שאין קוד. המסך אומר "עוד לא עודכן"
+ * גם במצב הזה, וזה הדבר הנכון לומר לפני שהתשובה חזרה.
+ */
+export function visibilityFromAnswer(answer: CodeAnswer | null): CodeVisibility {
+  if (!answer) {
+    return {
+      canSee: false,
+      hasCode: false,
+      code: null,
+      eligibility: { isEligible: false, reason: 'none', periodMonth: '', shiftDates: [] },
+      codeIsStale: false,
+    };
+  }
+
+  return {
+    canSee: Boolean(answer.code),
+    hasCode: answer.hasCode,
+    code: answer.code,
+    eligibility: {
+      isEligible: answer.isEligible,
+      reason: answer.reason,
+      periodMonth: answer.periodMonth,
+      shiftDates: answer.shiftDates,
+    },
+    codeIsStale: answer.codeIsStale,
   };
 }
 

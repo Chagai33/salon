@@ -8,6 +8,7 @@ import type {
   AccessCode,
   ActivityDay,
   Branch,
+  CodeAnswer,
   Member,
   Shift,
   User,
@@ -43,6 +44,12 @@ interface AppState {
   isLinkedShiftLoading: boolean;
   activityDays: ActivityDay[];
   accessCodes: AccessCode[];
+  /**
+   * ⚠️ התשובה של פונקציית הענן, ורק לחבר שאינו מנהלת.
+   * המנהלת קוראת את `accessCodes` ישירות, והחבר אינו קורא אותו כלל.
+   * DOCS/PLANING/15-the-code-is-not-enforced-yet.md
+   */
+  codeAnswer: CodeAnswer | null;
   isAuthResolved: boolean;
   isMonthLoading: boolean;
   error: string | null;
@@ -61,6 +68,7 @@ interface AppState {
   setLinkedShift: (shift: Shift | null) => void;
   setActivityDays: (days: ActivityDay[]) => void;
   setAccessCodes: (codes: AccessCode[]) => void;
+  setCodeAnswer: (answer: CodeAnswer | null) => void;
   setAuthResolved: (resolved: boolean) => void;
   setMonthLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -84,6 +92,7 @@ const blank = {
   isLinkedShiftLoading: true,
   activityDays: [],
   accessCodes: [],
+  codeAnswer: null,
 };
 
 export const useStore = create<AppState>((set) => ({
@@ -114,6 +123,7 @@ export const useStore = create<AppState>((set) => ({
             isLinkedShiftLoading: true,
             activityDays: [],
             accessCodes: [],
+            codeAnswer: null,
           },
     ),
   setMyMemberships: (myMemberships) => set({ myMemberships, areMembershipsLoading: false }),
@@ -124,6 +134,7 @@ export const useStore = create<AppState>((set) => ({
   setLinkedShift: (linkedShift) => set({ linkedShift, isLinkedShiftLoading: false }),
   setActivityDays: (activityDays) => set({ activityDays }),
   setAccessCodes: (accessCodes) => set({ accessCodes }),
+  setCodeAnswer: (codeAnswer) => set({ codeAnswer }),
   setAuthResolved: (isAuthResolved) => set({ isAuthResolved }),
   setMonthLoading: (isMonthLoading) => set({ isMonthLoading }),
   setError: (error) => set({ error }),
