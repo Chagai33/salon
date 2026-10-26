@@ -34,6 +34,17 @@ export interface ImportedEvent {
   spaceId?: string;
   /** ⚠️ אירוע שנגמר אחרי חצות, מסומן ולא מוסק. DOCS/PLANING/42 */
   endsNextDay?: boolean;
+  /**
+   * ⚠️⚠️ שם החלל כפי שהמודל קרא אותו, ואינו מזהה.
+   *
+   * החלל במוצר הוא ישות עם מזהה על הסניף, `DOCS/GLOSSARY.md`, והמודל אינו
+   * יכול לדעת אותו. ⚠️ **ולכן זו מחרוזת שהמסך מתאים לרשימת החללים של הסלון**,
+   * וכשאין התאמה היא מוצגת למנהלת כפי שנקראה.
+   *
+   * ⚠️ ואינו נכתב למסד. `ActivityEvent` נושא `spaceId` ולא שם.
+   * DOCS/PLANING/52
+   */
+  space?: string;
 }
 
 export interface ImportedDay {

@@ -198,6 +198,12 @@ export function ImportBoardImage({
         events: day.events
           .filter((event) => event.title.trim())
           /*
+            ⚠️⚠️ ושם החלל שהמודל קרא אינו נכתב למסד.
+            `ActivityEvent` נושא `spaceId` ולא שם, והשם הוא טקסט חופשי מהתמונה.
+            ⚠️ והוא נשאר ב-`days` כדי שהמנהלת תראה מה נקרא. DOCS/PLANING/52
+          */
+          .map(({ space: _space, ...event }) => event)
+          /*
             ⚠️⚠️ ואירוע שדולג בחלון הזה אינו נכתב, אף שהוא נראה ברשימה.
             הוא מסומן כמדולג, והתוכנית היא מה שייכתב למסד. DOCS/PLANING/41
           */
@@ -279,7 +285,22 @@ export function ImportBoardImage({
         */
         let skipped = 0;
         const found = raw.map((day) => {
-          const events = day.events.filter((event) => !ignored.has(normalizeTitle(event.title)));
+          const events = day.events
+            .filter((event) => !ignored.has(normalizeTitle(event.title)))
+            /*
+              ⚠️⚠️ שם החלל שנקרא מותאם לרשימת החללים של הסלון.
+              החלל במוצר הוא ישות עם מזהה, והמודל מחזיר טקסט. ⚠️ וההתאמה היא
+              על השם אחרי `trim` ובלי רגישות לרישיות, כמו מאגר הדילוג.
+              ⚠️ ובלי התאמה השדה נשאר "בלי חלל", והשם שנקרא מוצג למנהלת כדי
+              שהיא תדע שהוא כן נקרא. DOCS/PLANING/52
+            */
+            .map((event) => {
+              if (!event.space || event.spaceId) return event;
+              const match = spaces.find(
+                (space) => normalizeTitle(space.name) === normalizeTitle(event.space ?? ''),
+              );
+              return match ? { ...event, spaceId: match.id } : event;
+            });
           skipped += day.events.length - events.length;
           return { ...day, events };
         });
@@ -620,6 +641,18 @@ export function ImportBoardImage({
                       ))}
                     </select>
 
+                    {/*
+                      ⚠️⚠️ ושם חלל שנקרא ולא נמצא ברשימה נאמר, ואינו נבלע.
+                      בלי זה המסך אומר "בלי חלל" על אירוע שכתוב לידו "חלל
+                      גדול", והמנהלת חושבת שהקריאה פספסה אותו. ⚠️ ומה שחסר
+                      הוא החלל ברשימת הסלון, לא הקריאה. DOCS/PLANING/52
+                    */}
+                    {event.space && !event.spaceId && (
+                      <span dir="auto" className="shrink-0 text-xs text-ink-faint">
+                        {t.importImage.spaceRead(event.space)}
+                      </span>
+                    )}
+
                     <Button tone="danger" size="xs" onClick={() => skipAlways(event.title)}>
                       {t.importImage.skipAlways}
                     </Button>
@@ -766,8 +799,32 @@ export function ImportBoardImage({
         </div>
       )}
 
+      {/*
+        ⚠️⚠️ "לא נמצא כלום" הוא תוצאה ולא הערה, מ-26/10/2026.
+
+        בעל המוצר ייבא תמונה של נובמבר לתוך אוקטובר, קיבל אפס ימים, ושאל "איך
+        המשתמש אמור להבין שזו השגיאה".
+
+        ⚠️ וההודעה עצמה אמרה בדיוק את הדבר הנכון, והיא לא נגעה. מה שנגע הוא
+        איך היא נראתה: פסקה אפורה בגודל טקסט רגיל, בלי מסגרת ובלי מילת מצב,
+        **והמסך נקרא כאילו הייבוא הצליח.** DOCS/PLANING/52
+
+        ⚠️ ומילה ולא צבע לבד. CLAUDE.md, עיצוב.
+      */}
       {days && days.length === 0 && (
-        <p className="mt-3 text-sm text-ink-soft">{t.importImage.nothingFound(monthName)}</p>
+        <div
+          role="status"
+          className="mt-3 rounded-card bg-surface-sunken p-3 ring-1 ring-inset ring-line-strong"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusPill tone="closed">{t.importImage.nothingFoundMark}</StatusPill>
+            <span className="text-sm font-semibold text-ink">
+              {t.importImage.nothingFoundTitle}
+            </span>
+          </div>
+          {/* ⚠️⚠️ והנוסח הזה לא נגע. הוא אומר מה קרה, ומה לעשות עכשיו. */}
+          <p className="mt-2 text-sm text-ink">{t.importImage.nothingFound(monthName)}</p>
+        </div>
       )}
 
       {groups && days && days.length > 0 && (
@@ -776,7 +833,18 @@ export function ImportBoardImage({
             <h3 className="text-sm font-semibold text-ink">
               {t.importImage.foundTitle(days.length)}
             </h3>
-            {/* ⚠️ ובעל המוצר ביקש במפורש שיהיה אפשר לתקן אחרי הייבוא. */}
+            {/*
+              ⚠️⚠️ וקריאה חלקית אינה נראית כמו קריאה שלמה.
+
+              נמדד בידי בעל המוצר, 26/10: תמונה עם 13 שורות החזירה יום אחד,
+              **והמסך אמר "נמצא יום אחד" בלי שום סימן ש-12 שורות אבדו.**
+              DOCS/PLANING/52
+
+              ⚠️ ואין כאן מספר: המודל מחזיר את מה שקרא ואינו מדווח כמה היו
+              במקור, ולכן אין מה להשוות. **מה שנאמר הוא מה שידוע**, שזו
+              הקריאה ולא המקור, ושצריך להשוות אליו.
+            */}
+            <p className="mt-0.5 text-xs text-ink-faint">{t.importImage.compareToSource}</p>
             <p className="mt-0.5 text-xs text-ink-faint">{t.importImage.fixAfter}</p>
 
             {/* ⚠️ מה שהושמט נאמר, כדי שלא ייראה כאילו המודל פספס אותו. */}
@@ -846,10 +914,23 @@ export function ImportBoardImage({
         </div>
       )}
 
+      {/*
+        ⚠️⚠️ וכשל נראה כמו תוצאה גם הוא, באותה אמת מידה.
+
+        `emptyAnswer`, "המודל לא החזיר תשובה", ו-`modelFailed` נמדדו כקיימים
+        במילון, **ולא נמדד איך הם מוצגים:** הם היו שורת טקסט אדומה בגודל רגיל,
+        בלי מסגרת, בדיוק כמו "לא נמצא כלום". DOCS/PLANING/52
+
+        ⚠️ ובלי כותרת שאני ממציא: אותו מצב נושא גם כשל קריאה וגם כשל שמירה,
+        ואין משפט אחד שנכון לשניהם. ההודעה עצמה אומרת מה קרה.
+      */}
       {problem && (
-        <p role="alert" className="mt-3 text-sm text-danger">
-          {problem}
-        </p>
+        <div
+          role="alert"
+          className="mt-3 rounded-card bg-surface-sunken p-3 ring-1 ring-inset ring-danger"
+        >
+          <p className="text-sm font-medium text-danger">{problem}</p>
+        </div>
       )}
     </Sheet>
   );

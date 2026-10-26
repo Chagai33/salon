@@ -84,7 +84,7 @@
 |---|---|---|---|
 | 1 | ⚠️⚠️ **פריסת החוקים והפונקציות של סבב 26/10.** `firestore:rules` ו-`functions` נפרסים בנפרד, CLAUDE.md | 🔴 **עד הפריסה שני הכללים אינם נאכפים באתר החי, והקוד עדיין קריא לכל חבר פעיל** | [15](15-the-code-is-not-enforced-yet.md), [40](40-the-system-operator-can-be-demoted.md) |
 | ✅ | **סגירת הכתיבה למשמרות בחוקי המסד.** **נעשתה 26/10, סבב מאומת** | ✅ **110 בדיקות, 30 חדשות ו-18 מהן נכשלות על החוקים הישנים**, ⚠️ **ודורשת פריסה** | [45](45-a-member-can-write-himself-onto-a-shift.md) |
-| ✅ | **ארבע הבקשות של 26/10 במסך הייבוא.** **נעשו 26/10, סבב רגיל**, [פרומפט](prompts/02-four-requests-in-the-import-screen-2026-10-26.md), [תוכנית](prompts/02-plan-2026-10-26.md) | ✅ **110 בדיקות אמולטור עוברות, ו-82 ב-`test/utils`.** ⚠️ **ודורשות פריסת פונקציות ואימות חי.** ⚠️ **ולא נדרש מסך ההגדרות:** הביטול נבנה בתוך מסך הייבוא | [38](38-half-an-hour-before-every-event.md), [39](39-the-import-reads-only-a-monthly-grid.md), [41](41-skip-always-cannot-be-undone.md), [42](42-the-end-time-can-be-before-the-start.md) |
+| ✅ | **ארבע הבקשות של 26/10 במסך הייבוא, ועוד מצב "לא נמצא כלום".** **נעשו 26/10, סבב רגיל**, [פרומפט](prompts/02-four-requests-in-the-import-screen-2026-10-26.md), [תוכנית](prompts/02-plan-2026-10-26.md) | ✅ **110 בדיקות אמולטור עוברות, 82 ב-`test/utils`, ו-29 על ההנחיה.** ⚠️ **ודורשות פריסת פונקציות ואימות חי.** ⚠️ **ולא נדרש מסך ההגדרות:** הביטול נבנה בתוך מסך הייבוא | [38](38-half-an-hour-before-every-event.md), [39](39-the-import-reads-only-a-monthly-grid.md), [41](41-skip-always-cannot-be-undone.md), [42](42-the-end-time-can-be-before-the-start.md), [52](52-the-import-says-why-it-found-nothing-in-a-whisper.md) |
 | 1 | ⚠️ **פרויקט Firebase נפרד לפיתוח** | 🟠 **בלעדיו כל בדיקה נוגעת בנתונים אמיתיים של אנשים אמיתיים** | [06](06-open-decisions.md) החלטה 9 |
 | 1 | ⚠️ **תפוגה, ומה עושים עם אי הגעה חוזרת** | 🟠 מידע אישי, ורשומה שלילית על אדם | [06](06-open-decisions.md) החלטה 13 |
 | 2 | **מסך ההגדרות של המנהל**, הצעה | 🟠 **קובץ יסוד. טעות בו נוגעת בכל חודש שייוולד** | [12](12-the-branch-settings-screen.md) |
@@ -157,6 +157,7 @@
 | [48](48-a-rule-cannot-demand-that-the-record-was-written.md) | חוק אינו יכול לדרוש שהשורה שאינה נמחקת נכתבה | 🟠 **נמדד ולא תוקן** |
 | [49](49-the-report-asks-the-eligibility-question-with-the-old-answer.md) | הדוח שואל את שאלת הזכאות, ועונה עליה בתנאי שתוקן | 🟠 **נמדד בקריאת קוד ולא תוקן** |
 | [50](50-the-claim-window-reaches-the-access-code.md) | חלון תביעת המערכת מגיע עד קוד הכניסה, בשלוש כתיבות | 🔴 **נמדד פעמיים מול אמולטור.** ⚠️ **ודורש בדיקה בקונסולה: האם `system/bootstrap` קיים** |
+| [52](52-the-import-says-why-it-found-nothing-in-a-whisper.md) | הייבוא אומר למה לא מצא כלום, ובלחש | ✅ **נסגרה 26/10, בסבב ארבע הבקשות.** ⚠️ **ופס ההתקדמות לא שרד כטענה**, ונמדד שהוא נעלם ממילא |
 
 **והכרעות קבע שהועברו מפרויקטים אחרים:**
 

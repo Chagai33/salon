@@ -161,6 +161,29 @@ describe('ההנחיה והבקשה', () => {
     assert.ok(promptFor(MONTH).includes('תאריך בלי שנה'));
   });
 
+  /*
+    ⚠️⚠️ נמדד בידי בעל המוצר, 26/10: תמונה של טבלה בת 13 שורות החזירה יום אחד,
+    בלי שעות ובלי חלל. שלושת הכללים שגרמו לזה נמחקו או נכתבו מחדש.
+    DOCS/PLANING/52
+  */
+  it('⚠️⚠️ ושעות בעמודה נפרדת מבוקשות, ולא רק "באריח"', () => {
+    const prompt = promptFor(MONTH);
+    assert.ok(!prompt.includes('כתובות באריח'));
+    assert.ok(prompt.includes('גם בעמודה נפרדת'));
+  });
+
+  it('⚠️ ושם החלל מבוקש כמחרוזת, כפי שהוא כתוב', () => {
+    const prompt = promptFor(MONTH);
+    assert.ok(prompt.includes('`space`'));
+    assert.ok(prompt.includes('חלל גדול'));
+  });
+
+  it('⚠️⚠️ ושורה בטבלה אינה מדולגת בגלל שאינה נראית כמו תא בלוח', () => {
+    const prompt = promptFor(MONTH);
+    assert.ok(prompt.includes('אל תדלג על שורה'));
+    assert.ok(prompt.includes('13 שורות צריך להחזיר 13 אירועים'));
+  });
+
   it('⚠️ ואירוע שחוצה חצות מבוקש במפורש, ואינו מתוקן', () => {
     const prompt = promptFor(MONTH);
     assert.ok(prompt.includes('endsNextDay'));
@@ -220,6 +243,44 @@ describe('⚠️ אירוע שממשיך למחרת', () => {
       MONTH,
     );
     assert.equal(days[0].events[0].endsNextDay, true);
+  });
+
+  it('⚠️ ושם החלל עובר, חתוך ל-40 תווים', () => {
+    const days = sanitiseDays(
+      {
+        days: [
+          {
+            date: `${MONTH}-03`,
+            access: 'unknown',
+            confidence: 1,
+            events: [
+              { title: 'NLP הרצאה', startTime: '18:30', endTime: '21:30', space: ' חלל גדול ' },
+              { title: 'ארוך', space: 'א'.repeat(60) },
+            ],
+          },
+        ],
+      },
+      MONTH,
+    );
+    assert.equal(days[0].events[0].space, 'חלל גדול');
+    assert.equal(days[0].events[1].space.length, 40);
+  });
+
+  it('⚠️⚠️ ושם חלל ריק אינו נשלח כשדה בכלל', () => {
+    const days = sanitiseDays(
+      {
+        days: [
+          {
+            date: `${MONTH}-03`,
+            access: 'unknown',
+            confidence: 1,
+            events: [{ title: 'פילוסופיה', space: '   ' }],
+          },
+        ],
+      },
+      MONTH,
+    );
+    assert.equal('space' in days[0].events[0], false);
   });
 
   it('⚠️⚠️ ו-false אינו נשלח כשדה בכלל', () => {
