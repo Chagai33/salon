@@ -158,6 +158,7 @@
 | [49](49-the-report-asks-the-eligibility-question-with-the-old-answer.md) | הדוח שואל את שאלת הזכאות, ועונה עליה בתנאי שתוקן | 🟠 **נמדד בקריאת קוד ולא תוקן** |
 | [50](50-the-claim-window-reaches-the-access-code.md) | חלון תביעת המערכת מגיע עד קוד הכניסה, בשלוש כתיבות | 🔴 **נמדד פעמיים מול אמולטור.** ⚠️ **ודורש בדיקה בקונסולה: האם `system/bootstrap` קיים** |
 | [51](51-the-privacy-policy-does-not-name-the-system-operator.md) | מדיניות הפרטיות אינה מזכירה את מפעיל המערכת | 🟡 **נמדד, ושאלת ניסוח לבעל המוצר** |
+| [52](52-the-import-says-why-it-found-nothing-in-a-whisper.md) | הייבוא אומר למה לא מצא כלום, ובלחש | 🟠 **נמדד, ונכנס לסבב הייבוא שרץ** |
 
 **והכרעות קבע שהועברו מפרויקטים אחרים:**
 
