@@ -149,6 +149,7 @@
 | [41](41-skip-always-cannot-be-undone.md) | "לדלג תמיד" נשמר מיד, ואין ממנו חזרה | 🟠 **נמדד ולא תוקן** |
 | [42](42-the-end-time-can-be-before-the-start.md) | שעת הסיום יכולה להיות לפני שעת ההתחלה | 🟡 **נמדד ולא תוקן** |
 | [43](43-the-code-is-measured-against-the-month-on-screen.md) | הקוד נמדד מול החודש שמוצג, ולא מול החודש שלו | 🟡 **נמדד בקריאת קוד ולא תוקן** |
+| [44](44-a-member-record-can-be-created-under-a-salon-that-does-not-exist.md) | אפשר ליצור רשומת חבר בסלון שאינו קיים | 🟡 **נמדד בקריאת קוד ולא תוקן** |
 
 **והכרעות קבע שהועברו מפרויקטים אחרים:**
 
