@@ -22,9 +22,9 @@ import { Button } from '../common/Button';
 import { useMemo, useState } from 'react';
 import { t } from '../../i18n/dictionary';
 import { shortDateLabel } from '../../utils/dates';
-import { monthNameOf } from '../../utils/dates';
+import { monthNameOf, weekdayOf } from '../../utils/dates';
 import { logEvent, mergeActivityDay } from '../../services/salonService';
-import { readBoardImage } from '../../services/importService';
+import { MAX_TEXT_CHARS, readBoardImage, readBoardText } from '../../services/importService';
 import type { ImportedDay, ImportedEvent, ImportStage } from '../../services/importService';
 import { toReadableError } from '../../utils/errors';
 import { StatusPill } from '../common/StatusPill';
@@ -33,6 +33,7 @@ import { dayAccessOf } from '../../utils/hebrew';
 import { planFor } from '../../utils/importDiff';
 import { useStore } from '../../store/useStore';
 import { saveBranchSettings } from '../../services/salonService';
+import { endsBeforeStart } from '../../utils/times';
 import type { DayPlan, DayVerdict } from '../../utils/importDiff';
 import type { ActivityDay } from '../../types';
 
@@ -83,6 +84,9 @@ function messageFor(error: unknown): string {
     badToken: t.importImage.noToken,
     missingKey: t.importImage.missingKey,
     notManager: t.importImage.notManager,
+    // ⚠️ שתי שגיאות של מסלול הטקסט, ושתיהן נזרקות בדפדפן. DOCS/PLANING/39
+    emptyText: t.importImage.emptyText,
+    tooLongText: t.importImage.tooLongText,
     noAuth: t.importImage.noToken,
     emptyAnswer: t.importImage.emptyAnswer,
     quotaExhausted: t.importImage.quotaExhausted,
@@ -133,10 +137,22 @@ export function ImportBoardImage({
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  /** כמה אירועים הושמטו לפי מאגר הדילוג של הסלון. */
+  /** כמה אירועים הושמטו לפי מאגר הדילוג של הסלון, לפני שהרשימה נבנתה. */
   const [skippedCount, setSkippedCount] = useState(0);
+  /*
+    ⚠️⚠️ מה שדולג בחלון הזה, והוא נשאר ברשימה.
+
+    בלשון בעל המוצר, 26/10: "אם היא לחצה על לדלג לתמיד יהיה כפתור ביטול דילוג",
+    **על אותו אירוע.** ⚠️ ולכן הלחיצה אינה מעלימה את השורה: היא מסמנת אותה,
+    ובמקום הכפתור מופיע הביטול. DOCS/PLANING/41
+
+    ⚠️ ואלה הכותרות המנורמלות, כמו במאגר הדילוג עצמו.
+  */
+  const [skippedNow, setSkippedNow] = useState<Set<string>>(new Set());
   /** ⚠️ null כשאין קריאה רצה. */
   const [stage, setStage] = useState<ImportStage | null>(null);
+  /** הטקסט שהמנהלת הדביקה, כמקור חלופי לתמונה. DOCS/PLANING/39 */
+  const [pasted, setPasted] = useState('');
 
   const branch = useStore((state) => state.branch);
   /** ⚠️ מי מייבא. הייבוא כותב מידע על ימים אמיתיים, ולכן הוא נרשם.
@@ -156,6 +172,13 @@ export function ImportBoardImage({
     [branch?.importIgnore],
   );
 
+  /*
+    ⚠️ שעות הסלון, והן הגבול של שעת הסגירה הנגזרת.
+    אירוע ב-10:00 בסלון שנפתח ב-10:00 גוזר 09:30, ⚠️ ואז היום סגור לציבור ואינו
+    "נסגר מוקדם", בהכרעת בעל המוצר ("4א"). DOCS/PLANING/38
+  */
+  const openingHours = branch?.openingHours;
+
   const monthName = useMemo(() => monthNameOf(monthKey), [monthKey]);
 
   /*
@@ -174,12 +197,31 @@ export function ImportBoardImage({
         ...day,
         events: day.events
           .filter((event) => event.title.trim())
+          /*
+            ⚠️⚠️ ושם החלל שהמודל קרא אינו נכתב למסד.
+            `ActivityEvent` נושא `spaceId` ולא שם, והשם הוא טקסט חופשי מהתמונה.
+            ⚠️ והוא נשאר ב-`days` כדי שהמנהלת תראה מה נקרא. DOCS/PLANING/52
+          */
+          .map(({ space: _space, ...event }) => event)
+          /*
+            ⚠️⚠️ ואירוע שדולג בחלון הזה אינו נכתב, אף שהוא נראה ברשימה.
+            הוא מסומן כמדולג, והתוכנית היא מה שייכתב למסד. DOCS/PLANING/41
+          */
+          .filter((event) => !skippedNow.has(normalizeTitle(event.title)))
           .map((event) => ({ ...event, title: event.title.trim() })),
       };
-      byDate.set(day.date, planFor(clean, activityByDate.get(day.date), fallbackFor(day.date)));
+      byDate.set(
+        day.date,
+        planFor(
+          clean,
+          activityByDate.get(day.date),
+          fallbackFor(day.date),
+          openingHours?.[weekdayOf(day.date)] ?? null,
+        ),
+      );
     }
     return byDate;
-  }, [days, activityByDate]);
+  }, [days, activityByDate, skippedNow, openingHours]);
 
   const conflictCount = useMemo(
     () => (plans ? [...plans.values()].filter((plan) => plan.verdict === 'conflict').length : 0),
@@ -198,6 +240,12 @@ export function ImportBoardImage({
     setDays(null);
     setChosen(new Set());
     setProblem(null);
+    /*
+      ⚠️ וקריאה חדשה מתחילה בלי סימוני דילוג.
+      הכותרות כבר במאגר הדילוג של הסלון, ולכן `onPick` מסנן אותן ממילא ומונה
+      אותן. DOCS/PLANING/41
+    */
+    setSkippedNow(new Set());
   }
 
   function onPick(file: File | undefined) {
@@ -205,7 +253,30 @@ export function ImportBoardImage({
     reset();
     setReading(true);
     setStage('preparing');
-    void readBoardImage(file, branchId, monthKey, setStage)
+    absorb(readBoardImage(file, branchId, monthKey, setStage));
+  }
+
+  /*
+    ⚠️⚠️ קריאה מטקסט שהודבק, בבקשת בעל המוצר 26/10: "לאפשר ייבוא אירועים מכל
+    תמונה או טקסט". DOCS/PLANING/39
+
+    ⚠️ ואותה פונקציית ענן, אותה הנחיה, ואותה רשימה אחר כך.
+  */
+  function onReadText() {
+    if (!pasted.trim()) return;
+    reset();
+    setReading(true);
+    setStage('sending');
+    absorb(readBoardText(pasted, branchId, monthKey, setStage));
+  }
+
+  /*
+    ⚠️ מה שקורה לכל קריאה, בלי קשר למקור שלה.
+    ⚠️⚠️ ובמקום אחד: שני מסלולים שבונים את הרשימה בנפרד הם שני מקומות שבהם
+    הסימון מראש של רשומה 25 יכול להישבר.
+  */
+  function absorb(request: Promise<ImportedDay[]>) {
+    void request
       .then((raw) => {
         /*
           ⚠️ מה שבמאגר הדילוג אינו נכנס לרשימה בכלל.
@@ -214,7 +285,22 @@ export function ImportBoardImage({
         */
         let skipped = 0;
         const found = raw.map((day) => {
-          const events = day.events.filter((event) => !ignored.has(normalizeTitle(event.title)));
+          const events = day.events
+            .filter((event) => !ignored.has(normalizeTitle(event.title)))
+            /*
+              ⚠️⚠️ שם החלל שנקרא מותאם לרשימת החללים של הסלון.
+              החלל במוצר הוא ישות עם מזהה, והמודל מחזיר טקסט. ⚠️ וההתאמה היא
+              על השם אחרי `trim` ובלי רגישות לרישיות, כמו מאגר הדילוג.
+              ⚠️ ובלי התאמה השדה נשאר "בלי חלל", והשם שנקרא מוצג למנהלת כדי
+              שהיא תדע שהוא כן נקרא. DOCS/PLANING/52
+            */
+            .map((event) => {
+              if (!event.space || event.spaceId) return event;
+              const match = spaces.find(
+                (space) => normalizeTitle(space.name) === normalizeTitle(event.space ?? ''),
+              );
+              return match ? { ...event, spaceId: match.id } : event;
+            });
           skipped += day.events.length - events.length;
           return { ...day, events };
         });
@@ -236,6 +322,7 @@ export function ImportBoardImage({
                   day,
                   activityByDate.get(day.date),
                   fallbackFor(day.date),
+                  openingHours?.[weekdayOf(day.date)] ?? null,
                 ).verdict;
                 return verdict === 'new' || verdict === 'adds';
               })
@@ -252,6 +339,33 @@ export function ImportBoardImage({
 
   function save() {
     if (!days || !plans) return;
+
+    /*
+      ⚠️⚠️ בדיקה בשמירה, ולא `min` בשדה בלבד.
+      `min` ב-`type="time"` מצמצם את הבורר ואינו חוסם הקלדה, ⚠️ ובייבוא הוא
+      גם אינו נוגע במה שהמודל החזיר. מה שבאמת עוצר יושב כאן.
+
+      ⚠️ ונבדקים הימים המסומנים בלבד. יום שהמנהלת לא סימנה אינו נכתב, ואין
+      סיבה שהוא יעצור את השמירה. DOCS/PLANING/42
+
+      ⚠️⚠️ ואירוע מדולג אינו נבדק, מאותה סיבה בדיוק: הוא אינו נכתב.
+      בלי התנאי הזה אירוע שהמנהלת דילגה עליו היה חוסם את השמירה, והיא הייתה
+      צריכה לתקן שעה באירוע שהיא כבר הוציאה מהייבוא. DOCS/PLANING/41
+    */
+    const broken = days.find(
+      (day) =>
+        chosen.has(day.date) &&
+        day.events.some(
+          (event) =>
+            !skippedNow.has(normalizeTitle(event.title)) &&
+            endsBeforeStart(event.startTime, event.endTime, event.endsNextDay),
+        ),
+    );
+    if (broken) {
+      setProblem(t.importImage.badEndTime(shortDateLabel(broken.date)));
+      return;
+    }
+
     /*
       ⚠️⚠️ ונכתבים `plan.fields` ולא מה שהמודל החזיר.
 
@@ -347,29 +461,54 @@ export function ImportBoardImage({
   }
 
   /*
-    ⚠️ מוסיף למאגר הדילוג של הסלון, ומסיר את האירוע מכל הימים ברשימה.
+    ⚠️ מוסיף למאגר הדילוג של הסלון.
     בלשון בעל המוצר, 06/10: "אירועים חוזרים שאינם מתקיימים בסלון או לא
     רלוונטיים אליו". חוזר פירושו שהוא יחזור גם בייבוא הבא. DOCS/PLANING/26
+
+    ⚠️⚠️ ואינו מעלים את השורה, מ-26/10.
+    קודם הוא הסיר את האירוע מכל הימים, ⚠️ ואז לא היה על מה ללחוץ כדי לבטל:
+    לחיצה אחת בטעות מחקה אירוע חוזר מכל ייבוא עתידי, והדרך היחידה לחזור ממנה
+    הייתה מסך ההגדרות, שאינו קיים.
+
+    בלשון בעל המוצר, 26/10: "אם היא לחצה על לדלג לתמיד יהיה כפתור ביטול דילוג",
+    **על אותו אירוע.** DOCS/PLANING/41
   */
   function skipAlways(title: string) {
     if (!branch) return;
-    const key = normalizeTitle(title);
     void saveBranchSettings(
       branchId,
       { importIgnore: [...(branch.importIgnore ?? []), title.trim()] },
       me?.id ?? '',
     ).catch((error: unknown) => setProblem(toReadableError(error, t.errors.saveFailed)));
 
-    let removed = 0;
-    setDays(
-      (current) =>
-        current?.map((day) => {
-          const events = day.events.filter((event) => normalizeTitle(event.title) !== key);
-          removed += day.events.length - events.length;
-          return { ...day, events };
-        }) ?? null,
-    );
-    setSkippedCount((count) => count + removed);
+    setSkippedNow((current) => new Set(current).add(normalizeTitle(title)));
+  }
+
+  /*
+    ⚠️⚠️ הביטול, ובאותו חלון.
+    מסיר את הכותרת ממאגר הדילוג של הסלון ומחזיר את האירוע לרשימה.
+
+    ⚠️ וההשוואה מנורמלת ולא על הטקסט כפי שנשמר: במאגר יושב מה שהמודל קרא אחרי
+    `trim`, וכאן נמחק מה שתואם לו בלי רגישות לרישיות. DOCS/PLANING/41
+  */
+  function undoSkip(title: string) {
+    if (!branch) return;
+    const key = normalizeTitle(title);
+    void saveBranchSettings(
+      branchId,
+      {
+        importIgnore: (branch.importIgnore ?? []).filter(
+          (stored) => normalizeTitle(stored) !== key,
+        ),
+      },
+      me?.id ?? '',
+    ).catch((error: unknown) => setProblem(toReadableError(error, t.errors.saveFailed)));
+
+    setSkippedNow((current) => {
+      const next = new Set(current);
+      next.delete(key);
+      return next;
+    });
   }
 
   function rowFor(date: string) {
@@ -418,7 +557,32 @@ export function ImportBoardImage({
             */}
             {day.events.length > 0 && (
               <ul className="mt-1 flex flex-col gap-1">
-                {day.events.map((event, index) => (
+                {day.events.map((event, index) => {
+                  const skipped = skippedNow.has(normalizeTitle(event.title));
+
+                  /*
+                    ⚠️⚠️ אירוע שדולג נשאר ברשימה, מסומן, ועם ביטול.
+                    בלשון בעל המוצר, 26/10: "אם היא לחצה על לדלג לתמיד יהיה
+                    כפתור ביטול דילוג", על אותו אירוע. DOCS/PLANING/41
+
+                    ⚠️ והשדות נסגרים, כי אירוע שאינו נכתב אין מה לערוך בו.
+                    ⚠️ ומילה ולא צבע לבד. CLAUDE.md, עיצוב.
+                  */
+                  if (skipped) {
+                    return (
+                      <li key={index} className="flex flex-wrap items-center gap-2">
+                        <span dir="auto" className="min-w-0 flex-1 text-sm text-ink-faint line-through">
+                          {event.title}
+                        </span>
+                        <StatusPill tone="taken">{t.importImage.skippedMark}</StatusPill>
+                        <Button tone="quiet" size="xs" className="text-brand" onClick={() => undoSkip(event.title)}>
+                          {t.importImage.undoSkip}
+                        </Button>
+                      </li>
+                    );
+                  }
+
+                  return (
                   /* ⚠️ בטלפון השם בשורה משלו והפקדים מתחתיו: חמישה פקדים
                      ברוחב 390 נדחסים לשורה שאי אפשר להקליד בה. */
                   <li key={index} className="flex flex-wrap items-center gap-2">
@@ -430,13 +594,29 @@ export function ImportBoardImage({
                       onChange={(e) => patchEvent(date, index, { startTime: timeOrNone(e.target.value) })}
                       className="num shrink-0 rounded-card border border-line px-1.5 py-1 text-xs text-ink"
                     />
+                    {/* ⚠️ הגבול התחתון הוא שעת ההתחלה, ומשתחרר כשהאירוע
+                        ממשיך למחרת. DOCS/PLANING/42 */}
                     <input
                       type="time"
                       aria-label={t.day.eventTo}
                       value={event.endTime ?? ''}
+                      min={event.endsNextDay ? undefined : event.startTime}
                       onChange={(e) => patchEvent(date, index, { endTime: timeOrNone(e.target.value) })}
                       className="num shrink-0 rounded-card border border-line px-1.5 py-1 text-xs text-ink"
                     />
+
+                    {/* ⚠️⚠️ סימון ולא הסקה. DOCS/PLANING/42 */}
+                    <label className="flex shrink-0 items-center gap-1 text-xs text-ink-soft">
+                      <input
+                        type="checkbox"
+                        className="size-4"
+                        checked={event.endsNextDay ?? false}
+                        onChange={(e) =>
+                          patchEvent(date, index, { endsNextDay: e.target.checked || undefined })
+                        }
+                      />
+                      {t.day.eventNextDay}
+                    </label>
 
                     <input
                       dir="auto"
@@ -461,11 +641,24 @@ export function ImportBoardImage({
                       ))}
                     </select>
 
+                    {/*
+                      ⚠️⚠️ ושם חלל שנקרא ולא נמצא ברשימה נאמר, ואינו נבלע.
+                      בלי זה המסך אומר "בלי חלל" על אירוע שכתוב לידו "חלל
+                      גדול", והמנהלת חושבת שהקריאה פספסה אותו. ⚠️ ומה שחסר
+                      הוא החלל ברשימת הסלון, לא הקריאה. DOCS/PLANING/52
+                    */}
+                    {event.space && !event.spaceId && (
+                      <span dir="auto" className="shrink-0 text-xs text-ink-faint">
+                        {t.importImage.spaceRead(event.space)}
+                      </span>
+                    )}
+
                     <Button tone="danger" size="xs" onClick={() => skipAlways(event.title)}>
                       {t.importImage.skipAlways}
                     </Button>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
 
@@ -544,6 +737,39 @@ export function ImportBoardImage({
       </label>
 
       {/*
+        ⚠️⚠️ ומקור טקסט לצד מקור התמונה, בבקשת בעל המוצר 26/10: "לאפשר ייבוא
+        אירועים מכל תמונה או טקסט". DOCS/PLANING/39
+
+        ⚠️ ולא במקום התמונה: אותה מנהלת מצלמת לוח בחודש אחד ומדביקה מייל
+        בחודש אחר.
+      */}
+      <div className="mt-3 rounded-card border border-line p-3">
+        <label className="block">
+          <span className="text-sm text-ink-soft">{t.importImage.textLabel}</span>
+          <textarea
+            dir="auto"
+            rows={4}
+            value={pasted}
+            maxLength={MAX_TEXT_CHARS}
+            disabled={reading || saving}
+            placeholder={t.importImage.textPlaceholder}
+            onChange={(event) => setPasted(event.target.value)}
+            className="mt-1.5 w-full rounded-card border border-line-strong bg-surface px-3 py-2 text-sm text-ink"
+          />
+        </label>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <Button
+            tone="secondary"
+            disabled={reading || saving || !pasted.trim()}
+            onClick={onReadText}
+          >
+            {reading ? t.importImage.reading : t.importImage.readText}
+          </Button>
+          <span className="text-xs text-ink-faint">{t.importImage.textHint}</span>
+        </div>
+      </div>
+
+      {/*
         ⚠️⚠️ חיווי התקדמות, ולא מסך שנראה תקוע.
         בעל המוצר, 06/10: "כשאני מעלה תמונה אין איזה סטטוס מצב וזה נראה
         שבור". ⚠️ ושלוש מדרגות ולא פס אחוזים: אין כאן אחוז אמיתי, והמודל
@@ -573,8 +799,32 @@ export function ImportBoardImage({
         </div>
       )}
 
+      {/*
+        ⚠️⚠️ "לא נמצא כלום" הוא תוצאה ולא הערה, מ-26/10/2026.
+
+        בעל המוצר ייבא תמונה של נובמבר לתוך אוקטובר, קיבל אפס ימים, ושאל "איך
+        המשתמש אמור להבין שזו השגיאה".
+
+        ⚠️ וההודעה עצמה אמרה בדיוק את הדבר הנכון, והיא לא נגעה. מה שנגע הוא
+        איך היא נראתה: פסקה אפורה בגודל טקסט רגיל, בלי מסגרת ובלי מילת מצב,
+        **והמסך נקרא כאילו הייבוא הצליח.** DOCS/PLANING/52
+
+        ⚠️ ומילה ולא צבע לבד. CLAUDE.md, עיצוב.
+      */}
       {days && days.length === 0 && (
-        <p className="mt-3 text-sm text-ink-soft">{t.importImage.nothingFound(monthName)}</p>
+        <div
+          role="status"
+          className="mt-3 rounded-card bg-surface-sunken p-3 ring-1 ring-inset ring-line-strong"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusPill tone="closed">{t.importImage.nothingFoundMark}</StatusPill>
+            <span className="text-sm font-semibold text-ink">
+              {t.importImage.nothingFoundTitle}
+            </span>
+          </div>
+          {/* ⚠️⚠️ והנוסח הזה לא נגע. הוא אומר מה קרה, ומה לעשות עכשיו. */}
+          <p className="mt-2 text-sm text-ink">{t.importImage.nothingFound(monthName)}</p>
+        </div>
       )}
 
       {groups && days && days.length > 0 && (
@@ -583,7 +833,18 @@ export function ImportBoardImage({
             <h3 className="text-sm font-semibold text-ink">
               {t.importImage.foundTitle(days.length)}
             </h3>
-            {/* ⚠️ ובעל המוצר ביקש במפורש שיהיה אפשר לתקן אחרי הייבוא. */}
+            {/*
+              ⚠️⚠️ וקריאה חלקית אינה נראית כמו קריאה שלמה.
+
+              נמדד בידי בעל המוצר, 26/10: תמונה עם 13 שורות החזירה יום אחד,
+              **והמסך אמר "נמצא יום אחד" בלי שום סימן ש-12 שורות אבדו.**
+              DOCS/PLANING/52
+
+              ⚠️ ואין כאן מספר: המודל מחזיר את מה שקרא ואינו מדווח כמה היו
+              במקור, ולכן אין מה להשוות. **מה שנאמר הוא מה שידוע**, שזו
+              הקריאה ולא המקור, ושצריך להשוות אליו.
+            */}
+            <p className="mt-0.5 text-xs text-ink-faint">{t.importImage.compareToSource}</p>
             <p className="mt-0.5 text-xs text-ink-faint">{t.importImage.fixAfter}</p>
 
             {/* ⚠️ מה שהושמט נאמר, כדי שלא ייראה כאילו המודל פספס אותו. */}
@@ -653,10 +914,23 @@ export function ImportBoardImage({
         </div>
       )}
 
+      {/*
+        ⚠️⚠️ וכשל נראה כמו תוצאה גם הוא, באותה אמת מידה.
+
+        `emptyAnswer`, "המודל לא החזיר תשובה", ו-`modelFailed` נמדדו כקיימים
+        במילון, **ולא נמדד איך הם מוצגים:** הם היו שורת טקסט אדומה בגודל רגיל,
+        בלי מסגרת, בדיוק כמו "לא נמצא כלום". DOCS/PLANING/52
+
+        ⚠️ ובלי כותרת שאני ממציא: אותו מצב נושא גם כשל קריאה וגם כשל שמירה,
+        ואין משפט אחד שנכון לשניהם. ההודעה עצמה אומרת מה קרה.
+      */}
       {problem && (
-        <p role="alert" className="mt-3 text-sm text-danger">
-          {problem}
-        </p>
+        <div
+          role="alert"
+          className="mt-3 rounded-card bg-surface-sunken p-3 ring-1 ring-inset ring-danger"
+        >
+          <p className="text-sm font-medium text-danger">{problem}</p>
+        </div>
       )}
     </Sheet>
   );

@@ -38,7 +38,18 @@ export function DayStatus({ access, weekend = false }: { access: DayAccess; week
     return <StatusPill tone="membersOnly">{t.day.membersOnly}</StatusPill>;
   }
   if (access.publicAccess === 'closesEarly' && access.closesAt) {
-    return <StatusPill tone="closed">{t.day.closesEarly(access.closesAt)}</StatusPill>;
+    /*
+      ⚠️⚠️ ושם האירוע שגרם לסגירה, בלשון בעל המוצר 26/10 "ולציין זאת".
+      חבר שרואה "הסלון סוגר ב-18:30" ואינו יודע למה חושב שזו טעות. ⚠️ ושעה
+      שהמנהלת כתבה ביד אינה נושאת שם, כי אין לה אירוע. DOCS/PLANING/38
+    */
+    return (
+      <StatusPill tone="closed">
+        {access.closesFor
+          ? t.day.closesEarlyFor(access.closesAt, access.closesFor)
+          : t.day.closesEarly(access.closesAt)}
+      </StatusPill>
+    );
   }
   return null;
 }

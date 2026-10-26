@@ -32,6 +32,19 @@ export interface ImportedEvent {
    * מתקיימים, וזה עוד בשלב הייבוא". DOCS/PLANING/26
    */
   spaceId?: string;
+  /** ⚠️ אירוע שנגמר אחרי חצות, מסומן ולא מוסק. DOCS/PLANING/42 */
+  endsNextDay?: boolean;
+  /**
+   * ⚠️⚠️ שם החלל כפי שהמודל קרא אותו, ואינו מזהה.
+   *
+   * החלל במוצר הוא ישות עם מזהה על הסניף, `DOCS/GLOSSARY.md`, והמודל אינו
+   * יכול לדעת אותו. ⚠️ **ולכן זו מחרוזת שהמסך מתאים לרשימת החללים של הסלון**,
+   * וכשאין התאמה היא מוצגת למנהלת כפי שנקראה.
+   *
+   * ⚠️ ואינו נכתב למסד. `ActivityEvent` נושא `spaceId` ולא שם.
+   * DOCS/PLANING/52
+   */
+  space?: string;
 }
 
 export interface ImportedDay {
@@ -69,9 +82,19 @@ interface CallResult {
 }
 
 const callReadBoardImage = httpsCallable<
-  { branchId: string; monthKey: string; mimeType: string; imageBase64: string },
+  {
+    branchId: string;
+    monthKey: string;
+    mimeType?: string;
+    imageBase64?: string;
+    /** ⚠️ מקור טקסט, במקום התמונה. DOCS/PLANING/39 */
+    text?: string;
+  },
   CallResult
 >(functions, 'readBoardImage');
+
+/** ⚠️ עשרים אלף תווים, כמו בפונקציה. נבדק כאן כדי לא לשלוח ולהיכשל. */
+export const MAX_TEXT_CHARS = 20000;
 
 /**
  * השלב שבו הקריאה נמצאת.
@@ -107,17 +130,58 @@ export async function readBoardImage(
     const result = await call.finally(() => clearTimeout(toReading));
     return Array.isArray(result.data?.days) ? result.data.days : [];
   } catch (error) {
-    /*
-      ⚠️ השגיאה של `httpsCallable` נושאת את ההודעה שהפונקציה זרקה, ולכן
-      `notManager` או `modelFailed` מגיעים לכאן כמו שהם ומתורגמים במסך.
-      שגיאה שאינה מוכרת אינה מוצגת כלשונה.
-    */
-    const message = error instanceof Error ? error.message : '';
-    const known = ['notManager', 'noAuth', 'badImage', 'tooLarge', 'badMonth',
-      'modelFailed', 'emptyAnswer', 'notJson', 'memberLookupFailed', 'unexpected',
-      // ⚠️ חיוב של המודל, ואינו תקלה חולפת. אין טעם לנסות שוב.
-      'quotaExhausted'];
-    const code = known.find((candidate) => message.includes(candidate));
-    throw new ImportError(code ?? 'modelFailed');
+    throw asImportError(error);
   }
+}
+
+/**
+ * ⚠️⚠️ ואותו לוח, מטקסט שהודבק.
+ *
+ * בבקשת בעל המוצר, 26/10/2026: "לאפשר ייבוא אירועים מכל תמונה או טקסט".
+ * DOCS/PLANING/39
+ *
+ * ⚠️ ואותה פונקציית ענן ואותה הנחיה. מה שמשתנה הוא המקור בלבד, ולכן גם אותן
+ * שגיאות ואותן מדרגות.
+ *
+ * ⚠️ והמדרגה הראשונה, "מכין את התמונה", אינה קיימת כאן: אין מה להכין. הטקסט
+ * נשלח כמו שהוא.
+ */
+export async function readBoardText(
+  text: string,
+  branchId: string,
+  monthKey: string,
+  onStage?: (stage: ImportStage) => void,
+): Promise<ImportedDay[]> {
+  const source = text.trim();
+  if (!source) throw new ImportError('emptyText');
+  if (source.length > MAX_TEXT_CHARS) throw new ImportError('tooLongText');
+
+  try {
+    onStage?.('sending');
+    const call = callReadBoardImage({ branchId, monthKey, text: source });
+
+    const toReading = setTimeout(() => onStage?.('reading'), 2000);
+    const result = await call.finally(() => clearTimeout(toReading));
+    return Array.isArray(result.data?.days) ? result.data.days : [];
+  } catch (error) {
+    throw asImportError(error);
+  }
+}
+
+/*
+  ⚠️ השגיאה של `httpsCallable` נושאת את ההודעה שהפונקציה זרקה, ולכן
+  `notManager` או `modelFailed` מגיעים לכאן כמו שהם ומתורגמים במסך.
+  שגיאה שאינה מוכרת אינה מוצגת כלשונה.
+*/
+function asImportError(error: unknown): ImportError {
+  // ⚠️ שגיאה שנזרקה כאן, כמו `emptyText`, עוברת כמו שהיא.
+  if (error instanceof ImportError) return error;
+
+  const message = error instanceof Error ? error.message : '';
+  const known = ['notManager', 'noAuth', 'badImage', 'tooLarge', 'badMonth',
+    'modelFailed', 'emptyAnswer', 'notJson', 'memberLookupFailed', 'unexpected',
+    // ⚠️ חיוב של המודל, ואינו תקלה חולפת. אין טעם לנסות שוב.
+    'quotaExhausted'];
+  const code = known.find((candidate) => message.includes(candidate));
+  return new ImportError(code ?? 'modelFailed');
 }

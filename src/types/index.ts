@@ -141,6 +141,15 @@ export interface ActivityEvent {
   spaceId?: string;
   startTime?: string;
   endTime?: string;
+  /**
+   * ⚠️⚠️ אירוע שנגמר אחרי חצות, ⚠️ והוא מסומן ואינו מוסק.
+   *
+   * בלשון בעל המוצר, 26/10/2026: "יש אירועים כאלה - נא לאפשר תמיכה".
+   *
+   * ⚠️ ובלי השדה הזה אירוע 23:00 עד 01:00 ואירוע 19:00 עד 18:00 הם אותו דבר
+   * בהשוואת שעות, והשני הוא טעות בן 23 שעות. DOCS/PLANING/42
+   */
+  endsNextDay?: boolean;
 }
 
 export type PublicAccess = 'open' | 'closed' | 'closesEarly';

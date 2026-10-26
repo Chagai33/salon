@@ -15,9 +15,25 @@
 //      ולכן `merge` של Firestore משאיר את הערך שלה במקומו.
 //
 // ⚠️ וזו פונקציה טהורה, ונקראת מתוך `useMemo` ברכיב. CLAUDE.md, זרימת נתונים.
+//
+// ⚠️⚠️ ומ-26/10/2026 הייבוא כן כותב `closesAt`, וזה היפוך של מה שכתוב כאן קודם.
+//
+// בקשת בעל המוצר: "להוסיף חצי שעה לפני כל אירוע מייובא (ולציין זאת)". השעה
+// נגזרת מהאירוע המוקדם ביותר ביום פחות 30 דקות, והיא נכתבת למסד כדי שתעבור גם
+// לפיד ליומן. DOCS/PLANING/38
+//
+// ⚠️ ומה שהייבוא עוד אינו מוחק: שעת סגירה שהמנהלת כתבה ביד. יום שסומן `app`
+// אינו מוחלף בשקט, והוא מוצג כהתנגשות שהיא מאשרת. DOCS/PLANING/25
 
-import type { ActivityDay, ActivityEvent, MemberAccess, PublicAccess } from '../types';
+import type {
+  ActivityDay,
+  ActivityEvent,
+  MemberAccess,
+  OpeningHours,
+  PublicAccess,
+} from '../types';
 import type { ImportedDay } from '../services/importService';
+import { closingCauseOf, closingFor } from './closing.ts';
 
 /** מה הייבוא עושה ליום הזה. */
 export type DayVerdict =
@@ -70,11 +86,31 @@ function accessWord(publicAccess: PublicAccess, memberAccess: MemberAccess): str
 function eventKey(event: ActivityEvent): string {
   // ⚠️ והחלל חלק מהמפתח: אירוע שהמנהלת שייכה לחלל בשלב הייבוא הוא שינוי,
   // ובלי זה היום היה נחשב "ללא שינוי" והשיוך לא היה נשמר. DOCS/PLANING/26
-  return `${event.title.trim()}|${event.startTime ?? ''}|${event.endTime ?? ''}|${event.spaceId ?? ''}`;
+  //
+  // ⚠️ ומאותה סיבה גם "ממשיך למחרת": הוא נסמן ביד בשלב הייבוא, ובלעדיו מהמפתח
+  // הסימון לא היה נשמר. DOCS/PLANING/42
+  return [
+    event.title.trim(),
+    event.startTime ?? '',
+    event.endTime ?? '',
+    event.spaceId ?? '',
+    event.endsNextDay ? 'next' : '',
+  ].join('|');
 }
 
 function eventLabel(event: ActivityEvent): string {
   return event.startTime ? `${event.title} ${event.startTime}` : event.title;
+}
+
+/**
+ * שעת הסגירה, ⚠️ ולידה שם האירוע שגרם לה.
+ *
+ * בלשון בעל המוצר, 26/10, "ולציין זאת": המנהלת צריכה לדעת למה היום נסגר
+ * מוקדם, ולא רק באיזו שעה. DOCS/PLANING/38
+ */
+function closingLabel(closesAt: string, events: ActivityEvent[]): string {
+  const cause = closingCauseOf(events, closesAt);
+  return cause ? `שעת סגירה ${closesAt}, לקראת ${cause}` : `שעת סגירה ${closesAt}`;
 }
 
 /**
@@ -87,6 +123,7 @@ export function planFor(
   imported: ImportedDay,
   stored: ActivityDay | undefined,
   fallback: FallbackAccess,
+  hours?: OpeningHours | null,
 ): DayPlan {
   const note = imported.note.trim();
   const events = imported.events;
@@ -97,11 +134,20 @@ export function planFor(
       מה שהיום נושא ממילא, וזה מה שהמוצר אומר בלי הייבוא.
     */
     const next = imported.access === 'unknown' ? fallback : toFields(imported.access);
-    const { publicAccess, memberAccess } = next;
+    const { memberAccess } = next;
+
+    /*
+      ⚠️⚠️ וחצי השעה לפני האירוע, בבקשת בעל המוצר 26/10. DOCS/PLANING/38
+      היא נגזרת כאן ונכתבת למסד, ואינה מחושבת בתצוגה.
+    */
+    const closing = closingFor(events, next.publicAccess, hours);
+    const publicAccess = closing?.publicAccess ?? next.publicAccess;
+    const closesAt = closing?.closesAt;
 
     const changes: DayChange[] = [
       { kind: 'add', text: accessWord(publicAccess, memberAccess) },
     ];
+    if (closesAt) changes.push({ kind: 'add', text: closingLabel(closesAt, events) });
     if (note) changes.push({ kind: 'add', text: `הערה: ${note}` });
     for (const event of events) changes.push({ kind: 'add', text: eventLabel(event) });
 
@@ -114,6 +160,7 @@ export function planFor(
         events,
         publicAccess,
         memberAccess,
+        ...(closesAt ? { closesAt } : {}),
         ...(note ? { note } : {}),
         source: 'import2026' as const,
       },
@@ -124,25 +171,87 @@ export function planFor(
   const fields: DayPlan['fields'] = { date: imported.date };
 
   // ---------- מצב היום ----------
-  // ⚠️ המודל ששתק אינו משנה מצב. זה הדבר שהחזיר יום סגור למצב פתוח.
-  if (imported.access !== 'unknown') {
-    const next = toFields(imported.access);
-    if (next.publicAccess !== stored.publicAccess || next.memberAccess !== stored.memberAccess) {
+  /*
+    ⚠️ המודל ששתק אינו משנה מצב. זה הדבר שהחזיר יום סגור למצב פתוח.
+    ⚠️ ולכן נקודת הפתיחה היא מה שהמודל קרא, ובשתיקתו מה שכבר כתוב ביום.
+  */
+  const read = imported.access !== 'unknown'
+    ? toFields(imported.access)
+    : { publicAccess: stored.publicAccess, memberAccess: stored.memberAccess };
+
+  /*
+    ⚠️⚠️ וחצי השעה לפני האירוע נגזרת גם ביום קיים. DOCS/PLANING/38
+    היא נכתבת על מה שהמודל קרא, ולכן יום שסגור לציבור אינו "נסגר מוקדם".
+  */
+  const closing = closingFor(events, read.publicAccess, hours);
+  const next = {
+    publicAccess: closing?.publicAccess ?? read.publicAccess,
+    memberAccess: read.memberAccess,
+  };
+  /* ⚠️ שעה נגזרת בלבד. בלי גזירה הייבוא אינו נוגע בשעה שכבר יושבת ביום. */
+  const nextClosesAt = closing ? closing.closesAt : stored.closesAt;
+
+  const accessChanged =
+    next.publicAccess !== stored.publicAccess || next.memberAccess !== stored.memberAccess;
+  const closesChanged = nextClosesAt !== stored.closesAt;
+
+  if (accessChanged || closesChanged) {
+    /*
+      ⚠️⚠️ הסימון שאומר מי נגע ביום, בהכרעת בעל המוצר 26/10 ("1- א").
+
+      `source` הוא `app` רק כשאדם שמר את היום בעורך היום, נמדד ב-
+      `saveActivityDay`. ⚠️ **ויום כזה אינו מוחלף בשקט:** גם תוספת של שעת
+      סגירה היא שינוי של מה שהמנהלת קבעה, ולכן היא מוצגת כהתנגשות ומחכה
+      לאישור שלה. DOCS/PLANING/25
+    */
+    const byManager = stored.source === 'app';
+
+    /*
+      ⚠️⚠️ ושני מקורות לשינוי מצב, והם אינם שווים.
+
+      מה שהמודל קרא בתמונה מחליף את מה שכתוב ביום, וזה מה שהחזיר יום סגור
+      למצב פתוח, ולכן הוא התנגשות. DOCS/PLANING/25
+
+      ⚠️ **והסגירה שנגזרה מהאירוע אינה מוחקת כלום:** יום פתוח שיש בו אירוע
+      ב-19:00 נסגר ב-18:30, וזה בדיוק מה שבעל המוצר ביקש. **לסמן אותו
+      כהתנגשות היה אומר שכל יום בייבוא דורש אישור ביד**, וזה מרוקן את הייבוא
+      מתוכן. DOCS/PLANING/38
+    */
+    const readChanged =
+      imported.access !== 'unknown' &&
+      (read.publicAccess !== stored.publicAccess || read.memberAccess !== stored.memberAccess);
+
+    if (accessChanged) {
       changes.push({
-        kind: 'erase',
+        kind: readChanged || byManager ? 'erase' : 'add',
         text: `מצב היום: ${accessWord(stored.publicAccess, stored.memberAccess)} ⟵ ${accessWord(next.publicAccess, next.memberAccess)}`,
       });
       fields.publicAccess = next.publicAccess;
       fields.memberAccess = next.memberAccess;
+    }
 
-      /*
-        ⚠️⚠️ ושעת סגירה שנשארת היא מצב שאינו עקבי, ולכן נאמרת.
-        הייבוא אינו כותב `closesAt` ואינו מוחק אותו, ולכן יום שעובר ל"פתוח
-        לכולם" יכול להישאר עם סגירה ב-16:00 שאיש לא ביקש.
-      */
-      if (stored.closesAt) {
-        changes.push({ kind: 'keep', text: `שעת סגירה ${stored.closesAt} נשארת` });
-      }
+    if (closesChanged) {
+      changes.push(
+        stored.closesAt
+          ? {
+              kind: 'erase',
+              text: `שעת סגירה: ${stored.closesAt} ⟵ ${nextClosesAt ?? 'בלי שעת סגירה'}`,
+            }
+          : {
+              kind: byManager ? 'erase' : 'add',
+              text: closingLabel(nextClosesAt ?? '', events),
+            },
+      );
+      if (nextClosesAt) fields.closesAt = nextClosesAt;
+    }
+
+    /*
+      ⚠️⚠️ ושעת סגירה שנשארת היא מצב שאינו עקבי, ולכן נאמרת.
+      ⚠️ `mergeActivityDay` משמיט שדה שאינו נשלח ואינו מוחק אותו, נמדד, ולכן
+      יום שעובר ל"סגור לציבור" יכול להישאר עם סגירה ב-16:00 שאיש לא ביקש.
+    */
+    if (stored.closesAt && !closesChanged && next.publicAccess !== 'closesEarly') {
+      changes.push({ kind: 'keep', text: `שעת סגירה ${stored.closesAt} נשארת` });
     }
   }
 
