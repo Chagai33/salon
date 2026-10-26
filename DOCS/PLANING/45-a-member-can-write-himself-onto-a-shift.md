@@ -137,3 +137,4 @@ allow update: if isActive(branchId) || isManager(branchId);
 | [46](46-nobody-marks-attendance.md) | סימון הנוכחות קיים בקוד ואין מסך שקורא לו |
 | [47](47-the-date-of-a-shift-is-never-checked.md) | תאריך המשמרת אינו נבדק בשום שכבה |
 | [48](48-a-rule-cannot-demand-that-the-record-was-written.md) | חוק אינו יכול לדרוש שהשורה שאינה נמחקת נכתבה |
+| [49](49-the-report-asks-the-eligibility-question-with-the-old-answer.md) | הדוח שואל את שאלת הזכאות, ועונה עליה בתנאי שתוקן |
