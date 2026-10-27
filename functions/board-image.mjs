@@ -182,6 +182,51 @@ export function sanitiseDays(parsed, monthKey) {
     .filter((day) => day.events.length > 0 || day.note || day.access !== 'unknown');
 }
 
+/**
+ * ⚠️⚠️ מה המודל החזיר, במספרים, ולפני שהסינון נגע בתשובה.
+ *
+ * **נכתב כי אין על זה תשובה, וממנה הכול נגזר.** נמדד בלוג 27/10/2026 שתמונה
+ * של טבלה בת 13 שורות מחזירה יום אחד, **והלוג סופר ימים אחרי הסינון.**
+ * ⚠️ **ולכן אי אפשר לדעת אם המודל החזיר 13 ו-12 נפלו בסינון החודש, או שהחזיר
+ * אחד.** אלה שתי בעיות שונות לגמרי, ולכל אחת תיקון אחר.
+ * DOCS/PLANING/57
+ *
+ * ⚠️⚠️ **ומספרים בלבד, בלי שמות ובלי תוכן אירועים.** הייבוא הוא אזור ליבה
+ * לפי `CLAUDE.md`, והלוג אינו מקום לתוכן שנקרא מתמונה של אנשים אמיתיים.
+ * **וחודש אינו מידע אישי**, והוא בלוג ממילא.
+ *
+ * ⚠️ והיא טהורה ואינה נוגעת בתשובה, ולכן `sanitiseDays` לא נגעה.
+ */
+export function inspectDays(parsed, monthKey) {
+  const days = Array.isArray(parsed?.days) ? parsed.days : [];
+  const dated = days.filter((day) => typeof day?.date === 'string' && day.date);
+  const inMonth = dated.filter((day) => day.date.startsWith(`${monthKey}-`));
+
+  /* ⚠️ אילו חודשים המודל קרא בפועל. זו התשובה ל"האם הוא בכלל ראה את הלוח". */
+  const months = [...new Set(dated.map((day) => day.date.slice(0, 7)))].sort().slice(0, 12);
+
+  /* ⚠️ כמה אירועים נשאו כותרת, ⚠️ והכותרות עצמן אינן נספרות ואינן נרשמות. */
+  const events = days.reduce(
+    (total, day) =>
+      total +
+      (Array.isArray(day?.events)
+        ? day.events.filter((event) => typeof event?.title === 'string' && event.title.trim())
+            .length
+        : 0),
+    0,
+  );
+
+  return {
+    returned: days.length,
+    badDate: days.length - dated.length,
+    wrongMonth: dated.length - inMonth.length,
+    overflow: Math.max(0, inMonth.length - 31),
+    kept: sanitiseDays(parsed, monthKey).length,
+    events,
+    months,
+  };
+}
+
 /*
   ⚠️ מה שזהה לשני המקורות: הסכימה, וטמפרטורה אפס.
   קריאת לוח אינה יצירתיות, ואותו מקור צריך לתת אותה תשובה.
