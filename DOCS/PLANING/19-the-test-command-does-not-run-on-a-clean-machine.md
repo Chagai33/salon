@@ -106,3 +106,43 @@ npx -y firebase-tools@14 emulators:exec --only firestore --project demo-salon \
 
 ⚠️ **ולכן השורה ב-`CLAUDE.md` אינה נכונה כפי שהיא כתובה.** `CLAUDE.md` הוא
 קובץ יסוד, **והתיקון שלו הוא עצירה שממתינה לבעל המוצר.**
+
+---
+
+## ⚠️⚠️ ממצא שני מאותה משפחה, 27/10/2026: פריסת הפונקציות נכשלת בעץ נקי
+
+**נמדד בפריסה אמיתית**, בהוראת בעל המוצר. הפקודה שכתובה ב-`CLAUDE.md`:
+
+```bash
+npx -y firebase-tools@14 deploy --only functions --project hasalon-dev
+```
+
+**נכשלה:**
+
+```
+!  functions: Couldn't find firebase-functions package in your source code.
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'firebase-functions'
+  imported from <העץ>/functions/index.mjs
+```
+
+⚠️ **הסיבה:** `firebase-tools` **טוען את קוד הפונקציות במכונה המקומית** כדי
+לנתח מהם הטריגרים, **ולכן הוא דורש את התלויות מותקנות.** ⚠️ **ו-
+`functions/node_modules` אינו במאגר**, בכוונה, **ולכן כל עץ עבודה חדש מתחיל
+בלעדיו.**
+
+**מה שעבד:**
+
+```bash
+cd functions && npm install
+```
+
+**ואז הפקודה שב-`CLAUDE.md`**, ✅ **וארבע הפונקציות עודכנו**, נמדד בפלט
+ובהרצת `functions:list` אחריה.
+
+⚠️⚠️ **ומלכודת שנייה שנמדדה באותה הרצה, והיא המסוכנת:** הפקודה הופעלה בצינור,
+`| tail`, **ולכן קוד היציאה שדווח היה 0 אף שהפריסה נכשלה.** `tail` מצליח גם
+כשמה שלפניו נכשל. **פריסה נמדדת בקוד היציאה של הפקודה עצמה ובגוף הפלט, ולא
+בקוד היציאה של הצינור.**
+
+⚠️ **והשורה ב-`CLAUDE.md` חסרה את `npm install`.** קובץ יסוד, **והתיקון
+ממתין לבעל המוצר.**

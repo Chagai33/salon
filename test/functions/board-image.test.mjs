@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import {
   MODEL,
   inspectDays,
+  isoDateOf,
   promptFor,
   requestBodyFor,
   requestBodyForText,
@@ -20,15 +21,48 @@ import {
 const MONTH = '2026-10';
 
 describe('הסינון', () => {
-  it('⚠️ תאריך מחודש אחר נזרק', () => {
+  /*
+    ⚠️⚠️ והבדיקה הזאת התהפכה ב-27/10/2026, בהכרעת בעל המוצר.
+
+    קודם היא דרשה שתאריך מחודש אחר ייזרק. **והזריקה הזאת היא מה שגרם למנהלת
+    לקבל "לא נמצאו ימים" אחרי שלוש דקות**, כשהעלתה לוח של נובמבר לתוך
+    אוקטובר. **עכשיו הכול חוזר, והאפליקציה מציעה לעבור.** DOCS/PLANING/57
+  */
+  it('⚠️⚠️ תאריך מחודש אחר חוזר, ואינו נזרק', () => {
     const days = sanitiseDays(
       { days: [
         { date: '2026-10-07', access: 'unknown', confidence: 1, events: [{ title: 'פילוסופיה' }] },
-        { date: '2026-11-07', access: 'unknown', confidence: 1, events: [{ title: 'לא בחודש' }] },
+        { date: '2026-11-07', access: 'unknown', confidence: 1, events: [{ title: 'בחודש אחר' }] },
       ] },
       MONTH,
     );
-    assert.deepEqual(days.map((d) => d.date), ['2026-10-07']);
+    assert.deepEqual(days.map((d) => d.date), ['2026-10-07', '2026-11-07']);
+  });
+
+  /*
+    ⚠️ והתאריך מנורמל כאן, כי ההנחיה מבקשת מהמודל "תאריך כפי שהוא כתוב
+    במקור". DOCS/PLANING/57
+  */
+  it('⚠️⚠️ ותאריך בלי שנה מושלם מהחודש שנבחר', () => {
+    const days = sanitiseDays(
+      { days: [
+        { date: '7.10', access: 'unknown', confidence: 1, events: [{ title: 'א' }] },
+        { date: '3/11', access: 'unknown', confidence: 1, events: [{ title: 'ב' }] },
+      ] },
+      MONTH,
+    );
+    assert.deepEqual(days.map((d) => d.date), ['2026-10-07', '2026-11-03']);
+  });
+
+  it('תאריך שאינו נקרא נזרק', () => {
+    const days = sanitiseDays(
+      { days: [
+        { date: '31.2', access: 'unknown', confidence: 1, events: [{ title: 'אין יום כזה' }] },
+        { date: 'מחר', access: 'unknown', confidence: 1, events: [{ title: 'לא תאריך' }] },
+      ] },
+      MONTH,
+    );
+    assert.equal(days.length, 0);
   });
 
   it('⚠️⚠️ מצב גישה שאינו מוכר הופך ל-unknown ולא ל-open', () => {
@@ -123,82 +157,83 @@ describe('הסינון', () => {
     assert.equal(day.note.length, 100);
   });
 
-  it('⚠️ ולא יותר מ-31 ימים ומ-6 אירועים ליום', () => {
-    const many = Array.from({ length: 60 }, (_, i) => ({
+  /* ⚠️ שישים ושניים ולא שלושים ואחד, כי שני חודשים הם מקרה חוקי. */
+  it('⚠️ ולא יותר מ-62 ימים ומ-6 אירועים ליום', () => {
+    const many = Array.from({ length: 90 }, (_, i) => ({
       date: `2026-10-${String((i % 28) + 1).padStart(2, '0')}`,
       access: 'unknown', confidence: 1,
       events: Array.from({ length: 20 }, (_, j) => ({ title: `אירוע ${j}` })),
     }));
     const days = sanitiseDays({ days: many }, MONTH);
-    assert.ok(days.length <= 31);
+    assert.equal(days.length, 62);
     assert.ok(days.every((d) => d.events.length <= 6));
   });
 });
 
 describe('ההנחיה והבקשה', () => {
-  it('ההנחיה נושאת את החודש, ואוסרת שמות של אנשים', () => {
-    const prompt = promptFor(MONTH);
-    assert.ok(prompt.includes(MONTH));
-    assert.ok(prompt.includes('אל תחזיר שמות של אנשים'));
-    assert.ok(prompt.includes('unknown'));
-  });
-
   /*
-    ⚠️⚠️ ההנחיה נכתבה מחדש ב-26/10/2026, בבקשת בעל המוצר "לאפשר ייבוא אירועים
-    מכל תמונה או טקסט". DOCS/PLANING/39
+    ⚠️⚠️ ההנחיה מצטמצמת ואינה גדלה, בהכרעת בעל המוצר 27/10/2026.
+
+    שתי הפעמים שנגעו בה הוסיפו לה תיאור וכללים, והקריאה החזירה אירוע אחד
+    מתוך שלושה עשר בשתי הגרסאות. DOCS/PLANING/57
+
+    ⚠️ ולכן הבדיקות כאן נועלות את מה שאסור לה להחזיק, ולא רק את מה שיש בה.
   */
-  it('⚠️ ואינה מניחה צורה אחת: לוח, טבלה, ורשימה', () => {
-    const prompt = promptFor(MONTH);
-    assert.ok(prompt.includes('לוח חודשי משובץ'));
-    assert.ok(prompt.includes('טבלה'));
-    assert.ok(prompt.includes('רשימה או טקסט חופשי'));
+  it('⚠️⚠️ ושני כללי אזור הליבה שרדו מילה במילה: שמות, ו-access שהוא unknown', () => {
+    const prompt = promptFor();
+    assert.ok(prompt.includes('אל תחזיר שמות של אנשים, גם אם הם מופיעים במקור.'));
+    assert.ok(prompt.includes('`access` הוא "unknown" כברירת מחדל'));
+    assert.ok(prompt.includes('ואינן סיבה להחזיר open'));
   });
 
-  it('⚠️⚠️ והכלל שהורה להתעלם מהכותרת שבראש המקור אינו שם עוד', () => {
-    assert.ok(!promptFor(MONTH).includes('התעלם מהכותרת'));
+  it('⚠️⚠️ והחודש אינו בהנחיה כלל. הוא עניין של האפליקציה', () => {
+    const prompt = promptFor();
+    assert.equal(prompt.includes(MONTH), false);
+    // ⚠️ ולא "בלבד": המילה יושבת בכלל אזור הליבה, "פתוח לחברים בלבד".
+    assert.equal(prompt.includes('בחודש'), false);
   });
 
-  it('⚠️ ותאריך בלי שנה נקרא לפי החודש שנשלח', () => {
-    assert.ok(promptFor(MONTH).includes('תאריך בלי שנה'));
+  it('⚠️⚠️ ואין בה שום ציטוט מהתמונה של בעל המוצר', () => {
+    const prompt = promptFor();
+    for (const quoted of [
+      'NLP',
+      '18:30-21:30',
+      'חלל גדול',
+      'חלל שקט',
+      'ימים בהם יש פעילות בסלון',
+      '13 שורות',
+    ]) {
+      assert.equal(prompt.includes(quoted), false, quoted);
+    }
   });
 
-  /*
-    ⚠️⚠️ נמדד בידי בעל המוצר, 26/10: תמונה של טבלה בת 13 שורות החזירה יום אחד,
-    בלי שעות ובלי חלל. שלושת הכללים שגרמו לזה נמחקו או נכתבו מחדש.
-    DOCS/PLANING/52
-  */
-  it('⚠️⚠️ ושעות בעמודה נפרדת מבוקשות, ולא רק "באריח"', () => {
-    const prompt = promptFor(MONTH);
-    assert.ok(!prompt.includes('כתובות באריח'));
-    assert.ok(prompt.includes('גם בעמודה נפרדת'));
+  it('⚠️ ואינה מתארת את צורת המקור, לא עמודות ולא תאים ולא אריחים', () => {
+    const prompt = promptFor();
+    /* ⚠️ ולא "תא" לבד: הוא מצע של "תאריך". */
+    for (const shape of ['עמודות', 'בתא', 'תאי', 'אריח', 'לוח חודשי', 'טבלה', 'התעלם מהכותרת']) {
+      assert.equal(prompt.includes(shape), false, shape);
+    }
   });
 
-  it('⚠️ ושם החלל מבוקש כמחרוזת, כפי שהוא כתוב', () => {
-    const prompt = promptFor(MONTH);
-    assert.ok(prompt.includes('`space`'));
-    assert.ok(prompt.includes('חלל גדול'));
-  });
-
-  it('⚠️⚠️ ושורה בטבלה אינה מדולגת בגלל שאינה נראית כמו תא בלוח', () => {
-    const prompt = promptFor(MONTH);
-    assert.ok(prompt.includes('אל תדלג על שורה'));
-    assert.ok(prompt.includes('13 שורות צריך להחזיר 13 אירועים'));
+  it('⚠️ ומבקשת כל יום וכל אירוע שבו', () => {
+    const prompt = promptFor();
+    assert.ok(prompt.includes('כל יום שיש בו אירוע'));
+    assert.ok(prompt.includes('כל האירועים שבו'));
   });
 
   it('⚠️ ואירוע שחוצה חצות מבוקש במפורש, ואינו מתוקן', () => {
-    const prompt = promptFor(MONTH);
+    const prompt = promptFor();
     assert.ok(prompt.includes('endsNextDay'));
     assert.ok(prompt.includes('ממשיך למחרת'));
+    assert.ok(prompt.includes('אל תתקן את השעות'));
   });
 
-  it('⚠️⚠️ ושני כללי אזור הליבה שרדו: שמות, ו-access שהוא unknown', () => {
-    const prompt = promptFor(MONTH);
-    assert.ok(prompt.includes('אל תחזיר שמות של אנשים'));
-    assert.ok(prompt.includes('`access` הוא "unknown" כברירת מחדל'));
+  it('⚠️ והיא קטנה מאלף תווים', () => {
+    assert.ok(promptFor().length < 1000, String(promptFor().length));
   });
 
   it('גוף הבקשה נושא את התמונה ואת הסכימה, ו-temperature אפס', () => {
-    const body = requestBodyFor(MONTH, 'image/png', 'AAAA');
+    const body = requestBodyFor('image/png', 'AAAA');
     assert.equal(body.contents[0].parts[1].inline_data.mime_type, 'image/png');
     assert.equal(body.contents[0].parts[1].inline_data.data, 'AAAA');
     assert.equal(body.generationConfig.response_mime_type, 'application/json');
@@ -210,15 +245,15 @@ describe('ההנחיה והבקשה', () => {
   });
 
   it('⚠️ וגוף בקשת הטקסט נושא את הטקסט ואינו נושא תמונה', () => {
-    const body = requestBodyForText(MONTH, 'שלישי 3.11, 19:00-22:00, פילוסופיה');
-    assert.equal(body.contents[0].parts[0].text, promptFor(MONTH));
+    const body = requestBodyForText('שלישי 3.11, 19:00-22:00, פילוסופיה');
+    assert.equal(body.contents[0].parts[0].text, promptFor());
     assert.ok(body.contents[0].parts[1].text.includes('פילוסופיה'));
     assert.equal('inline_data' in body.contents[0].parts[1], false);
   });
 
   it('⚠️ ואותה סכימה ואותה טמפרטורה אפס בשני המקורות', () => {
-    const image = requestBodyFor(MONTH, 'image/png', 'AAAA');
-    const text = requestBodyForText(MONTH, 'משהו');
+    const image = requestBodyFor('image/png', 'AAAA');
+    const text = requestBodyForText('משהו');
     assert.equal(text.generationConfig.temperature, 0);
     assert.deepEqual(text.generationConfig.response_schema, image.generationConfig.response_schema);
   });
@@ -323,7 +358,8 @@ describe('⚠️ מה המודל החזיר, לפני הסינון', () => {
     );
     assert.equal(seen.returned, 2);
     assert.equal(seen.wrongMonth, 2);
-    assert.equal(seen.kept, 0);
+    /* ⚠️ ומ-27/10 הם גם נשמרים, ולא רק נספרים. */
+    assert.equal(seen.kept, 2);
   });
 
   it('⚠️⚠️ ומבדיל בין "הסינון מחק" ובין "המודל החזיר אחד"', () => {
@@ -336,7 +372,7 @@ describe('⚠️ מה המודל החזיר, לפני הסינון', () => {
     const seen = inspectDays({ days: thirteen }, MONTH);
     assert.equal(seen.returned, 13);
     assert.equal(seen.wrongMonth, 13);
-    assert.equal(seen.kept, 0);
+    assert.equal(seen.kept, 13);
     assert.equal(seen.events, 13);
   });
 
@@ -352,7 +388,7 @@ describe('⚠️ מה המודל החזיר, לפני הסינון', () => {
     );
     assert.deepEqual(seen.months, ['2026-10', '2026-11']);
     assert.equal(seen.wrongMonth, 1);
-    assert.equal(seen.kept, 1);
+    assert.equal(seen.kept, 2);
   });
 
   it('תאריך שאינו מחרוזת נספר בנפרד', () => {
@@ -393,5 +429,56 @@ describe('⚠️ מה המודל החזיר, לפני הסינון', () => {
     // ⚠️ ומה שכן יש: מספרים, וחודש.
     assert.deepEqual(seen.months, ['2026-10']);
     assert.equal(seen.events, 1);
+  });
+});
+
+/*
+  ⚠️⚠️ התאריך כפי שהמודל קרא אותו, והאפליקציה משלימה.
+
+  בהכרעת בעל המוצר 27/10/2026: ההנחיה מבקשת "תאריך כפי שהוא כתוב במקור, ועם
+  השנה אם היא כתובה", ⚠️ ואין בה כלל שנה. DOCS/PLANING/57
+*/
+describe('⚠️ השלמת השנה', () => {
+  it('תאריך מלא עובר כמו שהוא', () => {
+    assert.equal(isoDateOf('2026-11-03', '2026-11'), '2026-11-03');
+  });
+
+  it('⚠️ ובלי שנה, מהחודש שנבחר', () => {
+    assert.equal(isoDateOf('3.11', '2026-11'), '2026-11-03');
+    assert.equal(isoDateOf('3/11', '2026-11'), '2026-11-03');
+    assert.equal(isoDateOf('3-11', '2026-11'), '2026-11-03');
+    assert.equal(isoDateOf(' 3.11 ', '2026-11'), '2026-11-03');
+  });
+
+  it('⚠️ ויום וחודש, ולא חודש ויום', () => {
+    assert.equal(isoDateOf('11.3', '2026-03'), '2026-03-11');
+  });
+
+  it('שנה שכתובה במקור מנצחת', () => {
+    assert.equal(isoDateOf('3.11.25', '2026-11'), '2025-11-03');
+    assert.equal(isoDateOf('3.11.2024', '2026-11'), '2024-11-03');
+  });
+
+  it('⚠️⚠️ והשנה הקרובה מבין שלוש, כדי ש-3.1 בדצמבר לא ייפול לינואר שעבר', () => {
+    assert.equal(isoDateOf('3.1', '2026-12'), '2027-01-03');
+    assert.equal(isoDateOf('3.12', '2027-01'), '2026-12-03');
+    assert.equal(isoDateOf('3.11', '2026-11'), '2026-11-03');
+  });
+
+  it('תאריך שאינו קיים אינו תאריך', () => {
+    assert.equal(isoDateOf('31.2', '2026-02'), undefined);
+    assert.equal(isoDateOf('32.1', '2026-01'), undefined);
+    assert.equal(isoDateOf('3.13', '2026-11'), undefined);
+  });
+
+  it('ומה שאינו תאריך כלל', () => {
+    assert.equal(isoDateOf('מחר', '2026-11'), undefined);
+    assert.equal(isoDateOf('', '2026-11'), undefined);
+    assert.equal(isoDateOf(undefined, '2026-11'), undefined);
+    assert.equal(isoDateOf(5, '2026-11'), undefined);
+  });
+
+  it('⚠️ וחודש שאינו תקין אינו משלים שנה', () => {
+    assert.equal(isoDateOf('3.11', 'לא חודש'), undefined);
   });
 });

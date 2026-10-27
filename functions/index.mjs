@@ -156,8 +156,8 @@ async function handle(request) {
   await assertManager(uid, branchId);
 
   const requestBody = asText
-    ? requestBodyForText(monthKey, source.trim())
-    : requestBodyFor(monthKey, mimeType, imageBase64);
+    ? requestBodyForText(source.trim())
+    : requestBodyFor(mimeType, imageBase64);
 
   /*
     ⚠️ ומודדים כמה זמן המודל לקח.
