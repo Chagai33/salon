@@ -117,12 +117,81 @@ export const SCHEMA = {
  * או שלושים אירועים ליום אחד, למרות שההנחיה אמרה אחרת. הסינון הוא מה שעומד
  * בין התשובה ובין המסד.
  */
+const ISO = /^(\d{4})-(\d{2})-(\d{2})$/;
+/** `3.11`, `3/11`, `3-11`, ועם שנה בת שתי ספרות או ארבע. */
+const LOOSE = /^(\d{1,2})[.\/-](\d{1,2})(?:[.\/-](\d{2}|\d{4}))?$/;
+
+function pad(number) {
+  return String(number).padStart(2, '0');
+}
+
+/** ⚠️ תאריך שאינו קיים, כמו 31 בפברואר, אינו תאריך. */
+function isoOf(year, month, day) {
+  if (!(year >= 2000 && year <= 2100)) return undefined;
+  if (!(month >= 1 && month <= 12) || !(day >= 1 && day <= 31)) return undefined;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return undefined;
+  return `${year}-${pad(month)}-${pad(day)}`;
+}
+
+/**
+ * ⚠️⚠️ תאריך כפי שהמודל קרא אותו, אל תאריך של המוצר.
+ *
+ * **המודל מחזיר את מה שכתוב במקור**, ובמקורות אמיתיים התאריך כתוב לרוב בלי
+ * שנה: `3.11`. ⚠️ **והאפליקציה היא שמשלימה**, בהכרעת בעל המוצר 27/10/2026.
+ * **ובהנחיה אין כלל שנה**, כי כלל כזה הוא עוד תיאור שהמודל אינו צריך.
+ *
+ * ⚠️ **והשנה נבחרת מבין שלוש, הקרובה לחודש שנבחר.** בלי זה `3.1` בייבוא של
+ * דצמבר היה נופל לינואר שעבר. DOCS/PLANING/57
+ *
+ * ⚠️ ושנה שכתובה במקור מנצחת תמיד.
+ */
+export function isoDateOf(raw, monthKey) {
+  if (typeof raw !== 'string') return undefined;
+  const text = raw.trim();
+
+  const iso = ISO.exec(text);
+  if (iso) return isoOf(Number(iso[1]), Number(iso[2]), Number(iso[3]));
+
+  const loose = LOOSE.exec(text);
+  if (!loose) return undefined;
+
+  const day = Number(loose[1]);
+  const month = Number(loose[2]);
+  if (loose[3]) {
+    const written = Number(loose[3]);
+    return isoOf(loose[3].length === 2 ? 2000 + written : written, month, day);
+  }
+
+  const [selectedYear, selectedMonth] = String(monthKey ?? '').split('-').map(Number);
+  if (!Number.isFinite(selectedYear) || !Number.isFinite(selectedMonth)) return undefined;
+
+  let best;
+  for (const year of [selectedYear - 1, selectedYear, selectedYear + 1]) {
+    const candidate = isoOf(year, month, day);
+    if (!candidate) continue;
+    const distance = Math.abs(year * 12 + month - (selectedYear * 12 + selectedMonth));
+    if (!best || distance < best.distance) best = { candidate, distance };
+  }
+  return best?.candidate;
+}
+
 export function sanitiseDays(parsed, monthKey) {
   const days = Array.isArray(parsed?.days) ? parsed.days : [];
 
   return days
-    .filter((day) => typeof day?.date === 'string' && day.date.startsWith(`${monthKey}-`))
-    .slice(0, 31)
+    /*
+      ⚠️⚠️ ואינה מסננת לחודש אחד עוד, בהכרעת בעל המוצר 27/10/2026.
+
+      **הסינון היה הוראה שניתנה למודל**, "והחזר אותו רק אם החודש שבו תואם",
+      ⚠️ **וגם הוא וגם הסינון כאן מחקו מה שהמנהלת העלתה.** עכשיו הכול חוזר,
+      **והאפליקציה מפרידה בין החודש שנבחר לחודש אחר ומציעה לעבור.**
+      DOCS/PLANING/57
+    */
+    .map((day) => ({ ...day, date: isoDateOf(day?.date, monthKey) }))
+    .filter((day) => typeof day.date === 'string')
+    /* ⚠️ שישים ושניים ולא שלושים ואחד: שני חודשים הם מקרה חוקי עכשיו. */
+    .slice(0, 62)
     .map((day) => ({
       date: day.date,
       note: typeof day.note === 'string' ? day.note.slice(0, 100) : '',
@@ -183,11 +252,14 @@ export function sanitiseDays(parsed, monthKey) {
  */
 export function inspectDays(parsed, monthKey) {
   const days = Array.isArray(parsed?.days) ? parsed.days : [];
-  const dated = days.filter((day) => typeof day?.date === 'string' && day.date);
-  const inMonth = dated.filter((day) => day.date.startsWith(`${monthKey}-`));
+  /* ⚠️ ומנורמל, כמו בסינון, אחרת `3.11` נספר כתאריך שאינו קריא. */
+  const dated = days
+    .map((day) => isoDateOf(day?.date, monthKey))
+    .filter((date) => typeof date === 'string');
+  const inMonth = dated.filter((date) => date.startsWith(`${monthKey}-`));
 
   /* ⚠️ אילו חודשים המודל קרא בפועל. זו התשובה ל"האם הוא בכלל ראה את הלוח". */
-  const months = [...new Set(dated.map((day) => day.date.slice(0, 7)))].sort().slice(0, 12);
+  const months = [...new Set(dated.map((date) => date.slice(0, 7)))].sort().slice(0, 12);
 
   /* ⚠️ כמה אירועים נשאו כותרת, ⚠️ והכותרות עצמן אינן נספרות ואינן נרשמות. */
   const events = days.reduce(
@@ -203,8 +275,13 @@ export function inspectDays(parsed, monthKey) {
   return {
     returned: days.length,
     badDate: days.length - dated.length,
+    /*
+      ⚠️ ומ-27/10 `wrongMonth` אינו "כמה נמחקו" אלא "כמה שייכים לחודש אחר".
+      הם כן מגיעים לדפדפן עכשיו, והמסך מציע לעבור אליהם. DOCS/PLANING/57
+    */
     wrongMonth: dated.length - inMonth.length,
-    overflow: Math.max(0, inMonth.length - 31),
+    /* ⚠️ ועל כל הימים, כי התקרה אינה לחודש אחד עוד. */
+    overflow: Math.max(0, dated.length - 62),
     kept: sanitiseDays(parsed, monthKey).length,
     events,
     months,

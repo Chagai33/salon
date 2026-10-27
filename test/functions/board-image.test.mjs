@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import {
   MODEL,
   inspectDays,
+  isoDateOf,
   promptFor,
   requestBodyFor,
   requestBodyForText,
@@ -20,15 +21,48 @@ import {
 const MONTH = '2026-10';
 
 describe('הסינון', () => {
-  it('⚠️ תאריך מחודש אחר נזרק', () => {
+  /*
+    ⚠️⚠️ והבדיקה הזאת התהפכה ב-27/10/2026, בהכרעת בעל המוצר.
+
+    קודם היא דרשה שתאריך מחודש אחר ייזרק. **והזריקה הזאת היא מה שגרם למנהלת
+    לקבל "לא נמצאו ימים" אחרי שלוש דקות**, כשהעלתה לוח של נובמבר לתוך
+    אוקטובר. **עכשיו הכול חוזר, והאפליקציה מציעה לעבור.** DOCS/PLANING/57
+  */
+  it('⚠️⚠️ תאריך מחודש אחר חוזר, ואינו נזרק', () => {
     const days = sanitiseDays(
       { days: [
         { date: '2026-10-07', access: 'unknown', confidence: 1, events: [{ title: 'פילוסופיה' }] },
-        { date: '2026-11-07', access: 'unknown', confidence: 1, events: [{ title: 'לא בחודש' }] },
+        { date: '2026-11-07', access: 'unknown', confidence: 1, events: [{ title: 'בחודש אחר' }] },
       ] },
       MONTH,
     );
-    assert.deepEqual(days.map((d) => d.date), ['2026-10-07']);
+    assert.deepEqual(days.map((d) => d.date), ['2026-10-07', '2026-11-07']);
+  });
+
+  /*
+    ⚠️ והתאריך מנורמל כאן, כי ההנחיה מבקשת מהמודל "תאריך כפי שהוא כתוב
+    במקור". DOCS/PLANING/57
+  */
+  it('⚠️⚠️ ותאריך בלי שנה מושלם מהחודש שנבחר', () => {
+    const days = sanitiseDays(
+      { days: [
+        { date: '7.10', access: 'unknown', confidence: 1, events: [{ title: 'א' }] },
+        { date: '3/11', access: 'unknown', confidence: 1, events: [{ title: 'ב' }] },
+      ] },
+      MONTH,
+    );
+    assert.deepEqual(days.map((d) => d.date), ['2026-10-07', '2026-11-03']);
+  });
+
+  it('תאריך שאינו נקרא נזרק', () => {
+    const days = sanitiseDays(
+      { days: [
+        { date: '31.2', access: 'unknown', confidence: 1, events: [{ title: 'אין יום כזה' }] },
+        { date: 'מחר', access: 'unknown', confidence: 1, events: [{ title: 'לא תאריך' }] },
+      ] },
+      MONTH,
+    );
+    assert.equal(days.length, 0);
   });
 
   it('⚠️⚠️ מצב גישה שאינו מוכר הופך ל-unknown ולא ל-open', () => {
@@ -123,14 +157,15 @@ describe('הסינון', () => {
     assert.equal(day.note.length, 100);
   });
 
-  it('⚠️ ולא יותר מ-31 ימים ומ-6 אירועים ליום', () => {
-    const many = Array.from({ length: 60 }, (_, i) => ({
+  /* ⚠️ שישים ושניים ולא שלושים ואחד, כי שני חודשים הם מקרה חוקי. */
+  it('⚠️ ולא יותר מ-62 ימים ומ-6 אירועים ליום', () => {
+    const many = Array.from({ length: 90 }, (_, i) => ({
       date: `2026-10-${String((i % 28) + 1).padStart(2, '0')}`,
       access: 'unknown', confidence: 1,
       events: Array.from({ length: 20 }, (_, j) => ({ title: `אירוע ${j}` })),
     }));
     const days = sanitiseDays({ days: many }, MONTH);
-    assert.ok(days.length <= 31);
+    assert.equal(days.length, 62);
     assert.ok(days.every((d) => d.events.length <= 6));
   });
 });
@@ -323,7 +358,8 @@ describe('⚠️ מה המודל החזיר, לפני הסינון', () => {
     );
     assert.equal(seen.returned, 2);
     assert.equal(seen.wrongMonth, 2);
-    assert.equal(seen.kept, 0);
+    /* ⚠️ ומ-27/10 הם גם נשמרים, ולא רק נספרים. */
+    assert.equal(seen.kept, 2);
   });
 
   it('⚠️⚠️ ומבדיל בין "הסינון מחק" ובין "המודל החזיר אחד"', () => {
@@ -336,7 +372,7 @@ describe('⚠️ מה המודל החזיר, לפני הסינון', () => {
     const seen = inspectDays({ days: thirteen }, MONTH);
     assert.equal(seen.returned, 13);
     assert.equal(seen.wrongMonth, 13);
-    assert.equal(seen.kept, 0);
+    assert.equal(seen.kept, 13);
     assert.equal(seen.events, 13);
   });
 
@@ -352,7 +388,7 @@ describe('⚠️ מה המודל החזיר, לפני הסינון', () => {
     );
     assert.deepEqual(seen.months, ['2026-10', '2026-11']);
     assert.equal(seen.wrongMonth, 1);
-    assert.equal(seen.kept, 1);
+    assert.equal(seen.kept, 2);
   });
 
   it('תאריך שאינו מחרוזת נספר בנפרד', () => {
@@ -393,5 +429,56 @@ describe('⚠️ מה המודל החזיר, לפני הסינון', () => {
     // ⚠️ ומה שכן יש: מספרים, וחודש.
     assert.deepEqual(seen.months, ['2026-10']);
     assert.equal(seen.events, 1);
+  });
+});
+
+/*
+  ⚠️⚠️ התאריך כפי שהמודל קרא אותו, והאפליקציה משלימה.
+
+  בהכרעת בעל המוצר 27/10/2026: ההנחיה מבקשת "תאריך כפי שהוא כתוב במקור, ועם
+  השנה אם היא כתובה", ⚠️ ואין בה כלל שנה. DOCS/PLANING/57
+*/
+describe('⚠️ השלמת השנה', () => {
+  it('תאריך מלא עובר כמו שהוא', () => {
+    assert.equal(isoDateOf('2026-11-03', '2026-11'), '2026-11-03');
+  });
+
+  it('⚠️ ובלי שנה, מהחודש שנבחר', () => {
+    assert.equal(isoDateOf('3.11', '2026-11'), '2026-11-03');
+    assert.equal(isoDateOf('3/11', '2026-11'), '2026-11-03');
+    assert.equal(isoDateOf('3-11', '2026-11'), '2026-11-03');
+    assert.equal(isoDateOf(' 3.11 ', '2026-11'), '2026-11-03');
+  });
+
+  it('⚠️ ויום וחודש, ולא חודש ויום', () => {
+    assert.equal(isoDateOf('11.3', '2026-03'), '2026-03-11');
+  });
+
+  it('שנה שכתובה במקור מנצחת', () => {
+    assert.equal(isoDateOf('3.11.25', '2026-11'), '2025-11-03');
+    assert.equal(isoDateOf('3.11.2024', '2026-11'), '2024-11-03');
+  });
+
+  it('⚠️⚠️ והשנה הקרובה מבין שלוש, כדי ש-3.1 בדצמבר לא ייפול לינואר שעבר', () => {
+    assert.equal(isoDateOf('3.1', '2026-12'), '2027-01-03');
+    assert.equal(isoDateOf('3.12', '2027-01'), '2026-12-03');
+    assert.equal(isoDateOf('3.11', '2026-11'), '2026-11-03');
+  });
+
+  it('תאריך שאינו קיים אינו תאריך', () => {
+    assert.equal(isoDateOf('31.2', '2026-02'), undefined);
+    assert.equal(isoDateOf('32.1', '2026-01'), undefined);
+    assert.equal(isoDateOf('3.13', '2026-11'), undefined);
+  });
+
+  it('ומה שאינו תאריך כלל', () => {
+    assert.equal(isoDateOf('מחר', '2026-11'), undefined);
+    assert.equal(isoDateOf('', '2026-11'), undefined);
+    assert.equal(isoDateOf(undefined, '2026-11'), undefined);
+    assert.equal(isoDateOf(5, '2026-11'), undefined);
+  });
+
+  it('⚠️ וחודש שאינו תקין אינו משלים שנה', () => {
+    assert.equal(isoDateOf('3.11', 'לא חודש'), undefined);
   });
 });

@@ -31,6 +31,7 @@ import { StatusPill } from '../common/StatusPill';
 import { Sheet } from '../common/Sheet';
 import { dayAccessOf } from '../../utils/hebrew';
 import { planFor } from '../../utils/importDiff';
+import { splitByMonth } from '../../utils/importMonths';
 import { useStore } from '../../store/useStore';
 import { saveBranchSettings } from '../../services/salonService';
 import { endsBeforeStart } from '../../utils/times';
@@ -167,6 +168,9 @@ export function ImportBoardImage({
   const [pasted, setPasted] = useState('');
 
   const branch = useStore((state) => state.branch);
+  /* ⚠️ מעבר חודש, בלי קריאה שנייה למודל. DOCS/PLANING/57 */
+  const setMonthKey = useStore((state) => state.setMonthKey);
+  const isMonthLoading = useStore((state) => state.isMonthLoading);
   /** ⚠️ מי מייבא. הייבוא כותב מידע על ימים אמיתיים, ולכן הוא נרשם.
    *  DOCS/PLANING/29 */
   const me = useStore((state) => state.member);
@@ -197,10 +201,22 @@ export function ImportBoardImage({
     ⚠️ ב-useMemo ולא בבורר ולא בגוף הרכיב. `planFor` בונה אובייקט חדש בכל
     קריאה. CLAUDE.md, זרימת נתונים.
   */
+  /*
+    ⚠️⚠️ ההפרדה לפי חודש, וממנה נגזרים שלושת המצבים של המסך.
+    ⚠️ וב-useMemo: הפונקציה בונה אובייקט חדש בכל קריאה. CLAUDE.md, זרימת נתונים.
+    DOCS/PLANING/57
+  */
+  const split = useMemo(() => (days ? splitByMonth(days, monthKey) : null), [days, monthKey]);
+
   const plans = useMemo(() => {
-    if (!days) return null;
+    if (!split) return null;
     const byDate = new Map<string, DayPlan>();
-    for (const day of days) {
+    /*
+      ⚠️⚠️ ורק הימים של החודש שנבחר. הייבוא אינו כותב לחודש אחר בשקט.
+      נמדד ש-`planFor` משווה מול הלוח של החודש המוצג, ולכן יום של חודש אחר
+      היה נכתב מול לוח שאינו שלו. DOCS/PLANING/57
+    */
+    for (const day of split.chosen) {
       /*
         ⚠️ אירוע בלי כותרת נזרק, כמו בעורך היום.
         שורה שהמנהלת רוקנה אינה אירוע, והיא גם לא תיכתב למסד.
@@ -233,7 +249,7 @@ export function ImportBoardImage({
       );
     }
     return byDate;
-  }, [days, activityByDate, skippedNow, openingHours]);
+  }, [split, activityByDate, skippedNow, openingHours]);
 
   const conflictCount = useMemo(
     () => (plans ? [...plans.values()].filter((plan) => plan.verdict === 'conflict').length : 0),
@@ -427,13 +443,23 @@ export function ImportBoardImage({
     התגלה בגלילה. DOCS/PLANING/26
   */
   const groups = useMemo(() => {
-    if (!days || !plans) return null;
+    if (!split || !plans) return null;
     const order: DayVerdict[] = ['conflict', 'new', 'adds', 'same'];
     return order.map((verdict) => ({
       verdict,
-      days: days.filter((day) => plans.get(day.date)?.verdict === verdict),
+      days: split.chosen.filter((day) => plans.get(day.date)?.verdict === verdict),
     }));
-  }, [days, plans]);
+  }, [split, plans]);
+
+  /*
+    ⚠️ מה שמסומן ושייך לחודש שמוצג עכשיו.
+    אחרי מעבר חודש הסימונים של החודש הקודם נשארים ב-`chosen`, ⚠️ והם אינם
+    נכתבים כי אין להם תוכנית. בלי המונה הזה הכפתור היה אומר מספר שאינו נשמר.
+  */
+  const chosenHere = useMemo(
+    () => (plans ? [...chosen].filter((date) => plans.has(date)).length : 0),
+    [plans, chosen],
+  );
 
   if (!open) return null;
 
@@ -731,14 +757,14 @@ export function ImportBoardImage({
       footer={
         days && days.length > 0 ? (
           <div className="flex flex-wrap items-center gap-3">
-            <Button tone="primary" disabled={saving || chosen.size === 0} onClick={save}>
+            <Button tone="primary" disabled={saving || chosenHere === 0} onClick={save}>
               {saving ? t.importImage.saving : t.importImage.save}
             </Button>
 
             {/* ⚠️ המונה ליד הכפתור, ולא בסוף גלילה ארוכה. */}
             <span className="text-xs text-ink-soft">
-              {chosen.size > 0
-                ? t.importImage.chosenCount(chosen.size)
+              {chosenHere > 0
+                ? t.importImage.chosenCount(chosenHere)
                 : conflictCount > 0
                   ? t.importImage.conflictHint
                   : t.importImage.nothingToSave}
@@ -848,6 +874,7 @@ export function ImportBoardImage({
         ⚠️ ומילה ולא צבע לבד. CLAUDE.md, עיצוב.
       */}
       {days && days.length === 0 && (
+        /* ⚠️ ולוח של חודש אחר אינו "לא נמצא כלום": הוא נמצא, והמסך מציע לעבור. */
         <div
           role="status"
           className="mt-3 rounded-card bg-surface-sunken p-3 ring-1 ring-inset ring-line-strong"
@@ -863,11 +890,52 @@ export function ImportBoardImage({
         </div>
       )}
 
-      {groups && days && days.length > 0 && (
+      {/*
+        ⚠️⚠️ הלוח שהועלה הוא של חודש אחר, והמסך מציע לעבור אליו.
+
+        **ובלי קריאה שנייה למודל:** מה שנקרא יושב ב-`days` שבתוך הרכיב,
+        ⚠️ **והרכיב אינו נטען מחדש כשהחודש משתנה**, נמדד. ההפרדה והתוכניות
+        נגזרות מחדש מאותם נתונים.
+
+        ⚠️ ועד 27/10 הימים האלה לא הגיעו לכאן בכלל: ההנחיה ביקשה מהמודל להחזיר
+        חודש אחד, והמסך אמר "נסו שוב". DOCS/PLANING/57
+      */}
+      {split && split.suggested && (
+        <div className="mt-3 rounded-card bg-surface-sunken p-3 ring-1 ring-inset ring-line-strong">
+          <p className="text-sm text-ink">
+            {split.chosen.length === 0
+              ? t.importImage.otherMonthOnly(monthNameOf(split.suggested), split.other.length)
+              : t.importImage.otherMonthSome(monthNameOf(split.suggested), split.other.length)}
+          </p>
+          <div className="mt-2">
+            <Button
+              tone="action"
+              size="sm"
+              disabled={reading || saving}
+              onClick={() => setMonthKey(split.suggested!)}
+            >
+              {t.importImage.goToMonth(monthNameOf(split.suggested))}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/*
+        ⚠️ ואחרי מעבר חודש הלוח של החודש החדש עוד נטען.
+        בלי ההמתנה הזאת הרשימה מציגה לרגע את כל הימים כ"יום חדש", כי הלוח
+        שהיא משווה אליו עוד ריק. DOCS/PLANING/57
+      */}
+      {days && days.length > 0 && isMonthLoading && (
+        <p role="status" className="mt-3 text-sm text-ink-soft">
+          {t.importImage.loadingMonth}
+        </p>
+      )}
+
+      {groups && split && split.chosen.length > 0 && !isMonthLoading && (
         <div className="mt-4 flex flex-col gap-4">
           <div>
             <h3 className="text-sm font-semibold text-ink">
-              {t.importImage.foundTitle(days.length)}
+              {t.importImage.foundTitle(split.chosen.length)}
             </h3>
             {/*
               ⚠️⚠️ וקריאה חלקית אינה נראית כמו קריאה שלמה.
