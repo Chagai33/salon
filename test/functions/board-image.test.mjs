@@ -10,6 +10,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   MODEL,
+  inspectDays,
   promptFor,
   requestBodyFor,
   requestBodyForText,
@@ -300,5 +301,97 @@ describe('⚠️ אירוע שממשיך למחרת', () => {
       MONTH,
     );
     assert.equal('endsNextDay' in days[0].events[0], false);
+  });
+});
+
+/*
+  ⚠️⚠️ מה המודל החזיר לפני הסינון, וזו המדידה שאין עליה תשובה.
+
+  נמדד בלוג 27/10/2026 שתמונה של טבלה בת 13 שורות מחזירה יום אחד, **והלוג
+  סופר ימים אחרי הסינון.** DOCS/PLANING/57
+*/
+describe('⚠️ מה המודל החזיר, לפני הסינון', () => {
+  it('סופר את מה שהוחזר, ולא את מה ששרד', () => {
+    const seen = inspectDays(
+      {
+        days: [
+          { date: '2026-11-03', access: 'unknown', confidence: 1, events: [{ title: 'א' }] },
+          { date: '2026-11-04', access: 'unknown', confidence: 1, events: [{ title: 'ב' }] },
+        ],
+      },
+      MONTH,
+    );
+    assert.equal(seen.returned, 2);
+    assert.equal(seen.wrongMonth, 2);
+    assert.equal(seen.kept, 0);
+  });
+
+  it('⚠️⚠️ ומבדיל בין "הסינון מחק" ובין "המודל החזיר אחד"', () => {
+    const thirteen = Array.from({ length: 13 }, (_, i) => ({
+      date: `2026-11-${String(i + 3).padStart(2, '0')}`,
+      access: 'unknown',
+      confidence: 1,
+      events: [{ title: `אירוע ${i}` }],
+    }));
+    const seen = inspectDays({ days: thirteen }, MONTH);
+    assert.equal(seen.returned, 13);
+    assert.equal(seen.wrongMonth, 13);
+    assert.equal(seen.kept, 0);
+    assert.equal(seen.events, 13);
+  });
+
+  it('⚠️ ואומר אילו חודשים המודל בכלל קרא', () => {
+    const seen = inspectDays(
+      {
+        days: [
+          { date: '2026-10-05', access: 'unknown', confidence: 1, events: [{ title: 'א' }] },
+          { date: '2026-11-03', access: 'unknown', confidence: 1, events: [{ title: 'ב' }] },
+        ],
+      },
+      MONTH,
+    );
+    assert.deepEqual(seen.months, ['2026-10', '2026-11']);
+    assert.equal(seen.wrongMonth, 1);
+    assert.equal(seen.kept, 1);
+  });
+
+  it('תאריך שאינו מחרוזת נספר בנפרד', () => {
+    const seen = inspectDays({ days: [{ access: 'unknown' }, { date: 5 }] }, MONTH);
+    assert.equal(seen.returned, 2);
+    assert.equal(seen.badDate, 2);
+  });
+
+  it('תשובה ריקה אינה מפילה את הספירה', () => {
+    assert.equal(inspectDays(undefined, MONTH).returned, 0);
+    assert.equal(inspectDays({ days: 'לא מערך' }, MONTH).returned, 0);
+  });
+
+  /*
+    ⚠️⚠️ הייבוא הוא אזור ליבה, והלוג אינו מקום לתוכן שנקרא מתמונה.
+    CLAUDE.md, אזור ליבה 4.
+  */
+  it('⚠️⚠️ ואין בה שום שם ושום תוכן אירוע, אלא מספרים וחודשים', () => {
+    const seen = inspectDays(
+      {
+        days: [
+          {
+            date: '2026-10-05',
+            note: 'סוכות',
+            access: 'unknown',
+            confidence: 1,
+            events: [{ title: 'NLP הרצאה', space: 'חלל גדול' }],
+          },
+        ],
+      },
+      MONTH,
+    );
+    const text = JSON.stringify(seen);
+    assert.equal(text.includes('NLP'), false);
+    assert.equal(text.includes('הרצאה'), false);
+    assert.equal(text.includes('חלל גדול'), false);
+    assert.equal(text.includes('סוכות'), false);
+    // ⚠️ ומה שכן יש: מספרים, וחודש.
+    assert.deepEqual(seen.months, ['2026-10']);
+    assert.equal(seen.events, 1);
   });
 });

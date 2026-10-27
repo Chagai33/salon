@@ -25,6 +25,7 @@ import {
   MAX_IMAGE_BYTES,
   MAX_TEXT_CHARS,
   MODEL,
+  inspectDays,
   requestBodyFor,
   requestBodyForText,
   sanitiseDays,
@@ -226,12 +227,39 @@ async function handle(request) {
   }
 
   const days = sanitiseDays(parsed, monthKey);
+  /*
+    ⚠️⚠️ ומה המודל החזיר לפני שהסינון נגע, כי על זה אין תשובה.
+
+    נמדד 27/10 שתמונה של 13 שורות מחזירה יום אחד, **והמספר בלוג הוא אחרי
+    הסינון.** ייתכן שהמודל החזיר 13 ו-12 נפלו בסינון החודש, וייתכן שהחזיר
+    אחד. ⚠️ **ולכל אחת מהשתיים תיקון אחר לגמרי.** DOCS/PLANING/57
+
+    ⚠️ ומספרים וחודשים בלבד, בלי שמות ובלי תוכן אירועים. אזור ליבה.
+  */
+  const seen = inspectDays(parsed, monthKey);
+
   // ⚠️ ומאיזה מקור. בלעדיו אין דרך לדעת איזה מהשניים נכשל בלוג.
   logger.info('board read', {
     branchId,
     monthKey,
     source: asText ? 'text' : 'image',
     days: days.length,
+    /*
+      ⚠️ `returned` הוא מה שהמודל החזיר, ו-`wrongMonth` הוא כמה מהם נפלו כי
+      הם בחודש אחר. ⚠️ **ו-`months` אומר אילו חודשים הוא בכלל קרא.**
+    */
+    returned: seen.returned,
+    wrongMonth: seen.wrongMonth,
+    badDate: seen.badDate,
+    overflow: seen.overflow,
+    eventsReturned: seen.events,
+    monthsSeen: seen.months,
+    /*
+      ⚠️⚠️ ו-`finishReason` תמיד, ולא רק כשאין טקסט.
+      תשובה שנחתכה באמצע נראית כמו תשובה תקינה וקצרה, **וזו בדיוק ההשערה
+      שאי אפשר לבדוק בלי המספר הזה.** DOCS/PLANING/57
+    */
+    finishReason: body?.candidates?.[0]?.finishReason,
     /*
       ⚠️⚠️ וארבעת המספרים האלה הם מה שיענה על "למה זה איטי".
 
