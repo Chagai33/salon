@@ -19,7 +19,7 @@
 // ⚠️ ולכן יום שדורס משהו קיים אינו מסומן מראש, בשום רמת ביטחון.
 
 import { Button } from '../common/Button';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { t } from '../../i18n/dictionary';
 import { shortDateLabel } from '../../utils/dates';
 import { monthNameOf, weekdayOf } from '../../utils/dates';
@@ -166,6 +166,39 @@ export function ImportBoardImage({
   const [stage, setStage] = useState<ImportStage | null>(null);
   /** הטקסט שהמנהלת הדביקה, כמקור חלופי לתמונה. DOCS/PLANING/39 */
   const [pasted, setPasted] = useState('');
+  /*
+    ⚠️⚠️ מזהה הקריאה שרצה, וביטול הוא העלאה שלו.
+
+    בבקשת בעל המוצר, 28/10: "אני רוצה להוסיף כפתור שמבטל את העיבוד של
+    התמונה". ⚠️ **ומזהה ולא דגל:** המנהלת יכולה לבטל ולהתחיל קריאה חדשה
+    לפני שהראשונה חזרה, **ודגל היה גורם לתשובה של הראשונה להיזרק יחד עם
+    השנייה.** DOCS/PLANING/58
+  */
+  /*
+    ⚠️ ו-ref ולא מצב רכיב: `then` קורא אותו אחרי שש עשרה שניות, ומצב נקרא
+    שם כפי שהיה ברגע הקריאה, כלומר לפני הביטול. ⚠️ ואין מי שמרנדר לפיו.
+  */
+  const runRef = useRef(0);
+
+  function startRun() {
+    runRef.current += 1;
+    return runRef.current;
+  }
+
+  /*
+    ⚠️⚠️ מה הביטול מבטל, ומה אינו יכול לבטל.
+
+    ✅ **ההמתנה נעצרת**, והמסך חוזר למצב שלפני.
+    ✅ **והתשובה שתגיע נזרקת**, ואינה מציגה רשימה אחרי שהמנהלת ביטלה.
+    ⚠️⚠️ **והקריאה בצד השרת ממשיכה עד סופה, והמודל מחויב.**
+    `httpsCallable` של Firebase אינו מקבל אות ביטול ואינו חושף דרך לנתק
+    קריאה שרצה. **ולכן זה נאמר במילים במסך ואינו מוסתר.** DOCS/PLANING/58
+  */
+  function cancelRun() {
+    runRef.current += 1;
+    setReading(false);
+    setStage(null);
+  }
 
   const branch = useStore((state) => state.branch);
   /* ⚠️ מעבר חודש, בלי קריאה שנייה למודל. DOCS/PLANING/57 */
@@ -281,7 +314,7 @@ export function ImportBoardImage({
     reset();
     setReading(true);
     setStage('preparing');
-    absorb(readBoardImage(file, branchId, monthKey, setStage));
+    absorb(readBoardImage(file, branchId, monthKey, setStage), startRun());
   }
 
   /*
@@ -295,7 +328,7 @@ export function ImportBoardImage({
     reset();
     setReading(true);
     setStage('sending');
-    absorb(readBoardText(pasted, branchId, monthKey, setStage));
+    absorb(readBoardText(pasted, branchId, monthKey, setStage), startRun());
   }
 
   /*
@@ -303,9 +336,15 @@ export function ImportBoardImage({
     ⚠️⚠️ ובמקום אחד: שני מסלולים שבונים את הרשימה בנפרד הם שני מקומות שבהם
     הסימון מראש של רשומה 25 יכול להישבר.
   */
-  function absorb(request: Promise<ImportedDay[]>) {
+  function absorb(request: Promise<ImportedDay[]>, run: number) {
     void request
       .then((raw) => {
+        /*
+          ⚠️⚠️ ותשובה של קריאה שבוטלה נזרקת ואינה מציגה רשימה.
+          **זה מה שהביטול באמת עושה בצד הלקוח**, והוא כל מה שהוא יכול
+          לעשות: הקריאה עצמה ממשיכה בצד השרת. DOCS/PLANING/58
+        */
+        if (run !== runRef.current) return;
         /*
           ⚠️ מה שבמאגר הדילוג אינו נכנס לרשימה בכלל.
           הוא גם אינו נכתב למסד, ⚠️ והמנהלת רואה כמה הושמטו כדי שלא תחשוב
@@ -358,8 +397,12 @@ export function ImportBoardImage({
           ),
         );
       })
-      .catch((error: unknown) => setProblem(messageFor(error)))
+      .catch((error: unknown) => {
+        if (run !== runRef.current) return;
+        setProblem(messageFor(error));
+      })
       .finally(() => {
+        if (run !== runRef.current) return;
         setReading(false);
         setStage(null);
       });
@@ -858,6 +901,19 @@ export function ImportBoardImage({
           </ol>
 
           <p className="mt-2 text-xs text-ink-faint">{t.importImage.stageHint}</p>
+
+          {/*
+            ⚠️⚠️ ביטול, בבקשת בעל המוצר 28/10, ⚠️ ועם מה שהוא אינו יכול לבטל.
+
+            **הקריאה בצד השרת ממשיכה והמודל מחויב**, כי `httpsCallable` אינו
+            מקבל אות ביטול. **וזה נאמר ואינו מוסתר.** DOCS/PLANING/58
+          */}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button tone="secondary" size="sm" onClick={cancelRun}>
+              {t.importImage.cancelReading}
+            </Button>
+            <span className="text-xs text-ink-faint">{t.importImage.cancelHint}</span>
+          </div>
         </div>
       )}
 
