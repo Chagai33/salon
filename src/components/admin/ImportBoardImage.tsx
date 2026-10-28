@@ -179,6 +179,25 @@ export function ImportBoardImage({
     שם כפי שהיה ברגע הקריאה, כלומר לפני הביטול. ⚠️ ואין מי שמרנדר לפיו.
   */
   const runRef = useRef(0);
+  /*
+    ⚠️⚠️ אילו ימים פתוחים לעריכה, מ-28/10/2026.
+
+    בלשון בעל המוצר: "תראה איזה בלאגן בעין בחלון הייבוא". **נמדד מהצילום
+    שלו: חמישה פקדים לכל אירוע, פתוחים בכל שורה.** ⚠️ **והמנהלת צריכה
+    להחליט דבר אחד, אילו ימים להחיל**, והעריכה היא תיקון נקודתי.
+
+    **ולכן האירועים מוצגים כטקסט, והפקדים נפתחים בלחיצה.** DOCS/PLANING/58
+  */
+  const [editing, setEditing] = useState<Set<string>>(new Set());
+
+  function toggleEditing(date: string) {
+    setEditing((current) => {
+      const next = new Set(current);
+      if (next.has(date)) next.delete(date);
+      else next.add(date);
+      return next;
+    });
+  }
 
   function startRun() {
     runRef.current += 1;
@@ -622,6 +641,12 @@ export function ImportBoardImage({
               <Button tone="quiet" size="xs" className="text-brand" onClick={() => onOpenDay(date)}>
                 {t.importImage.openDay}
               </Button>
+              {/* ⚠️ הפקדים נפתחים בלחיצה, ואינם פתוחים בכל שורה. */}
+              {day.events.length > 0 && (
+                <Button tone="quiet" size="xs" onClick={() => toggleEditing(date)}>
+                  {editing.has(date) ? t.importImage.editDone : t.importImage.editEvents}
+                </Button>
+              )}
               {/* ⚠️ "מצב היום לא משתנה". מה שכן משתנה מפורט למטה. */}
               {day.access === 'unknown' && (
                 <StatusPill tone="taken">{t.importImage.accessUnknown}</StatusPill>
@@ -658,6 +683,39 @@ export function ImportBoardImage({
                         <StatusPill tone="taken">{t.importImage.skippedMark}</StatusPill>
                         <Button tone="quiet" size="xs" className="text-brand" onClick={() => undoSkip(event.title)}>
                           {t.importImage.undoSkip}
+                        </Button>
+                      </li>
+                    );
+                  }
+
+                  /*
+                    ⚠️ וכברירת מחדל האירוע הוא טקסט ולא טופס.
+                    השעות, השם והחלל בשורה אחת, ⚠️ **ומה שנקרא ולא הותאם
+                    נאמר לידם.** DOCS/PLANING/58
+                  */
+                  if (!editing.has(date)) {
+                    const space = spaces.find((item) => item.id === event.spaceId);
+                    return (
+                      <li key={index} className="flex flex-wrap items-baseline gap-2 text-xs">
+                        {event.startTime && (
+                          <span className="num shrink-0 text-ink-faint">
+                            {event.endTime ? `${event.startTime}-${event.endTime}` : event.startTime}
+                          </span>
+                        )}
+                        {event.endsNextDay && (
+                          <span className="shrink-0 text-ink-faint">{t.day.nextDay}</span>
+                        )}
+                        <span dir="auto" className="min-w-0 flex-1 text-ink">
+                          {event.title}
+                        </span>
+                        {space && <span className="shrink-0 text-ink-faint">{space.name}</span>}
+                        {event.space && !event.spaceId && (
+                          <span dir="auto" className="shrink-0 text-ink-faint">
+                            {t.importImage.spaceRead(event.space)}
+                          </span>
+                        )}
+                        <Button tone="quiet" size="xs" onClick={() => skipAlways(event.title)}>
+                          {t.importImage.skipAlways}
                         </Button>
                       </li>
                     );
@@ -734,7 +792,18 @@ export function ImportBoardImage({
                       </span>
                     )}
 
-                    <Button tone="danger" size="xs" onClick={() => skipAlways(event.title)}>
+                    {/*
+                      ⚠️⚠️ ואינו אדום עוד, מ-28/10/2026.
+
+                      **האדום במסך הזה אמר שלושה דברים:** פעולה הרסנית, שינוי
+                      שיידרס, ואזהרה מסכמת. ⚠️ **ותקן העיצוב אומר שסטטוס אינו
+                      נושא בצבע לבד.**
+
+                      ⚠️ **ומאז רשומה 41 הדילוג אינו הרסני:** יש לו ביטול
+                      באותו חלון, **ולכן אדום היה הבטחה מוגזמת.** האדום נשאר
+                      למה שנדרס בלבד. DOCS/PLANING/58
+                    */}
+                    <Button tone="quiet" size="xs" onClick={() => skipAlways(event.title)}>
                       {t.importImage.skipAlways}
                     </Button>
                   </li>
