@@ -12,6 +12,7 @@ import {
   MODEL,
   inspectDays,
   isoDateOf,
+  unfenced,
   promptFor,
   requestBodyFor,
   requestBodyForText,
@@ -251,11 +252,76 @@ describe('ההנחיה והבקשה', () => {
     assert.equal('inline_data' in body.contents[0].parts[1], false);
   });
 
-  it('⚠️ ואותה סכימה ואותה טמפרטורה אפס בשני המקורות', () => {
+  it('⚠️ ואותה בקשה ואותה טמפרטורה אפס בשני המקורות', () => {
     const image = requestBodyFor('image/png', 'AAAA');
     const text = requestBodyForText('משהו');
     assert.equal(text.generationConfig.temperature, 0);
-    assert.deepEqual(text.generationConfig.response_schema, image.generationConfig.response_schema);
+    assert.deepEqual(text.generationConfig, image.generationConfig);
+  });
+
+  /*
+    ⚠️⚠️ המבנה הכפוי יצא מהבקשה, 28/10/2026, והוא היה החשוד האחרון.
+
+    מודל אחר חילץ את כל שלושה עשר האירועים מאותה תמונה, והפלט שלו היה טבלת
+    Markdown חופשית. DOCS/PLANING/57
+  */
+  it('⚠️⚠️ והבקשה אינה כופה מבנה: אין בה response_schema', () => {
+    for (const body of [requestBodyFor('image/png', 'AAAA'), requestBodyForText('משהו')]) {
+      assert.equal('response_schema' in body.generationConfig, false);
+    }
+  });
+
+  it('⚠️ ו-JSON כן מבוקש, וזה מה שנשאר', () => {
+    assert.equal(
+      requestBodyFor('image/png', 'AAAA').generationConfig.response_mime_type,
+      'application/json',
+    );
+  });
+
+  it('⚠️ והטמפרטורה והמודל לא זזו. משתנה אחד', () => {
+    assert.equal(requestBodyFor('image/png', 'AAAA').generationConfig.temperature, 0);
+    assert.equal(MODEL, 'gemini-3.8-flash');
+  });
+
+  it('⚠️⚠️ ובמקום הסכימה, השלד בהנחיה אומר את שמות השדות', () => {
+    const prompt = promptFor();
+    for (const field of ['days', 'events', 'date', 'title', 'startTime', 'endTime', 'space']) {
+      assert.ok(prompt.includes(field), field);
+    }
+  });
+});
+
+/*
+  ⚠️ עטיפת Markdown. בלי הסכימה המודל יכול לעטוף את ה-JSON, וזה הכשל הסביר
+  ביותר של השינוי. DOCS/PLANING/57
+*/
+describe('⚠️ חיתוך הגדרות', () => {
+  it('JSON נקי עובר כמו שהוא', () => {
+    assert.equal(unfenced('{"days":[]}'), '{"days":[]}');
+  });
+
+  it('⚠️ ועטיפה עם שם שפה נחתכת', () => {
+    const wrapped = ['```json', '{"days":[]}', '```'].join('\n');
+    assert.equal(unfenced(wrapped), '{"days":[]}');
+  });
+
+  it('⚠️ ועטיפה בלי שם שפה נחתכת גם היא', () => {
+    const wrapped = ['```', '{"days":[]}', '```'].join('\n');
+    assert.equal(unfenced(wrapped), '{"days":[]}');
+  });
+
+  it('רווחים מסביב נחתכים', () => {
+    assert.equal(unfenced('  {"days":[]}  '), '{"days":[]}');
+  });
+
+  it('⚠️ ו-JSON שבור אינו מתוקן, רק נחשף', () => {
+    const wrapped = ['```json', '{"days":', '```'].join('\n');
+    assert.equal(unfenced(wrapped), '{"days":');
+  });
+
+  it('תשובה ריקה אינה מפילה', () => {
+    assert.equal(unfenced(undefined), '');
+    assert.equal(unfenced(''), '');
   });
 });
 
