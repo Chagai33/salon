@@ -19,11 +19,18 @@ const TONES: Record<PillTone, string> = {
 interface Props {
   tone: PillTone;
   children: React.ReactNode;
+  /**
+   * ⚠️ המשפט המלא בריחוף עכבר, לתגית שנושאת צורה מקוצרת.
+   * ⚠️⚠️ ואינו תחליף לטקסט: מקלדת ומגע אינם מגיעים אליו, ולכן המשפט המלא
+   * נמצא גם ב-`sr-only` וגם בגיליון היום. DOCS/PLANING/59
+   */
+  title?: string;
 }
 
-export function StatusPill({ tone, children }: Props) {
+export function StatusPill({ tone, children, title }: Props) {
   return (
     <span
+      title={title}
       /*
         ⚠️⚠️ ו-`whitespace-nowrap`, מ-28/10/2026.
 

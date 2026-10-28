@@ -26,6 +26,8 @@ const SURFACE: Record<ShiftViewState, string> = {
   taken: 'bg-shift-taken border-s-shift-taken-line text-shift-taken-ink',
   handoverRequested: 'bg-shift-handover border-s-shift-handover-line text-shift-handover-ink',
   mineHandover: 'bg-shift-handover border-s-shift-handover-line text-shift-handover-ink',
+  // ⚠️ הגוון של סגירה, כי הסגירה היא מה שגרם להשבתה. DOCS/PLANING/59
+  off: 'bg-closed border-s-line text-closed-ink',
   past: 'bg-surface-sunken border-s-line text-ink-faint',
 };
 
@@ -38,6 +40,7 @@ const WORD: Record<ShiftViewState, string> = {
   // ⚠️ כשזו המשמרת שלי המצב נאמר במילים שלי, ולא באותן מילים
   // שבהן הוא נאמר למי שרואה משמרת של אחר. DOCS/PLANING/26
   mineHandover: t.shift.handoverMine,
+  off: t.shift.off,
   past: t.shift.past,
 };
 
@@ -59,9 +62,23 @@ export function ShiftChip({ shift, state, onOpen }: Props) {
     ⚠️ "עברה" אינו מצב שדורש פעולה, והתאריך עצמו כבר אומר אותו.
     ⚠️ והמילה נשארת ב-sr-only, כי קורא מסך אינו רואה אפור. DOCS/PLANING/26
   */
+  /*
+    ⚠️⚠️ ובמשמרת מושבתת המילה מנצחת את שם המשובץ, וזה מה שוויתרתי עליו בתא.
+
+    לצ'יפ יש שורה אחת, ובה השעה והטקסט. ⚠️ ומשמרת שלא תתקיים היא קודם כול
+    משמרת שלא תתקיים, ומי משובץ עליה נקרא בגיליון היום יחד עם שעת הסגירה
+    ועם שם האירוע. DOCS/PLANING/59
+  */
   const past = state === 'past';
-  const label = shift.assigneeName ? displayName(shift.assigneeName) : past ? '' : WORD[state];
-  const needsPerson = !shift.assigneeName && !past;
+  const off = state === 'off';
+  const label = off
+    ? WORD.off
+    : shift.assigneeName
+      ? displayName(shift.assigneeName)
+      : past
+        ? ''
+        : WORD[state];
+  const needsPerson = off || (!shift.assigneeName && !past);
 
   return (
     <button

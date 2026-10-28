@@ -17,11 +17,24 @@ import { displayName } from '../../utils/names';
 import { StatusPill } from '../common/StatusPill';
 import type { PillTone } from '../common/StatusPill';
 
-export type ShiftViewState = 'open' | 'mine' | 'taken' | 'handoverRequested' | 'mineHandover' | 'past';
+export type ShiftViewState =
+  | 'open'
+  | 'mine'
+  | 'taken'
+  | 'handoverRequested'
+  | 'mineHandover'
+  | 'off'
+  | 'past';
 
 export function shiftViewState(shift: Shift, memberId: string | null, past: boolean): ShiftViewState {
   const isMine = Boolean(memberId) && shift.assigneeMemberId === memberId;
   if (past) return 'past';
+  /*
+    ⚠️⚠️ ומשמרת מושבתת היא מצב בפני עצמו, ולא גוון של "משובצת".
+    היא לא תתקיים, ולכן מי משובץ עליה הוא הדבר השני בחשיבותו ולא הראשון.
+    ⚠️ ואחרי "עברה": משמרת שעברה אומרת את עצמה בתאריך. DOCS/PLANING/59
+  */
+  if (shift.attendance === 'cancelled') return 'off';
   if (shift.handoverState === 'requested') return isMine ? 'mineHandover' : 'handoverRequested';
   if (isMine) return 'mine';
   if (shift.assigneeMemberId) return 'taken';
@@ -36,6 +49,7 @@ const LABEL: Record<ShiftViewState, string> = {
   // ⚠️ כשזו המשמרת שלי המצב נאמר במילים שלי, ולא באותן מילים
   // שבהן הוא נאמר למי שרואה משמרת של אחר. DOCS/PLANING/26
   mineHandover: t.shift.handoverMine,
+  off: t.shift.off,
   past: t.shift.past,
 };
 
@@ -45,6 +59,9 @@ const TONE: Record<ShiftViewState, PillTone> = {
   taken: 'taken',
   handoverRequested: 'handover',
   mineHandover: 'handover',
+  // ⚠️ הגוון של סגירה, כי הסגירה היא מה שגרם להשבתה. ואינו אדום: אדום הוא
+  // מחיקה, וההשבתה הפיכה ואינה מוחקת דבר. DOCS/PLANING/03
+  off: 'closed',
   past: 'taken',
 };
 
@@ -54,6 +71,7 @@ const SURFACE: Record<ShiftViewState, string> = {
   taken: 'bg-shift-taken border-shift-taken-line',
   handoverRequested: 'bg-shift-handover border-shift-handover-line',
   mineHandover: 'bg-shift-handover border-shift-handover-line',
+  off: 'bg-closed border-line',
   past: 'bg-surface-sunken border-line',
 };
 
@@ -81,7 +99,16 @@ export function ShiftCell({
   onRequestHandover,
   onCancelHandover,
 }: Props) {
-  const interactive = canAct && state !== 'past';
+  /*
+    ⚠️⚠️ ובמשמרת מושבתת אין לחבר פעולה, וזו החלטה ולא חוסר.
+
+    אין בה תפיסה, כי החוק דוחה אותה ממילא. ⚠️ ואין בה גם "משחרר" למי שמשובץ
+    עליה: החוק מתיר לו לשחרר, אך שחרור הוא שלו ולא ההשבתה של המנהלת, ולכן הוא
+    היה מאבד את הזכאות שהובטחה לו בלי שהבין שזה מה שעשה. ⚠️ ולמנהלת נשאר
+    מסלול השחרור שלה, בכפתור הנפרד שבגיליון היום.
+    DOCS/PLANING/59, DOCS/PLANING/10
+  */
+  const interactive = canAct && state !== 'past' && state !== 'off';
 
   const action = (() => {
     if (!interactive) return null;
