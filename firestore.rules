@@ -314,6 +314,25 @@ service cloud.firestore {
           return resource.data.get('assigneeMemberId', null) is string;
         }
 
+        /*
+          ⚠️⚠️ משמרת מושבתת אינה פנויה, וזו שורה שחסרה עד 28/10/2026.
+
+          משמרת שהמנהלת השביתה בגלל שעת הסגירה נראית פנויה לפי `assignedBefore`
+          לבדה, ולכן בלי התנאי הזה חבר יכול היה להשתבץ אליה. לא דרך המסך, אלא
+          בכתיבה ישירה למסד. DOCS/PLANING/59
+
+          ⚠️ ו-`get` עם ברירת מחדל, ולא השוואה ישירה: משמרת שנולדה לפני השדה
+          אינה קיימת, אך הקריאה חייבת להחזיר שקר ולא שגיאה. אותה סיבה שבגללה
+          ארבע הבדיקות על המשובץ עוברות ב-`is string`.
+
+          ⚠️⚠️ וההשבתה עצמה אינה כלל חדש: `attendance` כבר ברשימת השדות של
+          `managerShiftUpdate`, ואינו באף אחד מארבעת ענפי החבר. כלומר המנהלת
+          משביתה ומחזירה, וחבר אינו עושה אף אחד מהשניים.
+        */
+        function notCancelled() {
+          return resource.data.get('attendance', 'assumed') != 'cancelled';
+        }
+
         function heldByCaller() {
           return assignedBefore() && resource.data.assigneeMemberId == request.auth.uid;
         }
@@ -357,6 +376,7 @@ service cloud.firestore {
          */
         function memberClaimsOpen() {
           return !assignedBefore()
+            && notCancelled()
             && shiftTouched().hasOnly([
                  'assigneeMemberId', 'assigneeName', 'assignedAt', 'assignedBy'
                ])
@@ -376,6 +396,7 @@ service cloud.firestore {
          */
         function memberTakesHandover() {
           return resource.data.get('handoverState', 'none') == 'requested'
+            && notCancelled()
             && heldByOther()
             && shiftTouched().hasOnly([
                  'assigneeMemberId', 'assigneeName', 'assignedAt', 'assignedBy',

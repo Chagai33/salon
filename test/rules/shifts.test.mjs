@@ -106,6 +106,39 @@ async function seed() {
       handoverState: 'requested',
       handoverRequestedAt: 2,
     });
+    /*
+      ⚠️⚠️ שלוש משמרות מושבתות, ואחת לכל מצב שהחוק צריך להבדיל בו:
+      פנויה, מבוקש לה מחליף, ומוחזקת. DOCS/PLANING/59
+    */
+    await setDoc(shift(db, 'off-1'), {
+      ...born('2026-10-12', 'evening'),
+      attendance: 'cancelled',
+      attendanceSetBy: 'manager-one',
+      attendanceSetAt: 5,
+    });
+    await setDoc(shift(db, 'off-req-1'), {
+      ...born('2026-10-13', 'evening'),
+      assigneeMemberId: 'active-one',
+      assigneeName: 'פעיל',
+      assignedAt: 1,
+      assignedBy: 'active-one',
+      handoverState: 'requested',
+      handoverRequestedAt: 2,
+      attendance: 'cancelled',
+      attendanceSetBy: 'manager-one',
+      attendanceSetAt: 5,
+    });
+    await setDoc(shift(db, 'off-held-1'), {
+      ...born('2026-10-14', 'evening'),
+      assigneeMemberId: 'active-one',
+      assigneeName: 'פעיל',
+      assignedAt: 1,
+      assignedBy: 'active-one',
+      attendance: 'cancelled',
+      attendanceSetBy: 'manager-one',
+      attendanceSetAt: 5,
+    });
+
     await setDoc(shift(db, 'done-1'), {
       ...born('2026-10-08', 'morning'),
       assigneeMemberId: 'active-two',
@@ -501,6 +534,149 @@ describe('הגבול בין סלונים', () => {
         assigneeName: 'חיפאי',
         assignedAt: 50,
         assignedBy: 'other-one',
+      }),
+    );
+  });
+});
+
+/*
+  ⚠️⚠️ אזור ליבה 1: משמרת מושבתת אינה פנויה.
+
+  המנהלת משביתה משמרת שהסלון נסגר באמצעה או לפניה, ⚠️ והחוק הוא מה שמונע
+  שיבוץ אליה. במסך אין כפתור, אך מסך אינו חוק: הכתיבה הישירה למסד היא מה
+  שנבדק כאן, ולכל כלל שני כיוונים. DOCS/PLANING/59
+*/
+describe('משמרת מושבתת', () => {
+  it('⚠️⚠️ חבר אינו תופס משמרת מושבתת', async () => {
+    await seed();
+    const db = as('active-one', 'a@b.c');
+    await assertFails(
+      updateDoc(shift(db, 'off-1'), {
+        assigneeMemberId: 'active-one',
+        assigneeName: 'פעיל',
+        assignedAt: 10,
+        assignedBy: 'active-one',
+      }),
+    );
+  });
+
+  it('⚠️ וכן תופס משמרת פנויה שאינה מושבתת', async () => {
+    await seed();
+    // הכיוון השני של אותו כלל: התוספת אינה חוסמת את הפעולה הלגיטימית.
+    const db = as('active-one', 'a@b.c');
+    await assertSucceeds(
+      updateDoc(shift(db, 'open-1'), {
+        assigneeMemberId: 'active-one',
+        assigneeName: 'פעיל',
+        assignedAt: 10,
+        assignedBy: 'active-one',
+      }),
+    );
+  });
+
+  it('⚠️⚠️ וחבר אינו לוקח מחליף במשמרת מושבתת', async () => {
+    await seed();
+    const db = as('active-two', 'b@b.c');
+    await assertFails(
+      updateDoc(shift(db, 'off-req-1'), {
+        assigneeMemberId: 'active-two',
+        assigneeName: 'פעילה',
+        assignedAt: 20,
+        assignedBy: 'active-two',
+        handoverState: 'completed',
+        handoverFromMemberId: 'active-one',
+        handoverFromName: 'פעיל',
+      }),
+    );
+  });
+
+  it('⚠️ וכן לוקח מחליף במשמרת שאינה מושבתת', async () => {
+    await seed();
+    const db = as('active-two', 'b@b.c');
+    await assertSucceeds(
+      updateDoc(shift(db, 'req-1'), {
+        assigneeMemberId: 'active-two',
+        assigneeName: 'פעילה',
+        assignedAt: 20,
+        assignedBy: 'active-two',
+        handoverState: 'completed',
+        handoverFromMemberId: 'active-one',
+        handoverFromName: 'פעיל',
+      }),
+    );
+  });
+
+  it('⚠️⚠️ וחבר אינו משבית משמרת, גם לא את שלו', async () => {
+    await seed();
+    const db = as('active-one', 'a@b.c');
+    await assertFails(
+      updateDoc(shift(db, 'held-1'), {
+        attendance: 'cancelled',
+        attendanceSetBy: 'active-one',
+        attendanceSetAt: 40,
+      }),
+    );
+  });
+
+  it('והמנהלת כן משביתה', async () => {
+    await seed();
+    const db = as('manager-one', 'm@b.c');
+    await assertSucceeds(
+      updateDoc(shift(db, 'held-1'), {
+        attendance: 'cancelled',
+        attendanceSetBy: 'manager-one',
+        attendanceSetAt: 40,
+      }),
+    );
+  });
+
+  it('⚠️ וההשבתה הפיכה: המנהלת מחזירה את המשמרת', async () => {
+    await seed();
+    const db = as('manager-one', 'm@b.c');
+    await assertSucceeds(
+      updateDoc(shift(db, 'off-1'), {
+        attendance: 'assumed',
+        attendanceSetBy: 'manager-one',
+        attendanceSetAt: 41,
+      }),
+    );
+  });
+
+  it('⚠️ וחבר אינו מחזיר משמרת שהושבתה', async () => {
+    await seed();
+    const db = as('active-one', 'a@b.c');
+    await assertFails(
+      updateDoc(shift(db, 'off-1'), {
+        attendance: 'assumed',
+        attendanceSetBy: 'active-one',
+        attendanceSetAt: 41,
+      }),
+    );
+  });
+
+  it('⚠️⚠️ ומשמרת מושבתת אינה נמחקת, גם לא בידי המנהלת', async () => {
+    await seed();
+    // ההשבתה אינה מחיקה. המשמרת נשארת, ומי שמשובץ עליה נשאר עליה.
+    const db = as('manager-one', 'm@b.c');
+    await assertFails(deleteDoc(shift(db, 'off-1')));
+  });
+
+  it('⚠️ והמשובץ עדיין משחרר את המשמרת של עצמו כשהיא מושבתת', async () => {
+    await seed();
+    /*
+      ⚠️ ההשבתה אינה נועלת את החבר על המשמרת. היא מונעת שיבוץ חדש, והיא אינה
+      הופכת את מי שמשובץ לאסיר של המשמרת.
+    */
+    const db = as('active-one', 'a@b.c');
+    await assertSucceeds(
+      updateDoc(shift(db, 'off-held-1'), {
+        assigneeMemberId: null,
+        assigneeName: null,
+        assignedAt: null,
+        assignedBy: null,
+        handoverState: 'none',
+        handoverRequestedAt: null,
+        handoverReason: null,
       }),
     );
   });
