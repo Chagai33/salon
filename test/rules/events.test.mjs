@@ -232,12 +232,12 @@ describe('⚠️⚠️ סכמה סגורה, ובלי טקסט חופשי', () =>
     );
   });
 
-  it('⚠️ ושורת ההשבתה עוברת, כי היא השורה היחידה שמתעדת את ההכרעה', async () => {
+  it('⚠️ ושורת הסימון עוברת, כי היא השורה היחידה שמתעדת את ההכרעה', async () => {
     await seed();
     /*
       המנהלת משביתה משמרת, ו-`setShiftCancelled` כותבת אותה כ-`attendanceSet`
       עם `detail: 'cancelled'`. ⚠️ ואם השורה נדחית, כל האצווה נדחית והמשמרת
-      אינה מושבתת בכלל. DOCS/PLANING/59
+      אינה מסומנת בכלל. DOCS/PLANING/59
     */
     const db = env.authenticatedContext('manager-one').firestore();
     await assertSucceeds(

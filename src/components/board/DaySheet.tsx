@@ -42,7 +42,7 @@ interface Props {
   onCancelHandover: (shift: Shift) => void;
   /**
    * ⚠️⚠️ המנהלת משביתה משמרת שהסגירה בולעת או חותכת, או מחזירה אותה.
-   * ושום משמרת אינה מושבתת מעצמה. DOCS/PLANING/59
+   * ושום משמרת אינה יורדת מהלוח מעצמה. DOCS/PLANING/59
    */
   onSetCancelled: (shift: Shift, cancelled: boolean) => void;
 }
@@ -110,6 +110,7 @@ export function DaySheet({
                   wide
                   shift={shift}
                   state={shiftViewState(shift, memberId, past)}
+                  isMine={Boolean(memberId) && shift.assigneeMemberId === memberId}
                   canAct={canAct}
                   busy={busyId === shift.id}
                   onClaim={() => onClaim(shift)}
@@ -128,7 +129,6 @@ export function DaySheet({
                     shift={shift}
                     closesAt={access.closesAt}
                     closesFor={access.closesFor}
-                    isMine={Boolean(memberId) && shift.assigneeMemberId === memberId}
                     isManager={isManager}
                     busy={busyId === shift.id}
                     onSetCancelled={onSetCancelled}
@@ -198,21 +198,20 @@ export function DaySheet({
 /**
  * שעת הסגירה מול משמרת אחת, והכרעת המנהלת.
  *
- * ⚠️⚠️ ושום משמרת אינה מושבתת מעצמה. בהכרעת בעל המוצר, 28/10/2026: *"כן אבל
+ * ⚠️⚠️ ושום משמרת אינה יורדת מהלוח מעצמה. בהכרעת בעל המוצר, 28/10/2026: *"כן אבל
  * צריך לאפשר למנהלת להחליט אם המשמרת מתבטלת או לא"*. הרכיב הזה מסמן, ואומר
  * מה ידוע, והכפתור הוא שלה.
  *
  * ⚠️ ושני מצבי התנגשות ולא אחד, והמשפט אינו זהה בהם: הסגירה חותכת את המשמרת
  * באמצע, או שהיא כולה לפניה. DOCS/PLANING/59
  *
- * ⚠️⚠️ ואינו אדום. אדום הוא מחיקה ודריסה, וההשבתה הפיכה ואינה מוחקת דבר.
+ * ⚠️⚠️ ואינו אדום. אדום הוא מחיקה ודריסה, והסימון הפיך ואינו מוחק דבר.
  * DOCS/PLANING/58
  */
 function ClosingNote({
   shift,
   closesAt,
   closesFor,
-  isMine,
   isManager,
   busy,
   onSetCancelled,
@@ -220,7 +219,6 @@ function ClosingNote({
   shift: Shift;
   closesAt?: string;
   closesFor?: string;
-  isMine: boolean;
   isManager: boolean;
   busy: boolean;
   onSetCancelled: (shift: Shift, cancelled: boolean) => void;
@@ -246,8 +244,11 @@ function ClosingNote({
     <div className="flex flex-col gap-1.5 rounded-lg bg-surface-sunken px-2.5 py-2 ring-1 ring-inset ring-line">
       {sentence && <p className="text-xs leading-snug text-ink">{sentence}</p>}
 
-      {/* ⚠️ ולמי שמשובץ עליה נאמר מה שמעניין אותו: הזכאות נשמרת. */}
-      {off && isMine && <p className="text-xs leading-snug text-ink">{t.shift.offMine}</p>}
+      {/*
+        ⚠️ ומה שנאמר למי שמשובץ עליה יושב בכרטיס המשמרת עצמו, ליד כפתור
+        השחרור, ולא כאן: בטלפון הכפתור יושב באקורדיון ולא בגיליון היום.
+        DOCS/PLANING/59
+      */}
 
       {isManager && (
         <>

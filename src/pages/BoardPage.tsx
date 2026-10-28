@@ -169,7 +169,7 @@ export function BoardPage({ branchId }: { branchId: string }) {
   const onCancelHandover = (shift: Shift) =>
     guarded(() => cancelHandoverRequest(branchId, shift, member!.id));
   /*
-    ⚠️⚠️ והשבתה היא הכרעה של המנהלת ולא פעולה של חבר, והחוק הוא מה שאוכף את
+    ⚠️⚠️ וסימון שמשמרת אינה מתקיימת הוא הכרעה של המנהלת ולא פעולה של חבר, והחוק הוא מה שאוכף את
     זה. המסך אינו מציג אותה לחבר, והמסד דוחה אותו. DOCS/PLANING/59
   */
   const onSetCancelled = (shift: Shift, cancelled: boolean) =>
