@@ -29,6 +29,7 @@ import {
   requestBodyFor,
   requestBodyForText,
   sanitiseDays,
+  unfenced,
 } from './board-image.mjs';
 
 /**
@@ -220,7 +221,11 @@ async function handle(request) {
 
   let parsed;
   try {
-    parsed = JSON.parse(text);
+    /*
+      ⚠️ ועטיפת Markdown נחתכת קודם. `response_schema` הבטיח JSON נקי,
+      ובלעדיו המודל יכול לעטוף אותו. DOCS/PLANING/57
+    */
+    parsed = JSON.parse(unfenced(text));
   } catch {
     logger.error('gemini text not json', { head: String(text).slice(0, 300) });
     throw new HttpsError('unavailable', 'notJson');
