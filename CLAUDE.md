@@ -137,7 +137,8 @@
 firebase deploy --only firestore:rules,firestore:indexes --project hasalon-dev
 ```
 
-✅ **נבדקו מול האמולטור, 110 בדיקות, כולן עוברות, ונפרסו 26/10.**
+✅ **נבדקו מול האמולטור, 121 בדיקות, כולן עוברות**, ונפרסו 26/10,
+⚠️ **ושוב 28/10, עם משמרת שלא מתקיימת.**
 
 ⚠️ **ומוסק ולא נמדד:** בצילום של בעל המוצר, 12/10, השורות נכתבות, והדוח הקודם,
 שדרש את האינדקס המורכב, החזיר שורות.
@@ -171,9 +172,9 @@ npx -y firebase-tools@14 deploy --only functions --project hasalon-dev
 ```bash
 npm run build        # tsc -b ואז vite build. עובר נקי
 npm run dev
-npm run test:rules   # אמולטור Firestore. 110 בדיקות, כולן עוברות
-node --test --experimental-strip-types test/utils/*.test.ts   # 44, ובהן שבע זכאות
-node --test test/functions/*.test.mjs   # 44, ⚠️ ואחת נכשלת, רשומה 19
+npm run test:rules   # אמולטור Firestore. 121 בדיקות, כולן עוברות
+node --test --experimental-strip-types test/utils/*.test.ts   # 107, ובהן שבע זכאות
+node --test test/functions/*.test.mjs   # 85, כולן עוברות. נמדד 28/10
 node tools/hebrew-closures.mjs 2026
 node tools/check-rtl.mjs    # נכשל על כל כלל CSS פיזי בקוד
 python3 tools/extract-2026-sheet.py <קובץ.xlsx> data
@@ -184,8 +185,12 @@ python3 tools/extract-2026-sheet.py <קובץ.xlsx> data
 `firebase-tools@14`**, ⚠️ **והוא ייסגר:** הגרסה האחרונה מסרבת ל-JDK מתחת ל-21.
 רשומה [19](DOCS/PLANING/19-the-test-command-does-not-run-on-a-clean-machine.md).
 
+⚠️⚠️ **ו-`JAVA_HOME` לבדו אינו מספיק, נמדד 28/10:** האמולטור עלה ב-JDK אחר
+ונפל. **ה-JDK חייב להיות ראשון ב-`PATH`.**
+
 ```bash
-JAVA_HOME="C:/Program Files/Java/jdk-11" npx -y firebase-tools@14 \
+export PATH="/c/Program Files/Java/jdk-11/bin:$PATH"
+npx -y firebase-tools@14 \
   emulators:exec --only firestore --project demo-salon \
   "node --test --test-concurrency=1 test/rules/*.test.mjs"
 ```
@@ -207,7 +212,7 @@ JAVA_HOME="C:/Program Files/Java/jdk-11" npx -y firebase-tools@14 \
 
 **תצוגת בדיקה שאינה עוברת דרך ה-Store אינה בדיקה של המסך.**
 
-✅ **ומה שכן אומת מאז:** חוקי המסד, מול אמולטור, 110 בדיקות. **ובהן הבאג
+✅ **ומה שכן אומת מאז:** חוקי המסד, מול אמולטור, 121 בדיקות. **ובהן הבאג
 שתפס את בעל המוצר:** אי אפשר היה לקרוא את רשומת החבר של עצמך לפני שהיא קיימת,
 ולכן אי אפשר היה להיכנס בפעם הראשונה לעולם. רשומה
 [17](DOCS/PLANING/17-the-first-sign-in-could-never-work.md).
