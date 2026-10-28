@@ -24,7 +24,15 @@ interface Props {
 export function StatusPill({ tone, children }: Props) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${TONES[tone]}`}
+      /*
+        ⚠️⚠️ ו-`whitespace-nowrap`, מ-28/10/2026.
+
+        **נמדד בדפדפן שתגית נשברה לשמונה שורות בתא לוח ברוחב 96 פיקסלים:
+        108 פיקסלים של תגית בתוך שורה שגובהה 20**, ו-44 מהם נצבעו מעל ההערה,
+        מעל האירוע ומעל המשמרות. ⚠️ **תגית שנשברת אינה תגית**, בשום מסך.
+        DOCS/PLANING/58
+      */
+      className={`inline-flex min-w-0 max-w-full items-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${TONES[tone]}`}
     >
       {children}
     </span>
