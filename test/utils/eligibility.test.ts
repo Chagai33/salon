@@ -55,6 +55,26 @@ describe('הזכאות לקוד', () => {
     assert.equal(visibility.eligibility.reason, 'assigned');
   });
 
+  it('⚠️⚠️ ומשמרת שהמנהלת סימנה שאינה מתקיימת שומרת את הזכאות של מי שמשובץ עליה', () => {
+    /*
+      בהכרעת בעל המוצר, 28/10/2026: "אם המנהלת ביטלה בגלל אירוע הזכאות
+      נשמרת אבל צריך שהמנהלת תדע כדי לעדכן את המשובץ".
+
+      ⚠️ וזה קורה מעצמו, כי הנוסחה סופרת `assigneeMemberId` ואינה מסתכלת
+      ב-`attendance`. ⚠️⚠️ **והבדיקה כאן היא מה שנועל את זה**: מי שיוסיף
+      בעתיד תנאי נוכחות לנוסחה יראה את ההבטחה הזאת נשברת. DOCS/PLANING/59
+    */
+    const shifts = [
+      shift('2026-10-07', { assigneeMemberId: 'dana', attendance: 'cancelled' }),
+    ];
+    const result = eligibilityFor(shifts, 'dana', '2026-10');
+    assert.equal(result.isEligible, true);
+    assert.equal(result.reason, 'assigned');
+
+    const visibility = codeVisibilityFor(shifts, [CODE_OCT], 'dana', NOW);
+    assert.equal(visibility.code, '4821');
+  });
+
   it('⚠️ ומי שמצא מחליף שומר על הזכאות', () => {
     const shifts = [
       shift('2026-10-07', {

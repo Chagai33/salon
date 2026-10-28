@@ -75,6 +75,48 @@ export function closingCauseOf(
 }
 
 /**
+ * ⚠️⚠️ שני מצבי התנגשות ולא אחד, ומסך שאומר בשניהם אותו דבר מטעה.
+ *
+ *   `cut`        הסגירה חותכת את המשמרת באמצע. 18:00 עד 22:00 מול 18:30.
+ *   `swallowed`  הסגירה כולה לפני המשמרת, ואין בה אף דקה של סלון פתוח.
+ *                19:00 עד 22:00 מול 18:30.
+ */
+export type ShiftClash = 'cut' | 'swallowed';
+
+/**
+ * האם שעת הסגירה של היום מתנגשת במשמרת, ואיך.
+ *
+ * בלשון בעל המוצר, 28/10/2026: "וגם אם יש אירוע שמתחיל ב 19 אז אין משמרת
+ * מ 18".
+ *
+ * ⚠️ `undefined` כשהמשמרת נגמרת עד שעת הסגירה, וגם כשאין שעת סגירה בכלל.
+ * משמרת כזאת אינה מסומנת בכלום.
+ *
+ * ⚠️⚠️ ושעת סגירה שהמנהלת כתבה ביד נחשבת בדיוק כמו נגזרת. היא סגירה, ואין
+ * למשמרת מה לשמור אחריה בלי קשר למי קבע אותה.
+ *
+ * ⚠️⚠️ ומשמרת שנגמרת לפני שהתחילה ממשיכה למחרת, ולכן אינה נגמרת עד הסגירה.
+ * השוואת המספרים לבדה הייתה הופכת משמרת 22:00 עד 02:00 למשמרת שנגמרת
+ * ב-02:00 "לפני" סגירה ב-18:30, כלומר למשמרת תקינה. DOCS/PLANING/42
+ *
+ * ⚠️ וזו פונקציה טהורה, ונקראת מתוך `useMemo` או ישירות. CLAUDE.md.
+ */
+export function shiftClashWith(
+  shift: { startTime: string; endTime: string },
+  closesAt: string | undefined,
+): ShiftClash | undefined {
+  const at = minutesOf(closesAt);
+  const start = minutesOf(shift.startTime);
+  const end = minutesOf(shift.endTime);
+  if (at === undefined || start === undefined || end === undefined) return undefined;
+
+  if (end > start && end <= at) return undefined;
+
+  // ⚠️ שווה נחשב נבלעה: סגירה בדיוק בשעת ההתחלה אינה משאירה אף דקה.
+  return at <= start ? 'swallowed' : 'cut';
+}
+
+/**
  * מה האירועים עושים למצב היום.
  *
  * ⚠️⚠️ ושני מקרים ולא אחד, בהכרעת בעל המוצר ("4א"):

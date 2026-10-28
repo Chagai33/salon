@@ -26,6 +26,8 @@ const SURFACE: Record<ShiftViewState, string> = {
   taken: 'bg-shift-taken border-s-shift-taken-line text-shift-taken-ink',
   handoverRequested: 'bg-shift-handover border-s-shift-handover-line text-shift-handover-ink',
   mineHandover: 'bg-shift-handover border-s-shift-handover-line text-shift-handover-ink',
+  // ⚠️ הגוון של סגירה, כי הסגירה היא מה שגרם לכך. DOCS/PLANING/59
+  off: 'bg-closed border-s-line text-closed-ink',
   past: 'bg-surface-sunken border-s-line text-ink-faint',
 };
 
@@ -38,8 +40,17 @@ const WORD: Record<ShiftViewState, string> = {
   // ⚠️ כשזו המשמרת שלי המצב נאמר במילים שלי, ולא באותן מילים
   // שבהן הוא נאמר למי שרואה משמרת של אחר. DOCS/PLANING/26
   mineHandover: t.shift.handoverMine,
+  /*
+    ⚠️⚠️ והצורה הקצרה, ולא המונח. **נמדד בדפדפן ב-768:** מקום הטקסט בצ'יפ
+    הוא 31 פיקסלים, ו"לא מתקיימת" הוא 69. ⚠️ **ומילה שנחתכת אומרת פחות**,
+    ולכן הצורה בתא מתקצרת והמונח נשאר בכל מקום אחר. DOCS/PLANING/59
+  */
+  off: t.shift.offShort,
   past: t.shift.past,
 };
+
+/** ⚠️ ולקורא המסך המונח המלא, כי שם אין 31 פיקסלים. */
+const SPOKEN: Record<ShiftViewState, string> = { ...WORD, off: t.shift.off };
 
 interface Props {
   shift: Shift;
@@ -59,9 +70,23 @@ export function ShiftChip({ shift, state, onOpen }: Props) {
     ⚠️ "עברה" אינו מצב שדורש פעולה, והתאריך עצמו כבר אומר אותו.
     ⚠️ והמילה נשארת ב-sr-only, כי קורא מסך אינו רואה אפור. DOCS/PLANING/26
   */
+  /*
+    ⚠️⚠️ ובמשמרת שלא מתקיימת המילה מנצחת את שם המשובץ, וזה מה שוויתרתי בתא.
+
+    לצ'יפ יש שורה אחת, ובה השעה והטקסט. ⚠️ ומשמרת שלא מתקיימת היא קודם כול
+    משמרת שלא מתקיימת, ומי משובץ עליה נקרא בגיליון היום יחד עם שעת הסגירה
+    ועם שם האירוע. DOCS/PLANING/59
+  */
   const past = state === 'past';
-  const label = shift.assigneeName ? displayName(shift.assigneeName) : past ? '' : WORD[state];
-  const needsPerson = !shift.assigneeName && !past;
+  const off = state === 'off';
+  const label = off
+    ? WORD.off
+    : shift.assigneeName
+      ? displayName(shift.assigneeName)
+      : past
+        ? ''
+        : WORD[state];
+  const needsPerson = off || (!shift.assigneeName && !past);
 
   return (
     <button
@@ -72,14 +97,16 @@ export function ShiftChip({ shift, state, onOpen }: Props) {
         WEEKDAY_NAMES[weekdayOf(shift.date)],
         shortDateLabel(shift.date),
         `${shift.startTime}-${shift.endTime}`,
-        WORD[state],
+        SPOKEN[state],
       )}
       className={`flex w-full items-baseline gap-1.5 rounded-md border-s-2 px-1.5 py-1 text-start text-xs ${SURFACE[state]} ${
         needsPerson ? 'font-medium' : ''
       }`}
     >
       <span className="num shrink-0 opacity-80">{shift.startTime}</span>
-      <bdi className="min-w-0 flex-1 truncate">{label}</bdi>
+      <bdi className="min-w-0 flex-1 truncate" title={off ? t.shift.off : undefined}>
+        {label}
+      </bdi>
       {past && <span className="sr-only">{WORD.past}</span>}
     </button>
   );

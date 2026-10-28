@@ -749,6 +749,33 @@ export async function setAttendance(
   await batch.commit();
 }
 
+/**
+ * המנהלת משביתה משמרת שהסלון נסגר באמצעה או לפניה, או מחזירה אותה.
+ *
+ * בהכרעת בעל המוצר, 28/10/2026: *"כן אבל צריך לאפשר למנהלת להחליט אם המשמרת
+ * מתבטלת או לא"*. ⚠️⚠️ **ולכן שום משמרת אינה יורדת מהלוח מעצמה**, ואין כאן פעולה
+ * שנוגעת ביותר ממשמרת אחת.
+ *
+ * ⚠️ ואין שדה חדש ואין אוסף חדש: הסימון הוא `attendance: 'cancelled'`, שכבר
+ * קיים בטיפוס ומותר בחוק למנהלת בלבד. DOCS/PLANING/59
+ *
+ * ✅ **והזכאות נשמרת מעצמה:** `eligibilityFor` סופרת `assigneeMemberId`
+ * ואינה מסתכלת ב-`attendance` בכלל, והמשובץ נשאר על המשמרת. בהכרעת בעל
+ * המוצר, בלשונו: *"אם המנהלת ביטלה בגלל אירוע הזכאות נשמרת"*.
+ * ⚠️ ובדיקה נועלת את זה, `test/utils/eligibility.test.ts`.
+ *
+ * ⚠️ והחזרה היא אותה פעולה עם `assumed`, ברירת המחדל שמשמרת נולדת איתה.
+ * כלומר הסימון הפיך, ושתי ההכרעות נכתבות כשתי שורות ביומן ואינן נמחקות.
+ */
+export async function setShiftCancelled(
+  branchId: string,
+  shift: Shift,
+  cancelled: boolean,
+  actorMemberId: string,
+): Promise<void> {
+  await setAttendance(branchId, shift, cancelled ? 'cancelled' : 'assumed', actorMemberId);
+}
+
 // ---------- ימי פעילות ----------
 
 export function watchActivityDaysForMonth(

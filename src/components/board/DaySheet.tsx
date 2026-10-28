@@ -23,6 +23,7 @@ import { DayStatus } from './DayStatus';
 import { DayEvents, eventsWorthShowing } from './DayEvents';
 import { DayEditor } from './DayEditor';
 import { dayAccessOf, isWeekend } from '../../utils/hebrew';
+import { shiftClashWith } from '../../utils/closing';
 
 interface Props {
   branchId: string;
@@ -39,6 +40,11 @@ interface Props {
   onRelease: (shift: Shift) => void;
   onRequestHandover: (shift: Shift) => void;
   onCancelHandover: (shift: Shift) => void;
+  /**
+   * ⚠️⚠️ המנהלת משביתה משמרת שהסגירה בולעת או חותכת, או מחזירה אותה.
+   * ושום משמרת אינה יורדת מהלוח מעצמה. DOCS/PLANING/59
+   */
+  onSetCancelled: (shift: Shift, cancelled: boolean) => void;
 }
 
 export function DaySheet({
@@ -56,6 +62,7 @@ export function DaySheet({
   onRelease,
   onRequestHandover,
   onCancelHandover,
+  onSetCancelled,
 }: Props) {
   /** המשמרת שהמנהלת עומדת לשחרר. ⚠️ null פירושו שאין חלון אישור פתוח. */
   const [releasing, setReleasing] = useState<Shift | null>(null);
@@ -103,6 +110,7 @@ export function DaySheet({
                   wide
                   shift={shift}
                   state={shiftViewState(shift, memberId, past)}
+                  isMine={Boolean(memberId) && shift.assigneeMemberId === memberId}
                   canAct={canAct}
                   busy={busyId === shift.id}
                   onClaim={() => onClaim(shift)}
@@ -110,6 +118,22 @@ export function DaySheet({
                   onRequestHandover={() => onRequestHandover(shift)}
                   onCancelHandover={() => onCancelHandover(shift)}
                 />
+
+                {/*
+                  ⚠️⚠️ וזה המקום שבו שעת הסגירה פוגשת את המשמרת.
+                  בתא בלוח יש 60 פיקסלים, וכאן יש מקום למשפט, לשם האירוע, לשם
+                  המשובץ ולהכרעה. DOCS/PLANING/59
+                */}
+                {!past && (
+                  <ClosingNote
+                    shift={shift}
+                    closesAt={access.closesAt}
+                    closesFor={access.closesFor}
+                    isManager={isManager}
+                    busy={busyId === shift.id}
+                    onSetCancelled={onSetCancelled}
+                  />
+                )}
 
                 {/*
                   ⚠️⚠️ הלינק להעתקה, וליד הבקשה עצמה.
@@ -168,5 +192,90 @@ export function DaySheet({
         )}
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * שעת הסגירה מול משמרת אחת, והכרעת המנהלת.
+ *
+ * ⚠️⚠️ ושום משמרת אינה יורדת מהלוח מעצמה. בהכרעת בעל המוצר, 28/10/2026: *"כן אבל
+ * צריך לאפשר למנהלת להחליט אם המשמרת מתבטלת או לא"*. הרכיב הזה מסמן, ואומר
+ * מה ידוע, והכפתור הוא שלה.
+ *
+ * ⚠️ ושני מצבי התנגשות ולא אחד, והמשפט אינו זהה בהם: הסגירה חותכת את המשמרת
+ * באמצע, או שהיא כולה לפניה. DOCS/PLANING/59
+ *
+ * ⚠️⚠️ ואינו אדום. אדום הוא מחיקה ודריסה, והסימון הפיך ואינו מוחק דבר.
+ * DOCS/PLANING/58
+ */
+function ClosingNote({
+  shift,
+  closesAt,
+  closesFor,
+  isManager,
+  busy,
+  onSetCancelled,
+}: {
+  shift: Shift;
+  closesAt?: string;
+  closesFor?: string;
+  isManager: boolean;
+  busy: boolean;
+  onSetCancelled: (shift: Shift, cancelled: boolean) => void;
+}) {
+  /*
+    ⚠️ נגזר ואינו שדה, ומחזיר מחרוזת או undefined ולא אובייקט חדש.
+    CLAUDE.md, זרימת נתונים.
+  */
+  const clash = shiftClashWith(shift, closesAt);
+  const off = shift.attendance === 'cancelled';
+
+  // ⚠️ משמרת שנגמרת עד שעת הסגירה אינה מסומנת בכלום.
+  if (!clash && !off) return null;
+
+  const sentence =
+    clash === 'swallowed'
+      ? t.shift.clashSwallowed(closesAt!, shift.startTime, closesFor)
+      : clash === 'cut'
+        ? t.shift.clashCut(closesAt!, shift.endTime, closesFor)
+        : null;
+
+  return (
+    <div className="flex flex-col gap-1.5 rounded-lg bg-surface-sunken px-2.5 py-2 ring-1 ring-inset ring-line">
+      {sentence && <p className="text-xs leading-snug text-ink">{sentence}</p>}
+
+      {/*
+        ⚠️ ומה שנאמר למי שמשובץ עליה יושב בכרטיס המשמרת עצמו, ליד כפתור
+        השחרור, ולא כאן: בטלפון הכפתור יושב באקורדיון ולא בגיליון היום.
+        DOCS/PLANING/59
+      */}
+
+      {isManager && (
+        <>
+          {/*
+            ⚠️⚠️ ושם המשובץ והעדכון שלו, ונאמר ולא נרמז.
+            בגרסה הראשונה אין מייל, ולכן המוצר אינו מודיע לו והמנהלת מודיעה.
+            DOCS/PLANING/28
+          */}
+          {shift.assigneeName && (
+            <p className="text-xs font-medium leading-snug text-ink">
+              {t.shift.offNotice(displayName(shift.assigneeName))}
+            </p>
+          )}
+
+          {!off && <p className="text-xs leading-snug text-ink-soft">{t.shift.offDecide}</p>}
+
+          <Button
+            tone="secondary"
+            size="sm"
+            className="self-start"
+            disabled={busy}
+            onClick={() => onSetCancelled(shift, !off)}
+          >
+            {off ? t.shift.turnOn : t.shift.turnOff}
+          </Button>
+        </>
+      )}
+    </div>
   );
 }

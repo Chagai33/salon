@@ -64,15 +64,37 @@ export function DayStatus({
       חבר שרואה "הסלון סוגר ב-18:30" ואינו יודע למה חושב שזו טעות. ⚠️ ושעה
       שהמנהלת כתבה ביד אינה נושאת שם, כי אין לה אירוע. DOCS/PLANING/38
     */
-    return (
-      <StatusPill tone="closed">
-        {short
-          ? t.day.closesEarlyShort
-          : access.closesFor
-            ? t.day.closesEarlyFor(access.closesAt, access.closesFor)
-            : t.day.closesEarly(access.closesAt)}
-      </StatusPill>
-    );
+    const full = access.closesFor
+      ? t.day.closesEarlyFor(access.closesAt, access.closesFor)
+      : t.day.closesEarly(access.closesAt);
+
+    /*
+      ⚠️⚠️ ובתא הלוח התגית נושאת את השעה ומוותרת על המילה, בהכרעת בעל המוצר
+      28/10/2026 בלשונו *"3א"*.
+
+      בלשונו, על מה שהיה: *"כתוב נסגר ולא ברור אם זה כל היום או משעה
+      מסויימת"*. **"נסגר" ו"סגור" נקראו כאותו דבר**, ושתי המילים נבדלו
+      באות אחת. ⚠️ **ומילה אינה יכולה לומר "מ-18:30", כי זו שעה.**
+
+      ⚠️ ולכן בתא: **מילה פירושה כל היום, ושעה פירושה מאותה שעה.**
+      "סגור" ו"לחברים" נשארו מילים, והסגירה המוקדמת היא המספר.
+
+      ⚠️⚠️ ו-`dir="ltr"` על המספר, כי מספר בתוך עברית בלעדיו מתהפך.
+      CLAUDE.md, עיצוב. ⚠️ והמשפט המלא נשאר ב-`sr-only`, בריחוף, ובגיליון
+      היום. DOCS/PLANING/59
+    */
+    if (short) {
+      return (
+        <StatusPill tone="closed" title={full}>
+          <span className="num" dir="ltr">
+            {access.closesAt}
+          </span>
+          <span className="sr-only">{full}</span>
+        </StatusPill>
+      );
+    }
+
+    return <StatusPill tone="closed">{full}</StatusPill>;
   }
   return null;
 }

@@ -46,6 +46,7 @@ import {
   releaseShift,
   requestHandover,
   setAccessCode,
+  setShiftCancelled,
 } from '../services/salonService';
 import type { Shift } from '../types';
 import { toReadableError } from '../utils/errors';
@@ -167,6 +168,12 @@ export function BoardPage({ branchId }: { branchId: string }) {
     guarded(() => requestHandover(branchId, shift, member!.id));
   const onCancelHandover = (shift: Shift) =>
     guarded(() => cancelHandoverRequest(branchId, shift, member!.id));
+  /*
+    ⚠️⚠️ וסימון שמשמרת אינה מתקיימת הוא הכרעה של המנהלת ולא פעולה של חבר, והחוק הוא מה שאוכף את
+    זה. המסך אינו מציג אותה לחבר, והמסד דוחה אותו. DOCS/PLANING/59
+  */
+  const onSetCancelled = (shift: Shift, cancelled: boolean) =>
+    guarded(() => setShiftCancelled(branchId, shift, cancelled, member!.id));
 
   if (!branch) {
     return <p className="p-6 text-ink-soft">{t.errors.noBranch}</p>;
@@ -325,6 +332,9 @@ export function BoardPage({ branchId }: { branchId: string }) {
           onRelease={(shift) => void run(shift, onRelease)}
           onRequestHandover={(shift) => void run(shift, onRequestHandover)}
           onCancelHandover={(shift) => void run(shift, onCancelHandover)}
+          onSetCancelled={(shift, cancelled) =>
+            void run(shift, (it) => onSetCancelled(it, cancelled))
+          }
         />
       )}
 

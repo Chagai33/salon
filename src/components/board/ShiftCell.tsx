@@ -17,11 +17,24 @@ import { displayName } from '../../utils/names';
 import { StatusPill } from '../common/StatusPill';
 import type { PillTone } from '../common/StatusPill';
 
-export type ShiftViewState = 'open' | 'mine' | 'taken' | 'handoverRequested' | 'mineHandover' | 'past';
+export type ShiftViewState =
+  | 'open'
+  | 'mine'
+  | 'taken'
+  | 'handoverRequested'
+  | 'mineHandover'
+  | 'off'
+  | 'past';
 
 export function shiftViewState(shift: Shift, memberId: string | null, past: boolean): ShiftViewState {
   const isMine = Boolean(memberId) && shift.assigneeMemberId === memberId;
   if (past) return 'past';
+  /*
+    ⚠️⚠️ ומשמרת שלא מתקיימת היא מצב בפני עצמו, ולא גוון של "משובצת".
+    היא לא תתקיים, ולכן מי משובץ עליה הוא הדבר השני בחשיבותו ולא הראשון.
+    ⚠️ ואחרי "עברה": משמרת שעברה אומרת את עצמה בתאריך. DOCS/PLANING/59
+  */
+  if (shift.attendance === 'cancelled') return 'off';
   if (shift.handoverState === 'requested') return isMine ? 'mineHandover' : 'handoverRequested';
   if (isMine) return 'mine';
   if (shift.assigneeMemberId) return 'taken';
@@ -36,6 +49,7 @@ const LABEL: Record<ShiftViewState, string> = {
   // ⚠️ כשזו המשמרת שלי המצב נאמר במילים שלי, ולא באותן מילים
   // שבהן הוא נאמר למי שרואה משמרת של אחר. DOCS/PLANING/26
   mineHandover: t.shift.handoverMine,
+  off: t.shift.off,
   past: t.shift.past,
 };
 
@@ -45,6 +59,9 @@ const TONE: Record<ShiftViewState, PillTone> = {
   taken: 'taken',
   handoverRequested: 'handover',
   mineHandover: 'handover',
+  // ⚠️ הגוון של סגירה, כי הסגירה היא מה שגרם לכך. ואינו אדום: אדום הוא
+  // מחיקה, והסימון הפיך ואינו מוחק דבר. DOCS/PLANING/03
+  off: 'closed',
   past: 'taken',
 };
 
@@ -54,6 +71,7 @@ const SURFACE: Record<ShiftViewState, string> = {
   taken: 'bg-shift-taken border-shift-taken-line',
   handoverRequested: 'bg-shift-handover border-shift-handover-line',
   mineHandover: 'bg-shift-handover border-shift-handover-line',
+  off: 'bg-closed border-line',
   past: 'bg-surface-sunken border-line',
 };
 
@@ -62,6 +80,14 @@ interface Props {
   state: ShiftViewState;
   canAct: boolean;
   busy: boolean;
+  /**
+   * ⚠️ האם המשמרת של מי שרואה אותה.
+   *
+   * ⚠️⚠️ ונדרש בנפרד מ-`state`, כי `off` גובר על `mine`: משמרת שלא מתקיימת
+   * היא קודם כול משמרת שלא מתקיימת, ובכל זאת מי שמשובץ עליה רשאי לשחרר
+   * אותה ומגיע לו לדעת מה זה עושה לזכאות שלו. DOCS/PLANING/59
+   */
+  isMine?: boolean;
   /** ⚠️ בטלפון כרטיס אחד בשורה, והפעולה יושבת בצד ולא מתחת. */
   wide?: boolean;
   onClaim: () => void;
@@ -75,13 +101,23 @@ export function ShiftCell({
   state,
   canAct,
   busy,
+  isMine = false,
   wide = false,
   onClaim,
   onRelease,
   onRequestHandover,
   onCancelHandover,
 }: Props) {
-  const interactive = canAct && state !== 'past';
+  /*
+    ⚠️⚠️ ובמשמרת שלא מתקיימת אין תפיסה ואין בקשת מחליף: החוק דוחה את שתיהן.
+
+    ⚠️ ובכל זאת יש בה שחרור למי שמשובץ עליה, בהכרעת בעל המוצר 28/10 בלשונו
+    *"2א"*: שחרור מאבד זכאות בכל המוצר, וזה אינו חריג כאן. ⚠️⚠️ **ומה שנדרש
+    הוא שהחבר יידע לפני שהוא לוחץ**, ולכן המשפט יושב ליד הכפתור ולא רק
+    בגיליון היום. DOCS/PLANING/59, DOCS/PLANING/10
+  */
+  const interactive = canAct && state !== 'past' && state !== 'off';
+  const releasableOff = canAct && state === 'off' && isMine;
 
   const action = (() => {
     if (!interactive) return null;
@@ -165,6 +201,23 @@ export function ShiftCell({
         <span className="min-w-0 flex-1 truncate text-sm leading-tight">{name}</span>
 
         {pill}
+
+        {/*
+          ⚠️⚠️ והמשפט לפני הכפתור, ולא אחריו. מה שנאמר אחרי הלחיצה אינו
+          "יודע מראש". DOCS/PLANING/59
+        */}
+        {releasableOff && (
+          <p className="w-full text-xs leading-snug text-ink-soft sm:w-auto sm:flex-1">
+            {t.shift.offMine} {t.shift.offMineRelease}
+          </p>
+        )}
+
+        {releasableOff && (
+          /* ⚠️ שקט ולא בולט: זו אינה הפעולה שהמסך הזה קיים בשבילה. */
+          <Button tone="quiet" onClick={onRelease} disabled={busy} className="self-start">
+            {t.shift.release}
+          </Button>
+        )}
 
         {(action || (interactive && state === 'mine')) && (
           /* ⚠️ נצמד לקצה ואינו נמתח. קיר של כפתורים אינו היררכיה. */

@@ -15,6 +15,8 @@ const ITEMS: { tone: PillTone; label: string }[] = [
   { tone: 'mine', label: t.shift.mine },
   { tone: 'taken', label: t.shift.taken },
   { tone: 'handover', label: t.shift.handoverRequested },
+  // ⚠️ ומשמרת שלא מתקיימת היא מצב בלוח, ולכן היא במקרא. DOCS/PLANING/59
+  { tone: 'closed', label: t.shift.off },
 ];
 
 export function Legend() {

@@ -361,6 +361,7 @@ export function WeekAccordion({
                                 wide
                                 shift={shift}
                                 state={shiftViewState(shift, memberId, past)}
+                                isMine={Boolean(memberId) && shift.assigneeMemberId === memberId}
                                 canAct={canAct}
                                 busy={busyId === shift.id}
                                 onClaim={() => void run(shift, onClaim)}
