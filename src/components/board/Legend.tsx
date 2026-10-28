@@ -15,8 +15,15 @@ const ITEMS: { tone: PillTone; label: string }[] = [
   { tone: 'mine', label: t.shift.mine },
   { tone: 'taken', label: t.shift.taken },
   { tone: 'handover', label: t.shift.handoverRequested },
-  // ⚠️ ומשמרת שלא מתקיימת היא מצב בלוח, ולכן היא במקרא. DOCS/PLANING/59
-  { tone: 'closed', label: t.shift.off },
+  /*
+    ⚠️⚠️ ומשמרת שלא מתקיימת נושאת כאן את שתי הצורות, ולא את המונח לבדו.
+
+    **בתא כתוב "אין", ובמקרא היה כתוב "לא מתקיימת"**, ⚠️ **והקשר בין השתיים
+    היה הגוון ולא מילה.** בלשון בעל המוצר, 28/10/2026: *"מה אומר האין?
+    אין מה?"*. ⚠️⚠️ **וההרחבה שהייתה, `title` בריחוף, אינה קיימת בטלפון.**
+    DOCS/PLANING/59
+  */
+  { tone: 'closed', label: t.shift.offLegend },
 ];
 
 export function Legend() {
