@@ -35,14 +35,38 @@ interface Props {
   /** כמה שורות מותר לצייר. ⚠️ בלוח החודש אחת, והיתר נספרות. */
   limit?: number;
   size?: 'sm' | 'xs';
+  /**
+   * ⚠️⚠️ השם בלבד, בשורה אחת, בלי רצועת השעות. לתא בלוח החודש.
+   *
+   * **נמדד שרצועת השעות היא 44 פיקסלים בתא שרוחבו 96**, כלומר כמעט חצי
+   * מהתא, ⚠️ **ושם האירוע נדחק למה שנשאר ונשבר לשתי שורות.**
+   *
+   * ⚠️ **והשעות לא נמחקו:** הן בגיליון היום, שנפתח בלחיצה על היום.
+   * DOCS/PLANING/58
+   */
+  compact?: boolean;
 }
 
-export function DayEvents({ events, limit, size = 'xs' }: Props) {
+export function DayEvents({ events, limit, size = 'xs', compact = false }: Props) {
   if (events.length === 0) return null;
 
   const shown = limit ? events.slice(0, limit) : events;
   const hidden = events.length - shown.length;
   const text = size === 'sm' ? 'text-sm' : 'text-xs';
+
+  /* ⚠️ השם בלבד, שורה אחת, ובלי שבירה. בתא הלוח אין מקום ליותר. */
+  if (compact) {
+    return (
+      <ul className={`flex flex-col ${text} leading-tight`}>
+        {shown.map((event, index) => (
+          <li key={index} className="truncate text-activity">
+            {event.title}
+          </li>
+        ))}
+        {hidden > 0 && <li className="num text-ink-faint">+{hidden}</li>}
+      </ul>
+    );
+  }
 
   return (
     <ul className={`flex flex-col gap-0.5 ${text} leading-tight`}>

@@ -193,7 +193,15 @@ export function MonthBoard({
                     }`}
                   >
                     {/* שורה 1: היום. ⚠️ שורה אחת, וחיתוך. */}
-                    <div className="flex h-5 shrink-0 items-center gap-1.5">
+                    {/*
+                      ⚠️⚠️ `min-h-5` ו-`overflow-hidden`, ולא `h-5` לבד.
+
+                      **נמדד בדפדפן: שורה בגובה קבוע של 20 פיקסלים שאינה
+                      חותכת, ובתוכה תגית שנשברה ל-108 פיקסלים.** 44 מהם
+                      נצבעו מעל ההערה, מעל האירוע ומעל המשמרות. ⚠️ **וזו
+                      הייתה החפיפה.** DOCS/PLANING/58
+                    */}
+                    <div className="flex min-h-5 shrink-0 items-center gap-1.5 overflow-hidden">
                       {/*
                         ⚠️ היום נושא עיגול מלא ולא תגית לצידו. הגרסה הקודמת
                         סימנה אותו בטבעת דקה ובתגית קטנה, ובעל המוצר דיווח
@@ -212,7 +220,8 @@ export function MonthBoard({
                       </span>
 
                       <DayName name={access.name} />
-                      <DayStatus access={access} weekend={weekend} />
+                      {/* ⚠️ הצורה הקצרה. המשפט המלא בגיליון היום. */}
+                      <DayStatus access={access} weekend={weekend} short />
 
                     </div>
 
@@ -246,14 +255,21 @@ export function MonthBoard({
 
                     {/* שורה 3: פעילות. ⚠️ שורה אחת, והיתר נספרות. */}
                     {events.length > 0 && (
-                      <div className="shrink-0">
-                        <DayEvents events={events} limit={1} />
+                      /*
+                        ⚠️⚠️ והוא זה שמתכווץ, ולא המשמרות.
+                        **עד 28/10 המשמרות היו הילד היחיד שאינו `shrink-0`**,
+                        ולכן הן נדחסו מ-55 פיקסלים ל-32 **והמשמרת השנייה
+                        נחתכה בכל רוחב.** ⚠️ **סדר העדיפות הפוך:** משמרת היא
+                        ליבת המוצר, ואירוע הוא הקשר. DOCS/PLANING/58
+                      */
+                      <div className="min-h-0 shrink overflow-hidden">
+                        <DayEvents events={events} limit={1} compact />
                       </div>
                     )}
 
                     {/* שורה 4: המשמרות. ⚠️ וזה הדבר היחיד בתא שנושא צבע. */}
                     {!noShifts && (
-                      <div className="flex min-h-0 flex-col gap-1">
+                      <div className="flex shrink-0 flex-col gap-1">
                         {/* ⚠️ לפי השעון ולא לפי סדר התבניות. DOCS/PLANING/26 */}
                         {visibleShifts.map((shift) => (
                             <ShiftChip

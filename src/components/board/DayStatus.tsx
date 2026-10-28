@@ -20,12 +20,29 @@ import { StatusPill } from '../common/StatusPill';
 import { t } from '../../i18n/dictionary';
 import type { DayAccess } from '../../utils/hebrew';
 
-export function DayStatus({ access, weekend = false }: { access: DayAccess; weekend?: boolean }) {
+export function DayStatus({
+  access,
+  weekend = false,
+  short = false,
+}: {
+  access: DayAccess;
+  weekend?: boolean;
+  /**
+   * ⚠️⚠️ צורה קצרה לתא בלוח החודש, מ-28/10/2026.
+   *
+   * **נמדד שתא הלוח הוא 96 פיקסלים ברוחב 768**, והמשפט המלא, "הסלון סוגר
+   * ב-18:30, לקראת NLP הרצאה", נשבר שם לשמונה שורות וצבע מעל כל מה שמתחת.
+   *
+   * ⚠️ **והמשפט המלא לא נמחק:** הוא נשאר בגיליון היום, שם יש לו מקום.
+   * DOCS/PLANING/58
+   */
+  short?: boolean;
+}) {
   // ⚠️ הקבוע אינו נושא תגית. רק מה שאדם הכריע ליום הזה.
   if (access.from !== 'manager') return null;
 
   if (access.memberAccess === 'closed') {
-    return <StatusPill tone="closed">{t.day.closed}</StatusPill>;
+    return <StatusPill tone="closed">{short ? t.day.shutShort : t.day.closed}</StatusPill>;
   }
   if (access.publicAccess === 'closed') {
     /*
@@ -35,7 +52,11 @@ export function DayStatus({ access, weekend = false }: { access: DayAccess; week
       כשהייבוא כתב אותו במפורש ליום. DOCS/PLANING/26
     */
     if (weekend) return null;
-    return <StatusPill tone="membersOnly">{t.day.membersOnly}</StatusPill>;
+    return (
+      <StatusPill tone="membersOnly">
+        {short ? t.day.membersOnlyShort : t.day.membersOnly}
+      </StatusPill>
+    );
   }
   if (access.publicAccess === 'closesEarly' && access.closesAt) {
     /*
@@ -45,9 +66,11 @@ export function DayStatus({ access, weekend = false }: { access: DayAccess; week
     */
     return (
       <StatusPill tone="closed">
-        {access.closesFor
-          ? t.day.closesEarlyFor(access.closesAt, access.closesFor)
-          : t.day.closesEarly(access.closesAt)}
+        {short
+          ? t.day.closesEarlyShort
+          : access.closesFor
+            ? t.day.closesEarlyFor(access.closesAt, access.closesFor)
+            : t.day.closesEarly(access.closesAt)}
       </StatusPill>
     );
   }
