@@ -146,3 +146,25 @@ cd functions && npm install
 
 ⚠️ **והשורה ב-`CLAUDE.md` חסרה את `npm install`.** קובץ יסוד, **והתיקון
 ממתין לבעל המוצר.**
+
+---
+
+## נמדד 28/10/2026: `JAVA_HOME` לבדו אינו מספיק
+
+⚠️⚠️ **והפקודה שכתובה ב-`CLAUDE.md` נכשלה בהרצה שלי**, נמדד:
+`JAVA_HOME="C:/Program Files/Java/jdk-11"` **לא נכבד**, והאמולטור עלה
+ב-JDK אחר ונפל.
+
+**מה שהוכיח שזה JDK אחר ולא 11:** עקבת השגיאה ב-`firestore-debug.log` עברה
+ב-`sun.nio.ch.UnixDomainSockets`, ⚠️ **ומחלקה זו אינה קיימת ב-JDK 11.** היא
+נוספה ב-16.
+
+✅ **ומה שעבד, באותה מכונה ובאותו רגע: JDK 11 ראשון ב-`PATH`.**
+
+```bash
+export PATH="/c/Program Files/Java/jdk-11/bin:$PATH"
+npx -y firebase-tools@14 emulators:exec --only firestore --project demo-salon   "node --test --test-concurrency=1 test/rules/*.test.mjs"
+```
+
+**121 בדיקות, כולן עברו.** ⚠️ **ולא נמדד למה `JAVA_HOME` אינו נכבד**: נתיב
+עם לוכסנים קדימה, או `java` אחר שקודם לו ב-`PATH`.
